@@ -99,9 +99,17 @@ export default async function LoginPage({
           )}
         </div>
         <p style={{ textAlign: "center", fontSize: "0.75rem", color: "var(--muted)", marginTop: "1rem", lineHeight: 1.6, padding: "0 0.25rem" }}>
-          Herramienta independiente: no es una app oficial del IMSS ni del Gobierno de México.{" "}
+          Herramienta pedagógica independiente: no es una app oficial del SNTSS ni del IMSS.{" "}
+          <a href="/privacidad" style={{ color: "var(--primary)", textDecoration: "underline" }}>
+            Aviso de Privacidad
+          </a>
+          {" · "}
+          <a href="/terminos" style={{ color: "var(--primary)", textDecoration: "underline" }}>
+            Términos de Uso
+          </a>
+          {" · "}
           <a href="/informacion-y-fuentes" style={{ color: "var(--primary)", textDecoration: "underline" }}>
-            Información y fuentes
+            Fuentes y Deslinde
           </a>
         </p>
       </div>

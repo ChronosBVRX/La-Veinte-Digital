@@ -1,5 +1,6 @@
 import Link from "next/link"
 import type { CSSProperties } from "react"
+import { Scale, Lock } from "lucide-react"
 import { PublicPageShell } from "@/shared/components/public/PublicPageShell"
 import { OWNER_NAME, CONTACT_EMAIL, CONTACT_MAILTO, CONTACT_PHONE_DISPLAY, CONTACT_PHONE_HREF } from "@/shared/lib/contact"
 
@@ -10,14 +11,31 @@ export const metadata = {
 
 export default function PrivacyPage() {
   return (
-    <PublicPageShell title="Política de Privacidad" intro="Última actualización: 2026-10-12">
+    <PublicPageShell title="Política de Privacidad" intro="Última actualización: 2026-10-16">
       <section>
-        <h2 style={h2}>1. Quiénes somos y Responsable del Tratamiento</h2>
+        <h2 style={h2}>1. Quiénes somos, Deslinde Legal y Responsable del Tratamiento</h2>
         <p>
-          La Veinte Digital es una plataforma digital independiente de la comunidad SNTSS.{" "}
-          <strong>No es una aplicación oficial del IMSS ni de ninguna institución de gobierno.</strong>{" "}
-          Solo proporciona herramientas informativas y de acceso a portales públicos y oficiales.
+          La Veinte Digital es una herramienta tecnológica independiente de consulta normativa, cálculo de prestaciones y apoyo pedagógico para la comunidad de personas trabajadoras del Seguro Social.
         </p>
+        <div style={{
+          background: "var(--accent)",
+          border: "1px solid var(--border)",
+          borderLeft: "4px solid var(--primary)",
+          borderRadius: "var(--radius-sm)",
+          padding: "0.875rem 1rem",
+          margin: "1rem 0",
+          fontSize: "0.875rem",
+          lineHeight: 1.5,
+        }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem" }}>
+            <Scale size={16} style={{ color: "var(--primary)", flexShrink: 0 }} />
+            <strong>DESLINDE DE RESPONSABILIDAD SINDICAL E INSTITUCIONAL:</strong>
+          </span>
+          <br />
+          La Veinte Digital <strong>NO es una aplicación oficial, filial, representante ni portavoz del Sindicato Nacional de Trabajadores del Seguro Social (SNTSS)</strong>, ni de su Comité Ejecutivo Nacional, ni de la Sección XX, ni de ninguna otra sección sindical. Tampoco es una aplicación oficial ni depende del <strong>Instituto Mexicano del Seguro Social (IMSS)</strong> ni de ninguna dependencia de gobierno.
+          <br /><br />
+          No existe subordinación laboral, representación sindical estatutaria de hecho o de derecho, ni vinculación orgánica o política con las dirigencias sindicales ni con las autoridades patronales. Su propósito es estrictamente formativo, de divulgación del Contrato Colectivo de Trabajo (documento público depositado ante el CFCRL) y de apoyo técnico personal para el trabajador conforme a los artículos 6º y 7º de la Constitución Política de los Estados Unidos Mexicanos y el artículo 358 de la Ley Federal del Trabajo.
+        </div>
         <p>
           En cumplimiento con la <strong>Ley Federal de Protección de Datos Personales en Posesión de los Particulares (LFPDPPP)</strong> y su Reglamento, el responsable del tratamiento de tus datos personales es <strong>{OWNER_NAME}</strong>, con domicilio para oír y recibir notificaciones en materia de privacidad en Morelia, Michoacán, México, y correo electrónico de contacto{" "}
           <a href={CONTACT_MAILTO} style={link}>{CONTACT_EMAIL}</a>.
@@ -25,23 +43,67 @@ export default function PrivacyPage() {
       </section>
 
       <section>
-        <h2 style={h2}>2. Qué información usamos y minimización de datos</h2>
-        <p>Aplicamos el principio de minimización y usamos únicamente los datos estrictamente necesarios para que la plataforma funcione:</p>
+        <h2 style={h2}>2. Qué información usamos y finalidad EXACTA de cada dato</h2>
+        <p>
+          Aplicamos el principio de licitud y minimización de datos. A continuación te explicamos con absoluta transparencia para qué se utiliza cada dato específico:
+        </p>
         <ul style={list}>
-          <li><strong>Cuenta:</strong> correo electrónico y contraseña cifrada para iniciar sesión (gestionados por Supabase Auth).</li>
-          <li><strong>Perfil laboral:</strong> nombre, matrícula/adscripción, categoría, antigüedad y jornada que tú ingresas o confirmas.</li>
-          <li><strong>Tarjetones y nómina (extracción 100% local):</strong> los PDFs de tu tarjetón IMSS y recibos de pago se leen y procesan exclusivamente en tu propio dispositivo; el archivo PDF original jamás se sube a nuestros servidores. Antes de guardar tu contexto laboral, el sistema descarta automáticamente <strong>RFC, CURP, NSS, cuenta bancaria/CLABE, código QR, sello digital y cadena original</strong>, almacenando únicamente conceptos laborales necesarios para tus calculadoras y una huella criptográfica (hash SHA-256) del folio fiscal.</li>
-          <li><strong>Documentos personales:</strong> los archivos que escaneas o guardas se almacenan de forma local en tu dispositivo; solo viajan de forma temporal y cifrada cuando tú utilizas expresamente el flujo de transferencia o impresión por código QR.</li>
-          <li><strong>Cámara:</strong> se usa únicamente en tu dispositivo para escanear documentos o leer códigos QR bajo tu acción directa.</li>
-          <li><strong>Notificaciones:</strong> un identificador técnico de tu dispositivo (token de Firebase Cloud Messaging) para enviarte avisos y recordatorios de tu agenda laboral.</li>
-          <li><strong>Asistente y escritos con IA:</strong> las preguntas y notas que escribes para generar orientación normativa o borradores de escritos se procesan junto con datos básicos no sensibles de tu perfil laboral (categoría, jornada, antigüedad y adscripción; nunca RFC, CURP, NSS ni cuentas bancarias) para personalizar la respuesta. Las respuestas son orientativas y debes verificarlas con las fuentes oficiales (ver <Link href="/informacion-y-fuentes" style={link}>Información y fuentes</Link>).</li>
-          <li><strong>Reportes de contenido generado:</strong> si reportas una respuesta, guardamos en tu dispositivo la categoría, el identificador de la respuesta, la fecha y una vista previa redactada automáticamente (sin NSS, CURP, correos ni teléfonos).</li>
-          <li><strong>Credenciales IMSS:</strong> cuando decides usar los portales externos desde la app, las credenciales que escribes se guardan <em>cifradas</em> únicamente en tu dispositivo (Android Keystore) y nunca se envían a los servidores de La Veinte Digital.</li>
+          <li>
+            <strong>Nombre completo:</strong> Se utiliza exclusivamente para la titularidad de tu cuenta de acceso y para suscribir y personalizar los borradores de escritos formales, solicitudes y oficios de gestión que tú decidas generar para tus trámites.
+          </li>
+          <li>
+            <strong>Matrícula IMSS:</strong> Se utiliza exclusivamente para membretar y autocompletar tus escritos, solicitudes y peticiones laborales generadas en la app, evitando que tengas que capturarla manualmente cada vez. No se utiliza para rastreo ni se comparte con directivas sindicales ni jefaturas patronales.
+          </li>
+          <li>
+            <strong>Adscripción:</strong> Se utiliza exclusivamente para indicar tu centro de trabajo (unidad médica, hospital o área administrativa) en los encabezados de tus solicitudes.
+          </li>
+          <li>
+            <strong>Antigüedad y fecha de ingreso:</strong> Se utiliza exclusivamente para alimentar los algoritmos matemáticos que calculan tus derechos y prestaciones contractuales (días de vacaciones según la escala del CCT IMSS-SNTSS, prima vacacional, aguinaldo, fondo de ahorro y proyecciones de jubilación).
+          </li>
+          <li>
+            <strong>Categoría sindical y jornada de trabajo:</strong> Se utiliza exclusivamente para ubicar tu salario base en el Tabulador del Contrato Colectivo de Trabajo y ejecutar los cálculos de nómina, tiempo extraordinario, conceptos variables y prestaciones.
+          </li>
+          <li>
+            <strong>Tarjetón IMSS (Extracción 100% local en tu dispositivo):</strong> Los archivos PDF de tu tarjetón de pago se procesan en la memoria local de tu navegador. <strong>El archivo PDF original jamás se sube ni se almacena en nuestros servidores.</strong> El sistema descarta automáticamente <strong>RFC, CURP, NSS, cuentas bancarias/CLABE, códigos QR y sellos digitales</strong>, almacenando únicamente los importes de conceptos para tus calculadoras y una huella criptográfica (hash SHA-256) del folio fiscal para evitar duplicados.
+          </li>
+          <li>
+            <strong>Cuenta de correo y contraseña:</strong> Se utiliza para autenticar tu acceso seguro a la plataforma vía Supabase Auth. Tu contraseña está cifrada criptográficamente y nadie puede leerla.
+          </li>
+          <li>
+            <strong>Documentos personales escaneados:</strong> Los archivos que escaneas se guardan en el almacenamiento local de tu propio dispositivo. Solo se transfieren temporalmente de forma cifrada si tú decides usar la función de impresión QR en estación local.
+          </li>
         </ul>
       </section>
 
       <section>
-        <h2 style={h2}>3. Datos que NO recopilamos ni almacenamos en servidor</h2>
+        <h2 style={h2}>3. Garantía inquebrantable de privacidad y aislamiento (Nadie más puede ver tus datos)</h2>
+        <div style={{
+          background: "#f0fdf4",
+          border: "1px solid #bbf7d0",
+          borderRadius: "var(--radius-sm)",
+          padding: "0.875rem 1rem",
+          margin: "0 0 1rem",
+          fontSize: "0.875rem",
+          color: "#166534",
+          lineHeight: 1.5,
+        }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem" }}>
+            <Lock size={15} style={{ color: "#166534", flexShrink: 0 }} />
+            <strong>AISLAMIENTO TOTAL:</strong>
+          </span>
+          {" "}Tu información está protegida con políticas de seguridad por fila (Row Level Security - RLS) en la base de datos. <strong>Nadie más puede ver tus datos más que tú mismo con tu usuario y contraseña.</strong>
+          <br /><br />
+          Ni delegados sindicales, ni directivos de la Sección XX, ni integrantes del Comité Ejecutivo Nacional del SNTSS, ni jefes de personal o directivos del IMSS, ni otros usuarios tienen acceso a ver tu perfil, tus tarjetones, tus cálculos o tus escritos.
+        </div>
+        <ul style={list}>
+          <li><strong>Cero venta o cesión:</strong> Tus datos jamás se venden, no se comparten con terceros, no se rentan ni se transfieren a partidos políticos, planillas electorales, anunciantes ni empresas comerciales.</li>
+          <li><strong>Uso restringido:</strong> Se usan única y exclusivamente para los fines personales descritos de cálculo laboral y redacción de escritos.</li>
+          <li><strong>Control absoluto:</strong> Puedes editar tus datos cuando lo desees o eliminar tu cuenta y todos tus registros de forma instantánea e irreversible en cualquier momento.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2 style={h2}>4. Datos que NO recopilamos ni almacenamos en servidor</h2>
         <ul style={list}>
           <li>No almacenamos en nuestros servidores tus archivos PDF originales del tarjetón de pago, ni tu RFC, CURP, NSS o números de cuenta bancaria extraídos de él.</li>
           <li>No usamos SDKs de publicidad ni rastreadores de analítica comercial de terceros.</li>
@@ -51,7 +113,7 @@ export default function PrivacyPage() {
       </section>
 
       <section>
-        <h2 style={h2}>4. Encargados que procesan datos en nuestro nombre</h2>
+        <h2 style={h2}>5. Encargados que procesan datos en nuestro nombre</h2>
         <p>
           No realizamos transferencias de tus datos personales a terceros para fines distintos a los del servicio. Para operar técnicamente la plataforma nos apoyamos en los siguientes encargados bajo obligaciones de confidencialidad y seguridad (artículos 36 y 37 de la LFPDPPP):
         </p>
@@ -65,7 +127,7 @@ export default function PrivacyPage() {
       </section>
 
       <section>
-        <h2 style={h2}>5. Finalidades del tratamiento y retención</h2>
+        <h2 style={h2}>6. Finalidades del tratamiento y retención</h2>
         <p>
           <strong>Finalidades primarias (necesarias para el servicio):</strong> autenticar tu sesión, calcular estimaciones laborales y vacacionales, brindarte orientación normativa con fuentes verificadas, redactar borradores de escritos a tu solicitud y gestionar los trámites y herramientas administrativas que utilices dentro de la plataforma.
         </p>
@@ -75,14 +137,14 @@ export default function PrivacyPage() {
       </section>
 
       <section>
-        <h2 style={h2}>6. Medidas de seguridad</h2>
+        <h2 style={h2}>7. Medidas de seguridad</h2>
         <p>
           Protegemos tu información con medidas técnicas, administrativas y físicas: cifrado en tránsito (TLS/HTTPS con HSTS), políticas de aislamiento por fila (RLS) en base de datos, sanitización automática de identificadores sensibles en el navegador antes de transmitir datos, almacenamiento cifrado de credenciales en tu dispositivo (Android Keystore) y bloqueo biométrico opcional. La aplicación móvil impide el respaldo automático en la nube de terceros de tus documentos locales y credenciales. En caso de presentarse una vulneración de seguridad que afecte de forma significativa tus derechos patrimoniales o morales, te lo notificaremos de inmediato conforme al artículo 20 de la LFPDPPP.
         </p>
       </section>
 
       <section>
-        <h2 style={h2}>7. Derechos ARCO, revocación y eliminación de cuenta</h2>
+        <h2 style={h2}>8. Derechos ARCO, revocación y eliminación de cuenta</h2>
         <p>
           Tienes derecho en todo momento a <strong>Acceder, Rectificar, Cancelar u Oponerte (Derechos ARCO)</strong> al tratamiento de tus datos personales, así como a revocar tu consentimiento:
         </p>
@@ -93,7 +155,7 @@ export default function PrivacyPage() {
       </section>
 
       <section>
-        <h2 style={h2}>8. Cambios al aviso y contacto</h2>
+        <h2 style={h2}>9. Cambios al aviso y contacto</h2>
         <p>
           Cualquier modificación sustancial a esta Política de Privacidad se publicará en esta misma página indicando la fecha de última actualización. Para dudas sobre privacidad, protección de datos o ejercicio de derechos ARCO, contáctanos:
         </p>

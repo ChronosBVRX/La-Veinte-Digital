@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { CheckCircle2 } from "lucide-react"
+import { CheckCircle2, ShieldCheck, BadgeCheck, Clock, Briefcase, FileText, Lock } from "lucide-react"
 import { PageContainer } from "@/shared/components/layout/PageContainer"
 import { TarjetonUploaderSection } from "@/features/profile/components/worker/TarjetonUploaderSection"
 import { TarjetonHistorySection, type PreviousImport } from "@/features/tarjeton/components/TarjetonHistorySection"
@@ -74,8 +74,11 @@ export function UnifiedProfileView({
             gap: "0.75rem",
           }}
         >
-          <span>
-            <strong>✅ ¡Tu cuenta está lista!</strong> Importa tu tarjetón IMSS abajo para llenar automáticamente tu perfil laboral.
+          <span style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem" }}>
+            <CheckCircle2 size={16} style={{ color: "#166534", flexShrink: 0 }} />
+            <span>
+              <strong>¡Tu cuenta está lista!</strong> Importa tu tarjetón IMSS abajo para llenar automáticamente tu perfil laboral.
+            </span>
           </span>
           <Link
             href={returnTo ?? "/"}
@@ -229,6 +232,84 @@ export function UnifiedProfileView({
               </div>
             </div>
           )}
+        </div>
+      </div>
+
+      {/* 🔒 Garantía de Privacidad y Finalidades Laborales */}
+      <div
+        style={{
+          background: "var(--accent)",
+          border: "1px solid var(--border)",
+          borderRadius: "var(--radius)",
+          padding: "1rem 1.25rem",
+          display: "flex",
+          flexDirection: "column",
+          gap: "0.625rem",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <ShieldCheck size={18} style={{ color: "var(--primary)", flexShrink: 0 }} />
+          <span style={{ fontSize: "0.875rem", fontWeight: 700, color: "var(--fg)" }}>
+            Privacidad total y uso exclusivo de tu información laboral
+          </span>
+        </div>
+        <p style={{ margin: 0, fontSize: "0.8125rem", color: "var(--muted)", lineHeight: 1.45 }}>
+          Esta plataforma es una <strong>herramienta pedagógica y de cálculo independiente</strong> (no es oficial del SNTSS ni del IMSS). Tus datos laborales se utilizan <strong>únicamente</strong> para:
+        </p>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            gap: "0.5rem",
+            fontSize: "0.75rem",
+            color: "var(--fg)",
+            lineHeight: 1.4,
+          }}
+        >
+          <div style={{ background: "var(--card)", padding: "0.5rem 0.75rem", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", display: "flex", alignItems: "flex-start", gap: "0.4rem" }}>
+            <BadgeCheck size={14} style={{ color: "var(--primary)", flexShrink: 0, marginTop: 2 }} />
+            <span><strong>Matrícula y Nombre:</strong> Para membretar y firmar automáticamente los escritos y solicitudes que tú decidas generar.</span>
+          </div>
+          <div style={{ background: "var(--card)", padding: "0.5rem 0.75rem", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", display: "flex", alignItems: "flex-start", gap: "0.4rem" }}>
+            <Clock size={14} style={{ color: "var(--primary)", flexShrink: 0, marginTop: 2 }} />
+            <span><strong>Antigüedad y Jornada:</strong> Para calcular tus días de vacaciones, prima vacacional, aguinaldo y fondo de ahorro según el CCT.</span>
+          </div>
+          <div style={{ background: "var(--card)", padding: "0.5rem 0.75rem", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", display: "flex", alignItems: "flex-start", gap: "0.4rem" }}>
+            <Briefcase size={14} style={{ color: "var(--primary)", flexShrink: 0, marginTop: 2 }} />
+            <span><strong>Categoría:</strong> Para consultar el Tabulador contractual y proyectar con precisión tus percepciones base.</span>
+          </div>
+          <div style={{ background: "var(--card)", padding: "0.5rem 0.75rem", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", display: "flex", alignItems: "flex-start", gap: "0.4rem" }}>
+            <FileText size={14} style={{ color: "var(--primary)", flexShrink: 0, marginTop: 2 }} />
+            <span><strong>Tarjetón (100% local):</strong> Se lee en tu dispositivo; nunca se sube el PDF ni se guardan RFC, CURP, NSS o cuentas bancarias.</span>
+          </div>
+        </div>
+        <div
+          style={{
+            background: "#f0fdf4",
+            border: "1px solid #bbf7d0",
+            borderRadius: "var(--radius-sm)",
+            padding: "0.5rem 0.75rem",
+            fontSize: "0.75rem",
+            color: "#166534",
+            lineHeight: 1.45,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: "0.5rem",
+          }}
+        >
+          <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
+            <Lock size={13} style={{ color: "#166534", flexShrink: 0 }} />
+            <span><strong>Nadie más puede ver tus datos:</strong> Tu información está aislada con seguridad RLS. Ningún delegado, directivo del SNTSS ni jefe del IMSS tiene acceso a tu cuenta.</span>
+          </span>
+          <Link
+            href="/privacidad"
+            target="_blank"
+            style={{ fontWeight: 600, color: "#166534", textDecoration: "underline", whiteSpace: "nowrap" }}
+          >
+            Aviso de Privacidad →
+          </Link>
         </div>
       </div>
 

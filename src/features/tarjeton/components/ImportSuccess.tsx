@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
+import { CheckCircle2 } from "lucide-react"
 import type { ConfirmTarjetonResponse, ParsedImssTarjeton } from "@/shared/contracts/tarjeton-import"
 import { Card } from "@/shared/components/ui/Card"
 import { Button } from "@/shared/components/ui/Button"
@@ -55,7 +56,21 @@ export function ImportSuccess({ parsed, response, onStartOver }: ImportSuccessPr
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1rem", maxWidth: 560, margin: "0 auto" }}>
       <Card padding="1.5rem" style={{ textAlign: "center", display: "flex", flexDirection: "column", gap: "0.75rem", borderColor: "var(--success)" }}>
-        <div style={{ fontSize: "2.5rem", lineHeight: 1 }}>✅</div>
+        <div
+          style={{
+            width: 56,
+            height: 56,
+            borderRadius: "50%",
+            background: "var(--state-success-bg, #ecfdf5)",
+            color: "var(--state-success-fg, #059669)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            margin: "0 auto",
+          }}
+        >
+          <CheckCircle2 size={32} />
+        </div>
         <div style={{ fontWeight: 800, fontSize: "1.125rem" }}>Tarjetón confirmado</div>
         <div style={{ color: "var(--muted)", fontSize: "0.875rem" }}>
           El recibo de <strong>{periodLabel}</strong> quedó registrado en tu historial

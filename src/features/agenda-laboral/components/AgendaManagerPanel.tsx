@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
-import { Plus, Clock, MapPin, User, Trash, CalendarBlank, WarningCircle } from "@phosphor-icons/react"
+import { Plus, Clock, MapPin, User, Trash, CalendarBlank, WarningCircle, ClipboardText } from "@phosphor-icons/react"
 import { Card } from "@/shared/components/ui/Card"
 import { Button } from "@/shared/components/ui/Button"
 import { Alert } from "@/shared/components/ui/Alert"
@@ -280,7 +280,10 @@ export function AgendaManagerPanel({ userId, initialCommitments, targetCommitmen
                   marginRight: "0.75rem",
                 }}
               >
-                <span>⏱️ <strong>Tiempo Extra:</strong> {overtimeSummaries[0].totalHours} hrs en {overtimeSummaries[0].fortnightNumber}ª Qna (~${overtimeSummaries[0].totalEstimatedEarnings.toLocaleString("es-MX", { minimumFractionDigits: 2 })})</span>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem" }}>
+                  <Clock size={13} style={{ flexShrink: 0, color: "var(--primary)" }} />
+                  <span><strong>Tiempo Extra:</strong> {overtimeSummaries[0].totalHours} hrs en {overtimeSummaries[0].fortnightNumber}ª Qna (~${overtimeSummaries[0].totalEstimatedEarnings.toLocaleString("es-MX", { minimumFractionDigits: 2 })})</span>
+                </span>
               </button>
             )}
             {claimsSummary.pendingCount > 0 && (
@@ -300,7 +303,10 @@ export function AgendaManagerPanel({ userId, initialCommitments, targetCommitmen
                   gap: "0.25rem",
                 }}
               >
-                <span>📋 <strong>Reclamaciones:</strong> {claimsSummary.pendingCount} en seguimiento{claimsSummary.totalClaimedAmount > 0 ? ` (~$${claimsSummary.totalClaimedAmount.toLocaleString("es-MX", { minimumFractionDigits: 2 })})` : ""}</span>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem" }}>
+                  <ClipboardText size={13} style={{ flexShrink: 0, color: "var(--primary)" }} />
+                  <span><strong>Reclamaciones:</strong> {claimsSummary.pendingCount} en seguimiento{claimsSummary.totalClaimedAmount > 0 ? ` (~$${claimsSummary.totalClaimedAmount.toLocaleString("es-MX", { minimumFractionDigits: 2 })})` : ""}</span>
+                </span>
               </button>
             )}
           </div>
@@ -319,8 +325,9 @@ export function AgendaManagerPanel({ userId, initialCommitments, targetCommitmen
             gap: "0.35rem",
           }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem" }}>
-              <span style={{ fontWeight: 700, fontSize: "0.875rem", color: "var(--fg)" }}>
-                📋 Resumen de Reclamaciones y Adeudos
+              <span style={{ fontWeight: 700, fontSize: "0.875rem", color: "var(--fg)", display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
+                <ClipboardText size={15} style={{ color: "var(--primary)" }} />
+                Resumen de Reclamaciones y Adeudos
               </span>
               <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
                 <span style={{
@@ -379,8 +386,9 @@ export function AgendaManagerPanel({ userId, initialCommitments, targetCommitmen
                   gap: "0.5rem",
                 }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem" }}>
-                    <div style={{ fontWeight: 700, fontSize: "0.875rem", color: "var(--fg)" }}>
-                      ⏱️ {summary.fortnightLabel}
+                    <div style={{ fontWeight: 700, fontSize: "0.875rem", color: "var(--fg)", display: "flex", alignItems: "center", gap: "0.35rem" }}>
+                      <Clock size={15} style={{ color: "var(--primary)" }} />
+                      {summary.fortnightLabel}
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
                       <span style={{

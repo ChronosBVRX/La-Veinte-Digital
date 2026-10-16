@@ -14,6 +14,10 @@ import {
   CaretRight,
   WarningCircle,
   CalendarCheck,
+  Target,
+  Sparkle,
+  Lightbulb,
+  Hourglass,
 } from "@phosphor-icons/react"
 import { Card } from "@/shared/components/ui/Card"
 import { Button } from "@/shared/components/ui/Button"
@@ -574,7 +578,10 @@ export function CajaBalanceCard({ balance, loan, loading, onRefresh }: CajaBalan
                   cursor: "pointer",
                 }}
               >
-                🎯 Primera quincena que calificas ({diag.quincenaEstimadaTexto})
+                <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}>
+                  <Target size={13} weight="bold" />
+                  Primera quincena que calificas ({diag.quincenaEstimadaTexto})
+                </span>
               </button>
             )}
             {diag.proyecciones
@@ -636,7 +643,14 @@ export function CajaBalanceCard({ balance, loan, loading, onRefresh }: CajaBalan
                   border: `1px solid ${proySeleccionada.esElegible ? "rgba(22, 163, 74, 0.3)" : "rgba(37, 99, 235, 0.3)"}`,
                 }}
               >
-                {proySeleccionada.esElegible ? `✓ Calificas (Ahorro al ${proySeleccionada.porcentajeEstimado}%)` : `⏳ En proceso (Ahorro al ${proySeleccionada.porcentajeEstimado}%)`}
+                {proySeleccionada.esElegible ? (
+                  `✓ Calificas (Ahorro al ${proySeleccionada.porcentajeEstimado}%)`
+                ) : (
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem" }}>
+                    <Hourglass size={12} weight="bold" />
+                    En proceso (Ahorro al {proySeleccionada.porcentajeEstimado}%)
+                  </span>
+                )}
               </span>
             </div>
 
@@ -683,14 +697,17 @@ export function CajaBalanceCard({ balance, loan, loading, onRefresh }: CajaBalan
             <div style={{ fontSize: "0.75rem", color: "var(--muted)", lineHeight: 1.5 }}>
               {selectedOffset === 0 ? (
                 <span>
-                  💡 <strong>En palabras sencillas:</strong> Si tramitas tu renovación hoy, la Caja utiliza tu nuevo préstamo para liquidar tu crédito anterior ({formatMoney(diag.adeudoHoy)}) y te entrega directamente la diferencia de <strong>{formatMoney(diag.liquidoHoy)}</strong> en tu cuenta bancaria.
+                  <Lightbulb size={14} weight="fill" color="var(--primary)" style={{ display: "inline-block", verticalAlign: "middle", marginRight: "0.25rem" }} />
+                  <strong>En palabras sencillas:</strong> Si tramitas tu renovación hoy, la Caja utiliza tu nuevo préstamo para liquidar tu crédito anterior ({formatMoney(diag.adeudoHoy)}) y te entrega directamente la diferencia de <strong>{formatMoney(diag.liquidoHoy)}</strong> en tu cuenta bancaria.
                 </span>
               ) : (
                 <span>
-                  💡 <strong>En palabras sencillas:</strong> Si esperas a esta quincena ({proySeleccionada.quincenaTexto}), habrás dado <strong>{selectedOffset} abonos de nómina</strong>, con lo que tu ahorro crecerá a <strong>{formatMoney(proySeleccionada.ahorroEstimado)}</strong> y tu deuda bajará a <strong>{formatMoney(proySeleccionada.adeudoEstimado)}</strong>. Por eso te quedarán <strong>{formatMoney(gananciaVsHoy)} más</strong> de dinero libre que si renuevas hoy.
+                  <Lightbulb size={14} weight="fill" color="var(--primary)" style={{ display: "inline-block", verticalAlign: "middle", marginRight: "0.25rem" }} />
+                  <strong>En palabras sencillas:</strong> Si esperas a esta quincena ({proySeleccionada.quincenaTexto}), habrás dado <strong>{selectedOffset} abonos de nómina</strong>, con lo que tu ahorro crecerá a <strong>{formatMoney(proySeleccionada.ahorroEstimado)}</strong> y tu deuda bajará a <strong>{formatMoney(proySeleccionada.adeudoEstimado)}</strong>. Por eso te quedarán <strong>{formatMoney(gananciaVsHoy)} más</strong> de dinero libre que si renuevas hoy.
                   {proySeleccionada.esExtraordinaria && (
                     <span style={{ display: "block", marginTop: "0.35rem", color: "var(--success, #16a34a)", fontWeight: 600 }}>
-                      ★ ¡Beneficio especial! En esta quincena se aplica tu {proySeleccionada.motivoExtraordinario}, el cual abona directamente a capital, bajando notablemente tu deuda y aumentando tu dinero libre a cobrar.
+                      <Sparkle size={13} weight="fill" color="var(--success, #16a34a)" style={{ display: "inline-block", verticalAlign: "middle", marginRight: "0.25rem" }} />
+                      ¡Beneficio especial! En esta quincena se aplica tu {proySeleccionada.motivoExtraordinario}, el cual abona directamente a capital, bajando notablemente tu deuda y aumentando tu dinero libre a cobrar.
                     </span>
                   )}
                 </span>
@@ -780,7 +797,8 @@ export function CajaBalanceCard({ balance, loan, loading, onRefresh }: CajaBalan
                           border: "1px solid rgba(22, 163, 74, 0.3)",
                         }}
                       >
-                        ★ {p.motivoExtraordinario}
+                        <Sparkle size={11} weight="fill" style={{ marginRight: "0.25rem" }} />
+                        {p.motivoExtraordinario}
                       </span>
                     )}
                     {isSelected && (

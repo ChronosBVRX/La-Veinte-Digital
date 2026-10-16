@@ -4,6 +4,19 @@ import { useState, useMemo, type CSSProperties } from "react"
 import Link from "next/link"
 import { Card } from "@/shared/components/ui/Card"
 import { Button } from "@/shared/components/ui/Button"
+import {
+  SlidersHorizontal,
+  Building2,
+  Calendar,
+  ClipboardList,
+  CheckCircle2,
+  AlertCircle,
+  Info,
+  Sparkles,
+  Palmtree,
+  Moon,
+  Star,
+} from "lucide-react"
 import { useLiveWorkerContext } from "@/shared/hooks/useLiveWorkerContext"
 import { createClient } from "@/lib/supabase/client"
 import { insertCommitment } from "@/features/agenda-laboral/services/commitments-supabase"
@@ -292,7 +305,10 @@ export function VacationReturnCalculator({ initialContext }: Props) {
       {/* Tarjeta de Entrada de Datos */}
       <Card padding="1.25rem" style={{ marginBottom: "1.5rem" }}>
         <div style={SECTION_TITLE}>
-          ⚙️ 1. Datos para tu programación
+          <span style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem" }}>
+            <SlidersHorizontal size={17} style={{ color: "var(--primary)" }} />
+            1. Datos para tu programación
+          </span>
         </div>
 
         <div style={FORM_GRID}>
@@ -479,8 +495,8 @@ export function VacationReturnCalculator({ initialContext }: Props) {
             boxShadow: "0 4px 14px rgba(0,0,0,0.04)",
           }}
         >
-          <div style={{ fontSize: "0.8rem", fontWeight: 700, color: "#15803d", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.35rem" }}>
-            🏢 Fecha Oficial de Reanudación de Labores
+          <div style={{ fontSize: "0.8rem", fontWeight: 700, color: "#15803d", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.35rem", display: "flex", alignItems: "center", gap: "0.35rem" }}>
+            <Building2 size={16} /> Fecha Oficial de Reanudación de Labores
           </div>
           <div style={{ fontSize: "clamp(1.5rem, 5vw, 2.2rem)", fontWeight: 800, color: "#166534", margin: "0.25rem 0 0.5rem" }}>
             {result.returnDayName} {result.formattedReturnDate}
@@ -522,16 +538,18 @@ export function VacationReturnCalculator({ initialContext }: Props) {
 
           {/* Días a cuenta descontados si aplican */}
           {result.daysOnAccount > 0 && (
-            <div style={{ marginTop: "0.75rem", background: "rgba(245, 158, 11, 0.1)", border: "1px solid rgba(245, 158, 11, 0.3)", borderRadius: "var(--radius-sm)", padding: "0.5rem 0.75rem", fontSize: "0.8rem", color: "#92400e" }}>
-              ℹ️ Se descontaron <strong>{result.daysOnAccount} días</strong> por concepto de permisos / días a cuenta de vacaciones previamente ejercidos.
+            <div style={{ marginTop: "0.75rem", background: "rgba(245, 158, 11, 0.1)", border: "1px solid rgba(245, 158, 11, 0.3)", borderRadius: "var(--radius-sm)", padding: "0.5rem 0.75rem", fontSize: "0.8rem", color: "#92400e", display: "flex", alignItems: "flex-start", gap: "0.35rem" }}>
+              <Info size={14} style={{ flexShrink: 0, marginTop: "0.15rem" }} />
+              <span>Se descontaron <strong>{result.daysOnAccount} días</strong> por concepto de permisos / días a cuenta de vacaciones previamente ejercidos.</span>
             </div>
           )}
 
           {/* Festivos oficiales detectados en el periodo */}
           {result.mandatoryHolidaysInPeriod.length > 0 && (
-            <div style={{ marginTop: "0.75rem", background: "rgba(37, 99, 235, 0.08)", border: "1px solid rgba(37, 99, 235, 0.25)", borderRadius: "var(--radius-sm)", padding: "0.5rem 0.75rem", fontSize: "0.8rem", color: "#1e40af" }}>
-              🎉 <strong>Descansos obligatorios que alargaron tus vacaciones:</strong>{" "}
-              {result.mandatoryHolidaysInPeriod.map((h) => `${h.title} (${h.date})`).join(", ")}.
+            <div style={{ marginTop: "0.75rem", background: "rgba(37, 99, 235, 0.08)", border: "1px solid rgba(37, 99, 235, 0.25)", borderRadius: "var(--radius-sm)", padding: "0.5rem 0.75rem", fontSize: "0.8rem", color: "#1e40af", display: "flex", alignItems: "flex-start", gap: "0.35rem" }}>
+              <Sparkles size={14} style={{ flexShrink: 0, marginTop: "0.15rem" }} />
+              <span><strong>Descansos obligatorios que alargaron tus vacaciones:</strong>{" "}
+              {result.mandatoryHolidaysInPeriod.map((h) => `${h.title} (${h.date})`).join(", ")}.</span>
             </div>
           )}
         </Card>
@@ -541,7 +559,10 @@ export function VacationReturnCalculator({ initialContext }: Props) {
       {result && result.timeline.length > 0 && (
         <Card padding="1.25rem" style={{ marginBottom: "1.5rem" }}>
           <div style={SECTION_TITLE}>
-            📅 2. Desglose día por día de tu periodo
+            <span style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem" }}>
+              <Calendar size={17} style={{ color: "var(--primary)" }} />
+              2. Desglose día por día de tu periodo
+            </span>
           </div>
           <p style={{ fontSize: "0.8rem", color: "var(--muted)", margin: "0 0 1rem" }}>
             Revisa cómo se clasifica cada día del calendario durante tu ausencia:
@@ -599,10 +620,26 @@ export function VacationReturnCalculator({ initialContext }: Props) {
                   </div>
                 </div>
                 <div style={{ fontSize: "0.7rem", marginTop: "0.25rem", fontWeight: 600 }}>
-                  {item.classification === "VACATION_DAY" && "🌴 Vacaciones"}
-                  {item.classification === "WEEKLY_REST" && "💤 Descanso"}
-                  {item.classification === "MANDATORY_REST" && `⭐ ${item.holidayTitle || "Festivo"}`}
-                  {item.classification === "RETURN_TO_WORK" && "🏢 ¡Regresas!"}
+                  {item.classification === "VACATION_DAY" && (
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem" }}>
+                      <Palmtree size={12} /> Vacaciones
+                    </span>
+                  )}
+                  {item.classification === "WEEKLY_REST" && (
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem" }}>
+                      <Moon size={12} /> Descanso
+                    </span>
+                  )}
+                  {item.classification === "MANDATORY_REST" && (
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem" }}>
+                      <Star size={11} fill="currentColor" /> {item.holidayTitle || "Festivo"}
+                    </span>
+                  )}
+                  {item.classification === "RETURN_TO_WORK" && (
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem" }}>
+                      <Building2 size={12} /> ¡Regresas!
+                    </span>
+                  )}
                 </div>
               </div>
             ))}
@@ -614,7 +651,10 @@ export function VacationReturnCalculator({ initialContext }: Props) {
       {result && (
         <Card padding="1.25rem" style={{ marginBottom: "1.5rem" }}>
           <div style={SECTION_TITLE}>
-            📋 3. Acciones con tu cálculo
+            <span style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem" }}>
+              <ClipboardList size={17} style={{ color: "var(--primary)" }} />
+              3. Acciones con tu cálculo
+            </span>
           </div>
 
           <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", marginBottom: "1rem" }}>
@@ -623,7 +663,15 @@ export function VacationReturnCalculator({ initialContext }: Props) {
               onClick={handleCopyText}
               disabled={copied}
             >
-              {copied ? "✓ ¡Copiado al portapapeles!" : "📋 Copiar datos para formato de solicitud"}
+              {copied ? (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
+                  <CheckCircle2 size={16} /> ¡Copiado al portapapeles!
+                </span>
+              ) : (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
+                  <ClipboardList size={16} /> Copiar datos para formato de solicitud
+                </span>
+              )}
             </Button>
 
             <Button
@@ -632,19 +680,29 @@ export function VacationReturnCalculator({ initialContext }: Props) {
               loading={savingAgenda}
               disabled={agendaSavedSuccess}
             >
-              {agendaSavedSuccess ? "✓ Guardado en tu Agenda Laboral" : "🗓️ Guardar en mi Agenda Laboral"}
+              {agendaSavedSuccess ? (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
+                  <CheckCircle2 size={16} /> Guardado en tu Agenda Laboral
+                </span>
+              ) : (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
+                  <Calendar size={16} /> Guardar en mi Agenda Laboral
+                </span>
+              )}
             </Button>
           </div>
 
           {agendaSavedSuccess && (
-            <div style={{ background: "#dcfce7", border: "1px solid #22c55e", color: "#166534", padding: "0.6rem 0.8rem", borderRadius: "var(--radius-sm)", fontSize: "0.85rem", marginBottom: "0.75rem" }}>
-              ✓ Se creó el recordatorio en tu Agenda Laboral para avisarte el día anterior al inicio y recordarte la fecha exacta de regreso.
+            <div style={{ background: "#dcfce7", border: "1px solid #22c55e", color: "#166534", padding: "0.6rem 0.8rem", borderRadius: "var(--radius-sm)", fontSize: "0.85rem", marginBottom: "0.75rem", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+              <CheckCircle2 size={16} style={{ flexShrink: 0 }} />
+              <span>Se creó el recordatorio en tu Agenda Laboral para avisarte el día anterior al inicio y recordarte la fecha exacta de regreso.</span>
             </div>
           )}
 
           {agendaError && (
-            <div style={{ background: "#fee2e2", border: "1px solid #ef4444", color: "#991b1b", padding: "0.6rem 0.8rem", borderRadius: "var(--radius-sm)", fontSize: "0.85rem", marginBottom: "0.75rem" }}>
-              ⚠️ {agendaError}
+            <div style={{ background: "#fee2e2", border: "1px solid #ef4444", color: "#991b1b", padding: "0.6rem 0.8rem", borderRadius: "var(--radius-sm)", fontSize: "0.85rem", marginBottom: "0.75rem", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+              <AlertCircle size={16} style={{ flexShrink: 0 }} />
+              <span>{agendaError}</span>
             </div>
           )}
 

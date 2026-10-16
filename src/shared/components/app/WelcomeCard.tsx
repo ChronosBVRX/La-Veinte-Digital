@@ -10,6 +10,7 @@ import {
   CalendarDots,
   Briefcase,
   CalendarCheck,
+  CheckCircle,
 } from "@phosphor-icons/react"
 import { createClient } from "@/lib/supabase/client"
 import { CALENDARIOS } from "@/shared/data/calendario"
@@ -194,7 +195,12 @@ export function WelcomeCard({ fullName, greeting, dateLabel, userId }: WelcomeCa
             lineHeight: 1.45,
           }}
         >
-          <strong>✅ ¡Inicio de sesión con {oauthSuccessProvider === "google" ? "Google" : "tu cuenta"} exitoso!</strong> Ya estás dentro de tu cuenta.
+          <span style={{ display: "inline-flex", alignItems: "center", gap: "0.375rem" }}>
+            <CheckCircle size={15} weight="fill" style={{ color: "#4ade80", flexShrink: 0 }} />
+            <span>
+              <strong>¡Inicio de sesión con {oauthSuccessProvider === "google" ? "Google" : "tu cuenta"} exitoso!</strong> Ya estás dentro de tu cuenta.
+            </span>
+          </span>
         </div>
       )}
       <div style={{ display: "flex", alignItems: "center", gap: "0.625rem", marginBottom: "0.25rem" }}>

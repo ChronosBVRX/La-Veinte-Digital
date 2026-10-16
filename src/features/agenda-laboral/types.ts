@@ -223,3 +223,14 @@ export interface WorkerCommitment {
   status: "active" | "completed" | "cancelled"
   createdAt: string
 }
+
+export type {
+  ShiftCategory,
+  ShiftPatternDefinition,
+  RawPunch,
+  ShiftBlockStatus,
+  MatchedShiftBlock,
+  AttendanceAuditSummary,
+  AuditAttendanceParams,
+} from "./lib/omisiones-detector"
+

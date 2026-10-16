@@ -95,6 +95,11 @@ export async function signUpAction(
   const origin = await getRequestOrigin()
   const captchaToken = getCaptchaToken(formData)
 
+  const termsAccepted = formData.get("terms_accepted")
+  if (formData.has("terms_accepted") && termsAccepted !== "on") {
+    return { error: "Debes aceptar el Aviso de Privacidad y Términos de Uso para continuar." }
+  }
+
   const { error } = await supabase.auth.signUp({
     email,
     password,
