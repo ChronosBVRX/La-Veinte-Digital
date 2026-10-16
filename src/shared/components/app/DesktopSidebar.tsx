@@ -214,6 +214,35 @@ export function DesktopSidebar({
           )}
         </div>
       )}
+
+      <div
+        style={{
+          marginTop: "1.5rem",
+          padding: "0.75rem 0.625rem 0.5rem",
+          borderTop: "1px solid var(--border)",
+          fontSize: "0.6875rem",
+          color: "var(--muted)",
+          lineHeight: 1.4,
+          display: "flex",
+          flexDirection: "column",
+          gap: "0.375rem",
+        }}
+      >
+        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+          <Link href="/privacidad" onClick={onClose} style={{ color: "var(--muted)", textDecoration: "underline" }}>
+            Privacidad
+          </Link>
+          <span>·</span>
+          <Link href="/terminos" onClick={onClose} style={{ color: "var(--muted)", textDecoration: "underline" }}>
+            Términos
+          </Link>
+          <span>·</span>
+          <Link href="/informacion-y-fuentes" onClick={onClose} style={{ color: "var(--muted)", textDecoration: "underline" }}>
+            Fuentes
+          </Link>
+        </div>
+        <span>Herramienta pedagógica independiente · No oficial del SNTSS ni del IMSS</span>
+      </div>
     </>
   )
 

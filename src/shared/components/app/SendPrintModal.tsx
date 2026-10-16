@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback } from "react"
 import { Html5Qrcode } from "html5-qrcode"
 import {
   ArrowLeft, X, FileText, CheckCircle, WarningCircle,
-  GearSix, ArrowsClockwise, QrCode, SpinnerGap,
+  GearSix, ArrowsClockwise, QrCode, SpinnerGap, Printer,
 } from "@phosphor-icons/react"
 import { FullscreenPortal } from "@/shared/components/ui/FullscreenPortal"
 import { Button } from "@/shared/components/ui/Button"
@@ -722,9 +722,10 @@ function SendPrintModalContent({ open, docName, getFile, onClose, onDirectPrint,
                 void handleModalClose()
                 onDirectPrint()
               }}
-              style={{ color: "#94a3b8", fontSize: "0.75rem" }}
+              style={{ color: "#94a3b8", fontSize: "0.75rem", display: "inline-flex", alignItems: "center", gap: "0.375rem" }}
             >
-              🖨 Imprimir directamente en esta computadora
+              <Printer size={15} />
+              <span>Imprimir directamente en esta computadora</span>
             </Button>
           </div>
         )}

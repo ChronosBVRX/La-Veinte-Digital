@@ -12,14 +12,18 @@ import {
   saveCajaCredentials,
   clearCajaCredentials,
 } from "../services/caja-credentials-storage"
+import { setCajaManualLogout } from "../hooks/useCaja"
+import { CajaLoginErrorModal } from "./CajaLoginErrorModal"
+import type { CajaLoginError } from "../services/caja-service"
 
 interface CajaLoginCardProps {
   onLogin: (matricula: string, password: string) => Promise<void>
   initialMatricula?: string
+  initialError?: string | null
   userId?: string
 }
 
-export function CajaLoginCard({ onLogin, initialMatricula = "", userId }: CajaLoginCardProps) {
+export function CajaLoginCard({ onLogin, initialMatricula = "", initialError, userId }: CajaLoginCardProps) {
   const { user } = useUser()
   const effectiveUserId = userId || user?.id
 
@@ -27,9 +31,13 @@ export function CajaLoginCard({ onLogin, initialMatricula = "", userId }: CajaLo
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [rememberCredentials, setRememberCredentials] = useState(false)
+  const [internalError, setInternalError] = useState<string | null>(null)
+  const [rememberCredentials, setRememberCredentials] = useState(true)
   const [hasSaved, setHasSaved] = useState(false)
+  const [modalError, setModalError] = useState<CajaLoginError | Error | null>(null)
+  const [showErrorModal, setShowErrorModal] = useState(false)
+
+  const displayError = internalError ?? initialError ?? null
 
   useEffect(() => {
     let active = true
@@ -60,6 +68,7 @@ export function CajaLoginCard({ onLogin, initialMatricula = "", userId }: CajaLo
     if (effectiveUserId) {
       clearCajaCredentials(effectiveUserId)
     }
+    setCajaManualLogout(true)
     setPassword("")
     setRememberCredentials(false)
     setHasSaved(false)
@@ -68,11 +77,12 @@ export function CajaLoginCard({ onLogin, initialMatricula = "", userId }: CajaLo
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!matricula.trim() || !password) {
-      setError("Por favor ingresa tu matrícula y contraseña de Caja.")
+      setInternalError("Por favor ingresa tu matrícula y contraseña de Caja.")
       return
     }
 
-    setError(null)
+    setInternalError(null)
+    setModalError(null)
     setLoading(true)
     try {
       await onLogin(matricula.trim(), password)
@@ -89,7 +99,10 @@ export function CajaLoginCard({ onLogin, initialMatricula = "", userId }: CajaLo
         }
       }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Error al conectar con Caja de Ahorro")
+      const loginErr = err instanceof Error ? err : new Error(String(err))
+      setInternalError(loginErr.message)
+      setModalError(loginErr as CajaLoginError | Error)
+      setShowErrorModal(true)
     } finally {
       setLoading(false)
     }
@@ -125,11 +138,11 @@ export function CajaLoginCard({ onLogin, initialMatricula = "", userId }: CajaLo
             Iniciar Sesión en Caja SNTSS
           </h2>
           <p style={{ fontSize: "0.8125rem", color: "var(--muted)", margin: 0, lineHeight: 1.4 }}>
-            Consulta tus saldos de ahorro, estado de préstamos, solicita retiros y agenda citas.
+            Consulta tus saldos de ahorro, estado de préstamos y estimaciones de renovación.
           </p>
         </div>
 
-        {error && (
+        {displayError && (
           <div
             style={{
               display: "flex",
@@ -145,7 +158,7 @@ export function CajaLoginCard({ onLogin, initialMatricula = "", userId }: CajaLo
             }}
           >
             <WarningCircle size={18} weight="fill" style={{ flexShrink: 0, marginTop: "0.1rem" }} />
-            <span>{error}</span>
+            <span>{displayError}</span>
           </div>
         )}
 
@@ -255,7 +268,7 @@ export function CajaLoginCard({ onLogin, initialMatricula = "", userId }: CajaLo
               }}
             />
             <label htmlFor="caja-remember" style={{ cursor: "pointer", userSelect: "none" }}>
-              Recordar mis credenciales en este dispositivo
+              Iniciar sesión automáticamente al entrar a Caja (recordar credenciales)
             </label>
           </div>
 
@@ -280,11 +293,28 @@ export function CajaLoginCard({ onLogin, initialMatricula = "", userId }: CajaLo
           <ShieldCheck size={20} weight="fill" color="var(--primary)" style={{ flexShrink: 0 }} />
           <span>
             {hasSaved
-              ? "Tus credenciales están guardadas de forma cifrada (AES-GCM) únicamente en este dispositivo. Puedes olvidarlas en cualquier momento."
-              : "Tus datos se transmiten con cifrado seguro al servidor de la Caja SNTSS. Puedes optar por guardarlas cifradas en este dispositivo para mayor comodidad."}
+              ? "Tus credenciales están guardadas de forma cifrada (AES-GCM) en este dispositivo. Iniciarás sesión automáticamente cada que entres a Caja."
+              : "Tus datos se transmiten con cifrado seguro a la Caja SNTSS. Al guardar tus credenciales cifradas (AES-GCM), iniciarás sesión automáticamente cada que entres."}
           </span>
         </div>
       </Card>
+
+      <CajaLoginErrorModal
+        isOpen={showErrorModal}
+        error={modalError}
+        matricula={matricula.trim()}
+        hasSavedCredentials={hasSaved}
+        onClose={() => setShowErrorModal(false)}
+        onRetry={() => {
+          setShowErrorModal(false)
+          const dummyEvent = { preventDefault: () => {} } as React.FormEvent
+          void handleSubmit(dummyEvent)
+        }}
+        onForgetSaved={() => {
+          handleForgetSaved()
+          setShowErrorModal(false)
+        }}
+      />
     </div>
   )
 }

@@ -11,7 +11,7 @@ export interface CajaSessionData {
 }
 
 const COOKIE_NAME = "caja_session"
-const DEFAULT_SESSION_MAX_AGE_SEC = 60 * 60 * 8 // 8 horas
+const DEFAULT_SESSION_MAX_AGE_SEC = 60 * 60 * 3 // 3 horas (acorde con sessionTime oficial)
 
 function getSecretKey(): Buffer {
   const secret =
@@ -71,11 +71,39 @@ function decryptSession(token: string): CajaSessionData | null {
 }
 
 /**
+ * Extrae la expiración en milisegundos de un JWT estándar si está presente
+ */
+export function extractJwtExpiry(jwt: string): number | null {
+  try {
+    const parts = jwt.split(".")
+    if (parts.length < 2) return null
+    const payloadJson = Buffer.from(parts[1], "base64url").toString("utf8")
+    const payload = JSON.parse(payloadJson) as { exp?: number }
+    if (typeof payload.exp === "number" && payload.exp > 0) {
+      return payload.exp * 1000
+    }
+  } catch {
+    // Si no es un JWT estándar o no tiene exp, omitir
+  }
+  return null
+}
+
+/**
  * Establece la cookie de sesión de Caja (HTTP-Only, Secure, SameSite: lax)
  */
 export async function setCajaSession(data: Omit<CajaSessionData, "expiresAt">, sessionTimeSeconds?: number): Promise<void> {
   const cookieStore = await cookies()
-  const maxAge = sessionTimeSeconds && sessionTimeSeconds > 0 ? sessionTimeSeconds : DEFAULT_SESSION_MAX_AGE_SEC
+  let maxAge = sessionTimeSeconds && sessionTimeSeconds > 0 ? sessionTimeSeconds : DEFAULT_SESSION_MAX_AGE_SEC
+
+  // Si el token JWT tiene una expiración explícita anterior, acotar el tiempo de vida
+  const jwtExpMs = extractJwtExpiry(data.authToken)
+  if (jwtExpMs && jwtExpMs > Date.now()) {
+    const jwtTtlSec = Math.floor((jwtExpMs - Date.now()) / 1000)
+    if (jwtTtlSec > 0 && jwtTtlSec < maxAge) {
+      maxAge = jwtTtlSec
+    }
+  }
+
   const expiresAt = Date.now() + maxAge * 1000
 
   const payload: CajaSessionData = {

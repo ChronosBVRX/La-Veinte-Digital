@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import Image from "next/image"
+import Link from "next/link"
 import { RegisterForm } from "./register-form"
 
 export default async function RegisterPage() {
@@ -58,6 +59,20 @@ export default async function RegisterPage() {
         }}>
           <RegisterForm />
         </div>
+        <p style={{ textAlign: "center", fontSize: "0.75rem", color: "var(--muted)", marginTop: "1rem", lineHeight: 1.6, padding: "0 0.25rem" }}>
+          Herramienta pedagógica independiente: no es una app oficial del SNTSS ni del IMSS.{" "}
+          <Link href="/privacidad" style={{ color: "var(--primary)", textDecoration: "underline" }}>
+            Aviso de Privacidad
+          </Link>
+          {" · "}
+          <Link href="/terminos" style={{ color: "var(--primary)", textDecoration: "underline" }}>
+            Términos de Uso
+          </Link>
+          {" · "}
+          <Link href="/informacion-y-fuentes" style={{ color: "var(--primary)", textDecoration: "underline" }}>
+            Fuentes y Deslinde
+          </Link>
+        </p>
       </div>
     </div>
   )

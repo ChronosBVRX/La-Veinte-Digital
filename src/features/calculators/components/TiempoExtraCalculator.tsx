@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useCallback } from "react"
 import { todayForQueryParam } from "@/shared/lib/dates"
-import { Calculator, RotateCcw, Sparkles, AlertTriangle } from "lucide-react"
+import { Calculator, RotateCcw, Sparkles, AlertTriangle, Lightbulb } from "lucide-react"
 import { Button } from "@/shared/components/ui/Button"
 import { Select } from "@/shared/components/ui/Input"
 import { FriendlyCalculatorIntro } from "./FriendlyCalculatorIntro"
@@ -818,8 +818,9 @@ export function TiempoExtraCalculator({ initialCategoria }: Props) {
                 </div>
               </div>
 
-              <p style={{ fontSize: "0.75rem", color: "var(--muted)", margin: 0, fontStyle: "italic" }}>
-                💡 Esto explica por qué compañeros con 20 años de servicio (150 días en el Concepto 022) cobran una tarifa por hora superior a los $100.00/h aunque compartan la misma categoría y turno.
+              <p style={{ fontSize: "0.75rem", color: "var(--muted)", margin: 0, fontStyle: "italic", display: "flex", alignItems: "flex-start", gap: "0.375rem" }}>
+                <Lightbulb size={14} style={{ flexShrink: 0, marginTop: "0.15rem", color: "var(--primary)" }} />
+                <span>Esto explica por qué compañeros con 20 años de servicio (150 días en el Concepto 022) cobran una tarifa por hora superior a los $100.00/h aunque compartan la misma categoría y turno.</span>
               </p>
             </div>
           )}

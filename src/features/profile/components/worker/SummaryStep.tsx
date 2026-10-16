@@ -1,4 +1,5 @@
 "use client"
+import { CheckCircle2 } from "lucide-react"
 import { Button } from "@/shared/components/ui/Button"
 import { useRouter } from "next/navigation"
 
@@ -6,7 +7,20 @@ export function SummaryStep({ returnTo, onComplete }: { returnTo?: string; onCom
   const router = useRouter()
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", alignItems: "center", textAlign: "center" }}>
-      <div style={{ fontSize: "2rem" }}>✅</div>
+      <div
+        style={{
+          width: 52,
+          height: 52,
+          borderRadius: "50%",
+          background: "var(--state-success-bg, #ecfdf5)",
+          color: "var(--state-success-fg, #059669)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <CheckCircle2 size={30} />
+      </div>
       <h2 style={{ fontSize: "1.125rem", fontWeight: 700, margin: 0 }}>¡Perfil configurado!</h2>
       <p style={{ color: "var(--muted)", fontSize: "0.9375rem", margin: 0 }}>
         Tus datos se guardaron. Las herramientas ya pueden usarlos para completar cálculos automáticamente.

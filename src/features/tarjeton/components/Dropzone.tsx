@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useRef, useState, type DragEvent } from "react"
+import { FileText } from "lucide-react"
 import { Button } from "@/shared/components/ui/Button"
 
 interface DropzoneProps {
@@ -61,7 +62,21 @@ export function Dropzone({ onFile, disabled }: DropzoneProps) {
         style={{ display: "none" }}
         onChange={(e) => handleFiles(e.target.files)}
       />
-      <div style={{ fontSize: "2rem", lineHeight: 1 }}>📄</div>
+      <div
+        style={{
+          width: 48,
+          height: 48,
+          borderRadius: "var(--radius-lg, 12px)",
+          background: "rgba(37, 99, 235, 0.08)",
+          color: "var(--primary)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          marginBottom: "0.25rem",
+        }}
+      >
+        <FileText size={26} />
+      </div>
       <div style={{ fontWeight: 700, color: "var(--fg)", fontSize: "0.9375rem" }}>
         Arrastra tu tarjetón aquí o haz clic para elegirlo
       </div>

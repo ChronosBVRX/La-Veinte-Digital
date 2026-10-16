@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react"
 import Link from "next/link"
-import { Mail, Lock, UserPlus, AlertCircle, User, CheckCircle, BadgeCheck, Building2 } from "lucide-react"
+import { Mail, Lock, UserPlus, AlertCircle, User, CheckCircle, BadgeCheck, Building2, ShieldCheck, ChevronDown, ChevronUp, Info } from "lucide-react"
 import { Input } from "@/shared/components/ui/Input"
 import { Button } from "@/shared/components/ui/Button"
 import { signUpAction } from "../actions"
@@ -14,6 +14,8 @@ export function RegisterForm() {
   const [state, formAction, pending] = useActionState(signUpAction, undefined)
   const [oauthProvider, setOauthProvider] = useState<"google" | "facebook" | null>(null)
   const [oauthError, setOauthError] = useState<string | null>(null)
+  const [termsAccepted, setTermsAccepted] = useState(false)
+  const [showPrivacyDetails, setShowPrivacyDetails] = useState(false)
 
   const handleOAuth = async (provider: "google" | "facebook") => {
     setOauthError(null)
@@ -158,6 +160,13 @@ export function RegisterForm() {
           </Button>
           )}
         </div>
+        <p style={{ margin: "0.25rem 0 0", fontSize: "0.75rem", color: "var(--muted)", textAlign: "center", lineHeight: 1.4 }}>
+          Al registrarte con Google o correo aceptas el{" "}
+          <Link href="/privacidad" target="_blank" style={{ color: "var(--primary)", textDecoration: "underline" }}>
+            Aviso de Privacidad
+          </Link>{" "}
+          para el uso exclusivo de tus cálculos y formatos personales.
+        </p>
         <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginTop: "0.25rem", minWidth: 0 }}>
           <span style={{ flex: 1, height: "1px", background: "var(--border)" }} />
           <span style={{ fontSize: "0.8rem", color: "var(--muted)", whiteSpace: "nowrap" }}>o regístrate con tu correo</span>
@@ -204,8 +213,14 @@ export function RegisterForm() {
         fontSize: "0.8125rem",
         color: "var(--muted)",
         lineHeight: 1.4,
+        display: "flex",
+        alignItems: "flex-start",
+        gap: "0.5rem",
       }}>
-        💡 <strong>Opcional en este paso</strong>: Puedes dejar matrícula y adscripción en blanco y subir tu tarjetón IMSS al entrar para rellenar tus datos laborales de forma automática.
+        <Info size={15} style={{ color: "var(--primary)", flexShrink: 0, marginTop: 2 }} />
+        <span>
+          <strong>Opcional en este paso</strong>: Puedes dejar matrícula y adscripción en blanco y subir tu tarjetón IMSS al entrar para rellenar tus datos laborales de forma automática.
+        </span>
       </div>
 
       <Input
@@ -229,7 +244,138 @@ export function RegisterForm() {
         icon={<Lock size={16} />}
       />
 
-      <Button type="submit" loading={pending} disabled={pending || oauthProvider !== null} style={{ width: "100%", justifyContent: "center" }}>
+      {/* 🛡️ Compromiso de Privacidad, Protección de Datos y Deslinde Legal */}
+      <div
+        style={{
+          background: "var(--accent)",
+          border: "1px solid var(--border)",
+          borderRadius: "var(--radius)",
+          padding: "0.875rem 1rem",
+          display: "flex",
+          flexDirection: "column",
+          gap: "0.625rem",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <ShieldCheck size={18} style={{ color: "var(--primary)", flexShrink: 0 }} />
+          <span style={{ fontSize: "0.8125rem", fontWeight: 700, color: "var(--fg)" }}>
+            Tus datos son privados y nadie más los puede ver
+          </span>
+        </div>
+
+        <p style={{ margin: 0, fontSize: "0.75rem", color: "var(--muted)", lineHeight: 1.45 }}>
+          Esta plataforma es una <strong>herramienta pedagógica y de cálculo independiente</strong> (no es oficial del SNTSS ni del IMSS). Tus datos se usan <strong>única y exclusivamente</strong> para los siguientes fines:
+        </p>
+
+        {/* Desglose de finalidades exactas */}
+        <div
+          style={{
+            background: "var(--card)",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius-sm)",
+            padding: "0.625rem 0.75rem",
+            fontSize: "0.75rem",
+            color: "var(--fg)",
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.375rem",
+            lineHeight: 1.4,
+          }}
+        >
+          <div><strong>• Tu nombre:</strong> para personalizar tu cuenta y suscribir los borradores de escritos que generes.</div>
+          <div><strong>• Tu matrícula IMSS:</strong> para membretar automáticamente tus solicitudes y oficios de gestión laboral.</div>
+          <div><strong>• Tu adscripción:</strong> para identificar tu unidad médica o centro de trabajo en tus solicitudes.</div>
+          {showPrivacyDetails && (
+            <>
+              <div><strong>• Tu antigüedad y fecha de ingreso:</strong> para el cálculo matemático exacto de tus prestaciones contractuales (días de vacaciones según escala CCT, prima vacacional, aguinaldo y fondo de ahorro).</div>
+              <div><strong>• Tu categoría y jornada:</strong> para consultar los tabuladores de sueldo base en las calculadoras laborales.</div>
+              <div><strong>• Tu tarjetón IMSS (100% local):</strong> se analiza en tu propio dispositivo; jamás se sube el PDF a servidores ni se almacenan RFC, CURP, NSS o cuentas bancarias.</div>
+              <div style={{
+                background: "#f0fdf4",
+                border: "1px solid #bbf7d0",
+                borderRadius: "var(--radius-sm)",
+                padding: "0.5rem",
+                color: "#166534",
+                marginTop: "0.25rem",
+                fontSize: "0.71875rem",
+                lineHeight: 1.4,
+              }}>
+                <Lock size={13} style={{ verticalAlign: "text-bottom", marginRight: 4, display: "inline" }} />
+                <strong>Aislamiento total por usuario (RLS):</strong> Ni representantes sindicales, ni directivos de la Sección XX, ni integrantes del Comité Ejecutivo Nacional del SNTSS, ni jefes de personal o directivos del IMSS, ni otros usuarios tienen acceso a tus datos. Solo tú puedes ver tu cuenta y tus cálculos.
+              </div>
+            </>
+          )}
+          <button
+            type="button"
+            onClick={() => setShowPrivacyDetails((v) => !v)}
+            style={{
+              background: "none",
+              border: "none",
+              color: "var(--primary)",
+              cursor: "pointer",
+              padding: "0.25rem 0 0",
+              fontSize: "0.71875rem",
+              fontWeight: 600,
+              textAlign: "left",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.25rem",
+            }}
+          >
+            {showPrivacyDetails ? (
+              <><ChevronUp size={12} /> Ocultar desglose detallado</>
+            ) : (
+              <><ChevronDown size={12} /> Ver cómo se usa cada dato y garantías de aislamiento</>
+            )}
+          </button>
+        </div>
+
+        {/* Checkbox obligatorio de aceptación */}
+        <div style={{ display: "flex", alignItems: "flex-start", gap: "0.5rem", marginTop: "0.25rem" }}>
+          <input
+            type="checkbox"
+            id="terms_accepted"
+            name="terms_accepted"
+            required
+            checked={termsAccepted}
+            onChange={(e) => setTermsAccepted(e.target.checked)}
+            style={{
+              marginTop: "0.15rem",
+              width: "1rem",
+              height: "1rem",
+              accentColor: "var(--primary)",
+              cursor: "pointer",
+              flexShrink: 0,
+            }}
+          />
+          <label
+            htmlFor="terms_accepted"
+            style={{
+              fontSize: "0.75rem",
+              color: "var(--fg)",
+              lineHeight: 1.4,
+              cursor: "pointer",
+            }}
+          >
+            He leído y acepto el{" "}
+            <Link href="/privacidad" target="_blank" style={{ color: "var(--primary)", textDecoration: "underline", fontWeight: 600 }}>
+              Aviso de Privacidad
+            </Link>
+            , los{" "}
+            <Link href="/terminos" target="_blank" style={{ color: "var(--primary)", textDecoration: "underline", fontWeight: 600 }}>
+              Términos de Uso
+            </Link>{" "}
+            y el Deslinde Legal. Autorizo el uso de mis datos <strong>exclusivamente</strong> para mis propios cálculos laborales y la elaboración de mis escritos personales.
+          </label>
+        </div>
+      </div>
+
+      <Button
+        type="submit"
+        loading={pending}
+        disabled={pending || oauthProvider !== null || !termsAccepted}
+        style={{ width: "100%", justifyContent: "center" }}
+      >
         {pending ? "Creando cuenta..." : <><UserPlus size={16} /> Crear cuenta</>}
       </Button>
 

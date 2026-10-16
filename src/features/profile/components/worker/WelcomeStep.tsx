@@ -1,5 +1,6 @@
 "use client"
 import { Button } from "@/shared/components/ui/Button"
+import { CheckCircle2, Sparkles } from "lucide-react"
 
 interface WelcomeStepProps {
   onStart: () => void
@@ -25,12 +26,32 @@ export function WelcomeStep({ onStart, onChoosePayslip, onSkipBasic, loading, is
             borderRadius: "var(--radius)",
             fontSize: "0.875rem",
             lineHeight: 1.45,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "0.375rem",
           }}
         >
-          <strong>✅ ¡Registro e inicio de sesión exitoso!</strong> Tu cuenta ya está activa. Puedes configurar tus datos laborales ahora o ir directo al inicio.
+          <CheckCircle2 size={16} style={{ color: "#166534", flexShrink: 0 }} />
+          <span>
+            <strong>¡Registro e inicio de sesión exitoso!</strong> Tu cuenta ya está activa. Puedes configurar tus datos laborales ahora o ir directo al inicio.
+          </span>
         </div>
       )}
-      <div style={{ fontSize: "2.5rem" }}>👋</div>
+      <div
+        style={{
+          width: 56,
+          height: 56,
+          borderRadius: "50%",
+          background: "rgba(37, 99, 235, 0.08)",
+          color: "var(--primary)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <Sparkles size={28} />
+      </div>
       <h2 style={{ fontSize: "1.25rem", fontWeight: 700, margin: 0 }}>¡Tu cuenta está lista!</h2>
       <p style={{ color: "var(--muted)", fontSize: "0.9375rem", margin: 0, lineHeight: 1.5, maxWidth: "520px" }}>
         Elige cómo quieres preparar tu perfil laboral para personalizar tus calculadoras, vacaciones y herramientas:

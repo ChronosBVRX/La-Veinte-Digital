@@ -3,6 +3,7 @@
 import { useState } from "react"
 import dynamic from "next/dynamic"
 import { useRouter } from "next/navigation"
+import { CheckCircle2 } from "lucide-react"
 import type { WorkerProfile, ProfileQuality, FieldRequirement, WorkerDataEvent, WorkerProfileMode } from "@/shared/domain/worker"
 import type { TarjetonProfileSnapshot } from "@/features/tarjeton/hooks/useTarjetonImporter"
 import { Button } from "@/shared/components/ui/Button"
@@ -30,9 +31,16 @@ const OnboardingWizard = dynamic(
           fontSize: "0.9375rem",
           textAlign: "center",
           lineHeight: 1.5,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: "0.5rem",
         }}
       >
-        <strong>✅ ¡Autenticación exitosa!</strong> Preparando tu cuenta…
+        <CheckCircle2 size={18} style={{ color: "#166534", flexShrink: 0 }} />
+        <span>
+          <strong>¡Autenticación exitosa!</strong> Preparando tu cuenta…
+        </span>
       </div>
     ),
   }

@@ -272,4 +272,12 @@ export class CajaClient {
   listDates(accountId: string) {
     return this.request<DateItem[] | unknown>("GET", `accounts/${encodeURIComponent(accountId)}/dates`, { retries: 0 })
   }
+
+  /** GET logout/{matricula} — cierra la sesión en el servidor remoto de Caja SNTSS (a.smali:3480 h1) */
+  logoutServer(matricula: string) {
+    return this.request<unknown>("GET", `logout/${encodeURIComponent(matricula.trim())}`, {
+      auth: true,
+      retries: 0,
+    })
+  }
 }
