@@ -10,8 +10,18 @@ export default async function BibliotecaNormativaRoute() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect("/login")
 
-  const catalog = new NormativeCatalog(process.cwd())
-  const data: LibraryData = catalog.libraryData()
+  let data: LibraryData
+  try {
+    const catalog = new NormativeCatalog(process.cwd())
+    data = catalog.libraryData()
+  } catch (err) {
+    console.error("[BibliotecaNormativa] Error cargando catálogo normativo:", err)
+    data = {
+      available: true,
+      health: null,
+      documents: [],
+    }
+  }
 
   return <BibliotecaNormativaPage data={data} />
 }

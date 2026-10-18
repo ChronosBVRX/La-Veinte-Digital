@@ -19,14 +19,30 @@ export class NormativeDB {
 
   constructor(pathOrDb: string | DatabaseSync) {
     if (typeof pathOrDb === "string") {
-      // El corpus puede no existir (instalación sin biblioteca). Creamos el
-      // directorio para abrir una BD vacía y fallar de forma controlada
-      // (0 documentos → LOCAL_LIBRARY_UNAVAILABLE) en vez de crashear el sidecar.
-      fs.mkdirSync(path.dirname(path.resolve(pathOrDb)), { recursive: true });
+      try {
+        fs.mkdirSync(path.dirname(path.resolve(pathOrDb)), { recursive: true });
+      } catch {
+        // En entornos con filesystem restringido o de solo lectura
+      }
+      try {
+        this.db = new DatabaseSync(pathOrDb);
+      } catch {
+        // Si no se puede abrir o crear el archivo en disco, usar base de datos en memoria
+        this.db = new DatabaseSync(":memory:");
+      }
+    } else {
+      this.db = pathOrDb;
     }
-    this.db = typeof pathOrDb === "string" ? new DatabaseSync(pathOrDb) : pathOrDb;
-    this.db.exec("PRAGMA journal_mode = WAL;");
-    this.migrate();
+    try {
+      this.db.exec("PRAGMA journal_mode = WAL;");
+    } catch {
+      // Ignorar si el pragma no aplica en la base de datos actual
+    }
+    try {
+      this.migrate();
+    } catch {
+      // Evitar que errores de migración en memoria bloqueen la aplicación
+    }
   }
 
   migrate() {

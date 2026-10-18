@@ -160,6 +160,13 @@ async function main() {
     fs.cpSync(publicDir, path.join(stagingDir, "public"), { recursive: true });
   }
 
+  // Copiar resources (para manifiestos normativos y fuentes oficiales)
+  const resourcesDir = path.join(process.cwd(), "resources");
+  if (fs.existsSync(resourcesDir)) {
+    console.log("Copiando resources/...");
+    fs.cpSync(resourcesDir, path.join(stagingDir, "resources"), { recursive: true });
+  }
+
   // Copiar Dockerfile.web
   fs.copyFileSync(
     path.join(process.cwd(), "Dockerfile.web"),
