@@ -1,15 +1,15 @@
 "use client"
 
 import { useMemo, useState, type CSSProperties } from "react"
-import { BookMarked, Search, Library, Database, RefreshCw, GitCompareArrows, BookOpen } from "lucide-react"
+import { BookMarked, Search, Library, Database, GitCompareArrows, BookOpen, Sparkles } from "lucide-react"
 import type { LibraryData, LibraryDocumentEntry } from "../services/catalog"
 import { DocumentCard } from "./DocumentCard"
 import { DocumentDetail } from "./DocumentDetail"
 import { BusquedaNormativa } from "./BusquedaNormativa"
-import { PanelSincronizacion } from "./PanelSincronizacion"
 import { PanelComparador } from "./PanelComparador"
 import { NormativaOfflineDownloadCard } from "./NormativaOfflineDownloadCard"
 import { NormativeReferenceModal } from "@/shared/components/normativa/NormativeReferenceModal"
+import { PreambulosNormativaView } from "./PreambulosNormativaView"
 
 interface Props {
   data: LibraryData
@@ -80,7 +80,7 @@ const containerStyle: CSSProperties = {
 export function BibliotecaNormativaPage({ data }: Props) {
   const [tab, setTab] = useState<TabId>("todos")
   const [selected, setSelected] = useState<LibraryDocumentEntry | null>(null)
-  const [mode, setMode] = useState<"biblioteca" | "buscar" | "sincronizar" | "comparar">("biblioteca")
+  const [mode, setMode] = useState<"preambulos" | "biblioteca" | "buscar" | "comparar">("preambulos")
   const [modalOpen, setModalOpen] = useState<boolean>(false)
 
   const filtered = useMemo(() => data.documents.filter((d) => matchTab(d, tab)), [data.documents, tab])
@@ -96,7 +96,7 @@ export function BibliotecaNormativaPage({ data }: Props) {
         </h1>
         <p style={{ color: "var(--muted)", fontSize: "0.875rem", margin: "0.25rem 0 0", wordBreak: "break-word" }}>
           Sistema de evidencia documental IMSS/SNTSS. La IA no es la fuente: la fuente es el documento.
-          Fecha de corte del corpus: 14 de agosto de 2026.
+          Consulta directa en lenguaje claro para las y los trabajadores.
         </p>
       </div>
 
@@ -104,25 +104,23 @@ export function BibliotecaNormativaPage({ data }: Props) {
         <div style={{ ...cardStyle, borderColor: "#f59e0b" }}>
           <Database size={20} />
           <div>
-            <strong>La biblioteca no está inicializada en este entorno.</strong>
+            <strong>Acervo normativo en actualización.</strong>
             <p style={{ margin: "0.25rem 0 0", color: "var(--muted)", fontSize: "0.875rem" }}>
-              Ejecuta <code>npm run normativa:bootstrap</code> en el servidor para descargar, verificar e indexar el corpus.
+              Puedes consultar libremente las guías en lenguaje claro, procedimientos y temas cotidianos en las secciones inferiores.
             </p>
           </div>
         </div>
       ) : (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem", padding: "0.875rem", background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--radius)", width: "100%", minWidth: 0, boxSizing: "border-box" }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem", padding: "0.75rem 0.875rem", background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--radius)", width: "100%", minWidth: 0, boxSizing: "border-box", alignItems: "center" }}>
           {h && (
             <>
-              <span style={chipStyle}><strong>{h.documents}</strong> documentos</span>
-              <span style={{ ...chipStyle, color: "#15803d" }}>🟢 Vigentes: {h.vigentes}</span>
-              <span style={{ ...chipStyle, color: "#b45309" }}>🟡 Revisar: {h.revisar + pendientes}</span>
-              <span style={{ ...chipStyle, color: "#1d4ed8" }}>🔵 Históricos: {h.historicos}</span>
-              <span style={{ ...chipStyle, color: "#b91c1c" }}>🔴 Error: {h.errores}</span>
-              <span style={chipStyle}>{h.sections} secciones · {h.chunks} fragmentos indexados</span>
+              <span style={chipStyle}>📚 <strong>{h.documents}</strong> documentos consultables</span>
+              <span style={{ ...chipStyle, color: "#15803d" }}>🟢 {h.vigentes} vigentes</span>
+              {h.historicos > 0 && <span style={{ ...chipStyle, color: "#1d4ed8" }}>🔵 {h.historicos} históricos de referencia</span>}
+              <span style={chipStyle}>📑 {h.sections} artículos y cláusulas oficiales</span>
               {h.nextExpiration && (
                 <span style={{ ...chipStyle, color: "#b45309", border: "1px solid #f59e0b" }}>
-                  ⏳ Próxima expiración: {h.nextExpiration.document.replace("IMSS-", "")} — {h.nextExpiration.date}
+                  ⏳ Próxima revisión: {h.nextExpiration.document.replace("IMSS-", "")} ({h.nextExpiration.date})
                 </span>
               )}
             </>
@@ -132,14 +130,14 @@ export function BibliotecaNormativaPage({ data }: Props) {
 
       <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", width: "100%", minWidth: 0, justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+          <button onClick={() => setMode("preambulos")} style={mode === "preambulos" ? activeMode : modeStyle}>
+            <Sparkles size={16} /> Guía y Preámbulos (Lenguaje Claro)
+          </button>
           <button onClick={() => setMode("biblioteca")} style={mode === "biblioteca" ? activeMode : modeStyle}>
-            <BookMarked size={16} /> Biblioteca
+            <BookMarked size={16} /> Catálogo Oficial y PDFs
           </button>
           <button onClick={() => setMode("buscar")} style={mode === "buscar" ? activeMode : modeStyle}>
             <Search size={16} /> Buscar en normativa
-          </button>
-          <button onClick={() => setMode("sincronizar")} style={mode === "sincronizar" ? activeMode : modeStyle}>
-            <RefreshCw size={16} /> Sincronización
           </button>
           <button onClick={() => setMode("comparar")} style={mode === "comparar" ? activeMode : modeStyle}>
             <GitCompareArrows size={16} /> Comparador CCT
@@ -155,9 +153,16 @@ export function BibliotecaNormativaPage({ data }: Props) {
             fontWeight: 600,
           }}
         >
-          <BookOpen size={16} /> Consultar Cláusula (0 ms)
+          <BookOpen size={16} /> Buscar Cláusula CCT
         </button>
       </div>
+
+      {mode === "preambulos" && (
+        <PreambulosNormativaView
+          documents={data.documents}
+          onOpenDoc={(d) => setSelected(d)}
+        />
+      )}
 
       {mode === "biblioteca" && (
         <>
@@ -193,7 +198,6 @@ export function BibliotecaNormativaPage({ data }: Props) {
       )}
 
       {mode === "buscar" && <BusquedaNormativa />}
-      {mode === "sincronizar" && <PanelSincronizacion />}
       {mode === "comparar" && <PanelComparador />}
 
       {selected && <DocumentDetail doc={selected} onClose={() => setSelected(null)} />}

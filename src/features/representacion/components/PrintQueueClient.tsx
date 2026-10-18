@@ -187,7 +187,7 @@ export function PrintQueueClient({ delegationId, isAdmin = false }: PrintQueueCl
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           delegation_id: delegationId,
-          station_name: station?.name || "Oficina Sindical Delegación XXI",
+          station_name: station?.name || "Estación Delegación XXI",
         }),
       });
       const data = await res.json();
@@ -354,7 +354,7 @@ export function PrintQueueClient({ delegationId, isAdmin = false }: PrintQueueCl
               Cola de Impresión Sindical
             </h1>
             <p style={{ margin: "0.25rem 0 0", fontSize: "0.875rem", color: "var(--muted)" }}>
-              Impresión automática y silenciosa para documentos oficiales de oficina.
+              Impresión automática y silenciosa para documentos oficiales.
             </p>
           </div>
 
@@ -367,7 +367,7 @@ export function PrintQueueClient({ delegationId, isAdmin = false }: PrintQueueCl
                 size="sm"
                 variant="secondary"
                 onClick={() => {
-                  setStationNameInput(station?.name || "Oficina Sindical Delegación XXI");
+                  setStationNameInput(station?.name || "Estación Delegación XXI");
                   setPrinterNameInput(station?.printer_name || "");
                   setGeneratedToken(null);
                   setAdminError(null);
@@ -415,7 +415,7 @@ export function PrintQueueClient({ delegationId, isAdmin = false }: PrintQueueCl
                     {station.last_seen_at && ` · Última conexión ${formatRelativeTimeEs(station.last_seen_at)}`}
                   </>
                 ) : (
-                  "Un administrador debe registrar la estación de la oficina sindical para habilitar la impresión automática."
+                  "Un administrador debe registrar la estación para habilitar la impresión automática."
                 )}
               </div>
             </div>
@@ -465,11 +465,11 @@ export function PrintQueueClient({ delegationId, isAdmin = false }: PrintQueueCl
               La Veinte Print para Windows
             </h2>
             <p style={{ margin: 0, fontSize: "0.875rem", color: "var(--muted)", lineHeight: 1.45 }}>
-              Agente oficial de impresión para la PC física de la oficina sindical. Se ejecuta silenciosamente en segundo plano junto al reloj, inicia automáticamente con Windows y manda las impresiones a la impresora sin mostrar ventanas de comandos.
+              Agente oficial de impresión para la PC física. Se ejecuta silenciosamente en segundo plano junto al reloj, inicia automáticamente con Windows y manda las impresiones a la impresora sin mostrar ventanas de comandos.
             </p>
             {!isWindows && (
               <div style={{ marginTop: "0.625rem", fontSize: "0.75rem", color: "var(--muted)", display: "flex", alignItems: "center", gap: "0.375rem" }}>
-                <Info size={14} /> Estás visitando desde un dispositivo no-Windows. Descarga el instalador directamente en la PC con Windows de la oficina.
+                <Info size={14} /> Estás visitando desde un dispositivo no-Windows. Descarga el instalador directamente en la PC con Windows.
               </div>
             )}
           </div>
@@ -503,7 +503,7 @@ export function PrintQueueClient({ delegationId, isAdmin = false }: PrintQueueCl
               </Button>
             </div>
             <div style={{ fontSize: "0.75rem", color: "var(--muted)", lineHeight: 1.4 }}>
-              Descarga directa desde nuestro servidor <strong>la20.com.mx</strong>. Si tu equipo de oficina muestra que requiere un sistema de 64 bits, elige la versión de <strong>32 bits (compatible con todo tipo de PC)</strong>.
+              Descarga directa desde nuestro servidor <strong>la20.com.mx</strong>. Si tu equipo muestra que requiere un sistema de 64 bits, elige la versión de <strong>32 bits (compatible con todo tipo de PC)</strong>.
             </div>
             {downloadError && (
               <div
@@ -583,7 +583,7 @@ export function PrintQueueClient({ delegationId, isAdmin = false }: PrintQueueCl
                 3. ¡Listo para imprimir!
               </div>
               <p style={{ margin: 0, fontSize: "0.75rem", color: "var(--muted)", lineHeight: 1.4 }}>
-                Confirma la impresora física de la oficina. El programa queda activo en la barra de tareas junto al reloj y prenderá solo con Windows.
+                Confirma la impresora física. El programa queda activo en la barra de tareas junto al reloj y prenderá solo con Windows.
               </p>
             </div>
           </div>
@@ -864,7 +864,7 @@ export function PrintQueueClient({ delegationId, isAdmin = false }: PrintQueueCl
             {generatedToken ? (
               <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
                 <div style={{ padding: "0.75rem", backgroundColor: "rgba(22, 163, 74, 0.1)", color: "#15803d", borderRadius: "4px", fontSize: "0.875rem", fontWeight: 600 }}>
-                  ✓ Estación registrada. Guarda este secreto en la PC de la oficina.
+                  ✓ Estación registrada. Guarda este secreto en la PC de la estación.
                 </div>
                 <p style={{ fontSize: "0.8125rem", color: "var(--muted)", margin: 0 }}>
                   Este token se muestra <strong>UNA SOLA VEZ</strong>. Copia y pégalo en la configuración de La Veinte Print Agent:
@@ -899,7 +899,7 @@ export function PrintQueueClient({ delegationId, isAdmin = false }: PrintQueueCl
                   label="Nombre de la estación"
                   value={stationNameInput}
                   onChange={(e) => setStationNameInput(e.target.value)}
-                  placeholder="Ej. Oficina Sindical Delegación XXI"
+                  placeholder="Ej. Estación Delegación XXI"
                 />
 
                 <Input
@@ -1001,7 +1001,7 @@ export function PrintQueueClient({ delegationId, isAdmin = false }: PrintQueueCl
                   ¡Estación Vinculada con Éxito!
                 </h3>
                 <p style={{ fontSize: "0.875rem", color: "var(--muted)", margin: 0, lineHeight: 1.45 }}>
-                  La computadora física de la oficina sindical ya está en línea y configurada. Cuando envíes una licencia a imprimir, saldrá de inmediato por la impresora.
+                  La computadora física ya está en línea y configurada. Cuando envíes una licencia a imprimir, saldrá de inmediato por la impresora.
                 </p>
                 <Button
                   variant="primary"
@@ -1028,7 +1028,7 @@ export function PrintQueueClient({ delegationId, isAdmin = false }: PrintQueueCl
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", textAlign: "center" }}>
                 <p style={{ fontSize: "0.875rem", color: "var(--muted)", margin: 0, lineHeight: 1.45 }}>
-                  Abre el instalador <strong>La Veinte Print</strong> en la PC de la oficina e introduce el siguiente código de 6 dígitos:
+                  Abre el instalador <strong>La Veinte Print</strong> en la PC e introduce el siguiente código de 6 dígitos:
                 </p>
 
                 <div
@@ -1082,7 +1082,7 @@ export function PrintQueueClient({ delegationId, isAdmin = false }: PrintQueueCl
                   }}
                 >
                   <ArrowsClockwise size={14} className="animate-spin" />
-                  Esperando conexión desde la computadora de la oficina…
+                  Esperando conexión desde la computadora…
                 </div>
 
                 <div style={{ display: "flex", gap: "0.5rem" }}>

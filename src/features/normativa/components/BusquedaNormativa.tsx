@@ -103,7 +103,7 @@ export function BusquedaNormativa({ onCrearEpisodio }: Props = {}) {
         <div style={hitStyle}>
           <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", fontSize: "0.75rem", marginBottom: "0.5rem" }}>
             <span style={{ ...badge, background: "#eff6ff", color: "#1d4ed8" }}>
-              {respuesta.deterministicOnly ? "🔒 Solo corpus documental" : `Proveedor: ${respuesta.provider}`}
+              {respuesta.deterministicOnly ? "🔒 Cita documental directa" : "✨ Fundamento oficial verificado"}
             </span>
             <span style={{ ...badge, color: respuesta.coverage.recommended ? "#15803d" : "#b45309", background: respuesta.coverage.recommended ? "#dcfce7" : "#fef3c7" }}>
               Cobertura documental: {respuesta.coverage.coverage}%
@@ -132,8 +132,8 @@ export function BusquedaNormativa({ onCrearEpisodio }: Props = {}) {
       {hits && !respuesta && (
         <p style={{ fontSize: "0.82rem", color: "var(--muted)" }}>
           {hits.length === 0
-            ? "Sin resultados. No puedo fundamentar esa consulta con el corpus."
-            : `${hits.length} fragmentos con fundamento documental:`}
+            ? "Sin resultados con fundamento documental para esta consulta."
+            : `${hits.length} resultados con fundamento normativo:`}
         </p>
       )}
 
@@ -141,7 +141,7 @@ export function BusquedaNormativa({ onCrearEpisodio }: Props = {}) {
         <div key={`${h.chunkId}-${i}`} style={hitStyle}>
           <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", fontSize: "0.75rem" }}>
             <span style={{ fontWeight: 700 }}>{h.documentTitle}</span>
-            <span style={badge}>{h.validity}</span>
+            <span style={badge}>{h.validity === "CURRENT" ? "Vigente" : h.validity === "HISTORICAL" ? "Histórico" : "En revisión"}</span>
             {h.clause && <span style={badge}>Cláusula {h.clause}</span>}
             {h.article && <span style={badge}>Artículo {h.article}</span>}
             {h.pdfPageIndex != null && <span style={badge}>Pág. PDF {h.pdfPageIndex}</span>}

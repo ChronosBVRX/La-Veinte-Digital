@@ -100,7 +100,7 @@ export async function GET(
           } else {
             return NextResponse.json(
               {
-                error: "No se pudo obtener el tarjetón QR en tiempo real. Verifique que La Veinte Print v1.1.0 esté activo en la PC de la oficina.",
+                error: "No se pudo obtener el tarjetón QR en tiempo real. Verifique que La Veinte Print v1.1.0 esté activo en la PC de la estación.",
               },
               { status: 502 },
             );

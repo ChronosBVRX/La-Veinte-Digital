@@ -170,6 +170,28 @@ export function HomeHighlightsCarousel({ initialAnnouncements = [] }: HomeHighli
       testId: "highlight-vacation-roles",
     })
 
+    // Nueva Biblioteca Normativa (System Highlight)
+    list.push({
+      id: "biblioteca-normativa-highlight",
+      type: "system",
+      priority: HIGHLIGHT_PRIORITIES.BIBLIOTECA_NORMATIVA,
+      eyebrow: "NUEVA BIBLIOTECA NORMATIVA",
+      title: "Consulta tus derechos directamente",
+      description: "Encuentra tus contratos, estatutos y reglamentos en lenguaje claro con preámbulos para los trabajadores, sin tener que preguntarle al bot.",
+      ctaText: "Consultar normativas",
+      ctaHref: "/biblioteca-normativa",
+      icon: BookOpen,
+      pills: [
+        { label: "CCT 2025-2027" },
+        { label: "Estatutos SNTSS" },
+        { label: "Reglamentos y FAS" },
+        { label: "Consulta directa" },
+      ],
+      gradient: "linear-gradient(135deg, #0f172a 0%, #1e3a8a 60%, #2563eb 100%)",
+      enabled: true,
+      testId: "highlight-biblioteca-normativa",
+    })
+
     // C. Sacar Copias (System Highlight)
     list.push({
       id: "copy-service-highlight",

@@ -182,7 +182,7 @@ describe("CopyServicePage", () => {
       expect(screen.getByTestId("copy-service-success")).toBeDefined()
       expect(screen.getByText("¡Listo!")).toBeDefined()
       expect(
-        screen.getByText("Tu documento fue enviado a la computadora de la oficina sindical. Ya puedes imprimirlo.")
+        screen.getByText("Tu documento fue enviado a la computadora. Ya puedes imprimirlo.")
       ).toBeDefined()
     })
 

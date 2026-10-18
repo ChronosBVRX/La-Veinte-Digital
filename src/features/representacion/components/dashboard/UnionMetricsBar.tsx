@@ -100,9 +100,9 @@ export function UnionMetricsBar({
                 ? printInfo.isOnline
                   ? printTotalQueue > 0
                     ? `● ${printTotalQueue} en cola de impresión`
-                    : "● Impresora de oficina conectada"
+                    : "● Impresora conectada"
                   : "⚠ Estación desconectada"
-                : "Impresión de oficina"}
+                : "Impresión"}
             </span>
           </Link>
         </div>

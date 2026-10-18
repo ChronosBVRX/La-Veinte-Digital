@@ -561,7 +561,7 @@ export function UnionActionCenter({ metrics, isAdmin }: UnionActionCenterProps):
                   Impresión
                 </div>
                 <div style={{ fontSize: "0.8125rem", color: "var(--muted, #64748b)", lineHeight: 1.4 }}>
-                  Cola de impresión automática y estación de oficina.
+                  Cola de impresión automática y estación de trabajo.
                 </div>
               </div>
             </div>

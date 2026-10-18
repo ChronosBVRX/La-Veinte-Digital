@@ -380,7 +380,7 @@ export function ParkingManager(): React.JSX.Element {
       if (data.queued_bridge) {
         setBannerMessage({
           type: "info",
-          text: data.message ?? "Sincronización enviada al Puente en Vivo de la oficina.",
+          text: data.message ?? "Sincronización enviada al Puente en Vivo.",
         });
         void checkLanConnection();
         return;
@@ -673,12 +673,12 @@ export function ParkingManager(): React.JSX.Element {
                 {!connection.checked
                   ? "Verificando red HGR 1…"
                   : connection.mode === "live_bridge"
-                    ? `Puente en Vivo Activo (${connection.stationName || "Oficina Sindical"} · v${connection.agentVersion || "1.1.0"})`
+                    ? `Puente en Vivo Activo (${connection.stationName || "Estación Local"} · v${connection.agentVersion || "1.1.0"})`
                     : connection.reachable
                       ? "Conectado en vivo a 11.1.17.44:8080 (LAN HGR 1)"
                       : connection.mode === "station_needs_update"
                         ? `Estación en línea (v${connection.agentVersion || "1.0.0"}) · Actualice a v1.1.0 para Puente en Vivo`
-                        : "Modo Remoto (Cola en vivo hacia Oficina Sindical)"}
+                        : "Modo Remoto (Cola en vivo hacia Estación Local)"}
               </span>
             </div>
             <p style={{ margin: "0.375rem 0 0", fontSize: "0.875rem", color: "var(--muted)" }}>

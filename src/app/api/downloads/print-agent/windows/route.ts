@@ -81,7 +81,7 @@ function renderUnavailableHtml(releaseTag: string, filename: string): string {
   <div class="card">
     <div class="icon">⚠️</div>
     <h1>No fue posible descargar La Veinte Print en este momento</h1>
-    <p>El instalador todavía no está disponible en los servidores de distribución. Por favor intenta más tarde o comunícate con la oficina sindical.</p>
+    <p>El instalador todavía no está disponible en los servidores de distribución. Por favor intenta más tarde o comunícate con el administrador del sistema.</p>
     <div class="tag">Release: ${releaseTag} · ${filename}</div>
     <div>
       <a class="btn" href="/representacion/impresion">Volver al panel de impresión</a>

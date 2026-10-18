@@ -278,7 +278,7 @@ export function LicenseManager(): React.JSX.Element {
     }
   }
 
-  // Mandar a imprimir a la oficina sindical de forma automática y silenciosa
+  // Mandar a imprimir de forma automática y silenciosa
   async function handleAutoPrint(cId: string) {
     setAutoPrintingCaseId(cId);
     try {
@@ -661,7 +661,7 @@ export function LicenseManager(): React.JSX.Element {
                           variant="primary"
                           loading={autoPrintingCaseId === c.id}
                           onClick={() => handleAutoPrint(c.id)}
-                          title="Mandar a la impresora de la oficina sindical sin diálogos"
+                          title="Mandar a la impresora sin diálogos"
                         >
                           {autoPrintSuccessId === c.id ? "✓ Enviado" : "🖨️ Mandar a imprimir"}
                         </Button>
@@ -790,7 +790,7 @@ export function LicenseManager(): React.JSX.Element {
                 loading={autoPrintingCaseId === detailCase.id}
                 onClick={() => handleAutoPrint(detailCase.id)}
               >
-                {autoPrintSuccessId === detailCase.id ? "✓ Enviado a impresora de oficina (2 hojas separadas)" : "🖨️ Mandar a imprimir (Oficina Sindical)"}
+                {autoPrintSuccessId === detailCase.id ? "✓ Enviado a impresora (2 hojas separadas)" : "🖨️ Mandar a imprimir"}
               </Button>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
                 <Button
