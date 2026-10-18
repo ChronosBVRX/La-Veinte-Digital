@@ -154,7 +154,7 @@ function SendPrintModalContent({ open, docName, getFile, onClose, onDirectPrint,
       if (!token) {
         triggerHaptic("scan")
         if (warningTimerRef.current) clearTimeout(warningTimerRef.current)
-        setWarningMessage("Código no válido. Escanea la pantalla de “Recibir” de la oficina.")
+        setWarningMessage("Código no válido. Escanea la pantalla de “Recibir” de la computadora.")
         warningTimerRef.current = setTimeout(() => setWarningMessage(null), 3500)
         return
       }
@@ -320,7 +320,7 @@ function SendPrintModalContent({ open, docName, getFile, onClose, onDirectPrint,
           <h1 style={{ margin: 0, fontSize: "0.9375rem", fontWeight: 700, color: "#ffffff" }}>
             Enviar a imprimir
           </h1>
-          <span style={{ fontSize: "0.6875rem", color: "#94a3b8" }}>Oficina Sindical</span>
+          <span style={{ fontSize: "0.6875rem", color: "#94a3b8" }}>Transferencia a PC</span>
         </div>
 
         <button
@@ -508,7 +508,7 @@ function SendPrintModalContent({ open, docName, getFile, onClose, onDirectPrint,
                 maxWidth: "340px",
               }}
             >
-              En la computadora de la oficina sindical, abre <strong>“Recibir”</strong> y apunta al código QR.
+              En la computadora donde vas a imprimir, abre <strong>“Recibir”</strong> y apunta al código QR.
             </p>
           </div>
         )}
@@ -590,7 +590,7 @@ function SendPrintModalContent({ open, docName, getFile, onClose, onDirectPrint,
                 ¡Documento enviado con éxito!
               </h2>
               <p style={{ fontSize: "0.875rem", color: "#94a3b8", margin: 0, lineHeight: 1.4 }}>
-                {uploadedSize ? `${formatBytes(uploadedSize)} · ` : ""}Ya puedes imprimirlo desde la pantalla de la oficina.
+                {uploadedSize ? `${formatBytes(uploadedSize)} · ` : ""}Ya puedes imprimirlo desde la pantalla de la computadora.
               </p>
             </div>
             <Button variant="primary" size="md" onClick={handleModalClose} style={{ minWidth: "140px" }}>

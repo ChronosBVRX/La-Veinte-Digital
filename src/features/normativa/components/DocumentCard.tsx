@@ -3,6 +3,7 @@
 import type { CSSProperties } from "react"
 import { FileText, ShieldCheck, ShieldAlert, AlertTriangle, ExternalLink } from "lucide-react"
 import type { LibraryDocumentEntry } from "../services/catalog"
+import { getPreambulo } from "../data/preambulos-normativos"
 
 interface Props {
   doc: LibraryDocumentEntry
@@ -14,21 +15,24 @@ function validityBadge(doc: LibraryDocumentEntry): { label: string; color: strin
     case "CURRENT":
       return { label: "🟢 VIGENTE", color: "#15803d" }
     case "PENDING_REVIEW":
-      return { label: "🟡 VIGENCIA A VERIFICAR", color: "#b45309" }
+      return { label: "🟡 EN REVISIÓN", color: "#b45309" }
     case "HISTORICAL":
       return { label: "🔵 HISTÓRICO", color: "#1d4ed8" }
     case "EXPIRED":
+      return { label: "⚪ VENCIDO", color: "#64748b" }
     case "SUPERSEDED":
+      return { label: "⚪ SUSTITUIDO", color: "#64748b" }
     case "REPEALED":
-      return { label: `⚪ ${doc.validity}`, color: "#64748b" }
+      return { label: "⚪ ABROGADO", color: "#64748b" }
     default:
-      return { label: "⚪ SIN DETERMINAR", color: "#64748b" }
+      return { label: "⚪ CONSULTABLE", color: "#64748b" }
   }
 }
 
 export function DocumentCard({ doc, onOpen }: Props) {
   const v = validityBadge(doc)
   const needsReview = doc.validity === "PENDING_REVIEW" || doc.validity === "UNKNOWN" || doc.verificationStatus != null || doc.versionStatus === "SOURCE_MISMATCH"
+  const preambulo = getPreambulo(doc.id) || (doc.key ? getPreambulo(doc.key) : undefined)
 
   return (
     <div
@@ -46,12 +50,12 @@ export function DocumentCard({ doc, onOpen }: Props) {
         </span>
         {needsReview && doc.versionStatus !== "SOURCE_MISMATCH" && (
           <span style={{ fontSize: "0.72rem", padding: "0.2rem 0.55rem", borderRadius: 999, background: "#fef3c7", color: "#92400e" }}>
-            ⚠ verificar
+            ⚠ En revisión
           </span>
         )}
         {doc.versionStatus === "SOURCE_MISMATCH" && (
-          <span style={{ fontSize: "0.72rem", padding: "0.2rem 0.55rem", borderRadius: 999, background: "#fee2e2", color: "#991b1b" }}>
-            ✗ discrepancia de clave
+          <span style={{ fontSize: "0.72rem", padding: "0.2rem 0.55rem", borderRadius: 999, background: "#fef3c7", color: "#92400e" }}>
+            ⚠ En actualización
           </span>
         )}
       </div>
@@ -60,6 +64,23 @@ export function DocumentCard({ doc, onOpen }: Props) {
       <div style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
         {doc.organization.join(", ")} · {doc.key ? `Clave ${doc.key}` : doc.type}
       </div>
+
+      {preambulo && (
+        <div
+          style={{
+            fontSize: "0.78rem",
+            color: "var(--fg)",
+            background: "rgba(37, 99, 235, 0.05)",
+            border: "1px solid rgba(37, 99, 235, 0.16)",
+            borderRadius: "var(--radius)",
+            padding: "0.45rem 0.6rem",
+            lineHeight: 1.35,
+          }}
+        >
+          <span style={{ fontWeight: 700, color: "var(--primary)" }}>En cristiano: </span>
+          {preambulo.enUnaFrase}
+        </div>
+      )}
 
       {(doc.effectiveFrom || doc.effectiveUntil) && (
         <div style={{ fontSize: "0.8rem" }}>
@@ -70,14 +91,12 @@ export function DocumentCard({ doc, onOpen }: Props) {
 
       <div style={{ fontSize: "0.8rem", color: "var(--muted)", display: "flex", gap: "0.9rem", flexWrap: "wrap" }}>
         <span><FileText size={13} style={{ verticalAlign: -2 }} /> {doc.pages ?? "?"} págs</span>
-        <span>{doc.sections} secciones</span>
-        <span>{doc.chunks} fragmentos</span>
+        <span>{doc.sections} artículos y cláusulas</span>
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.78rem", color: "var(--muted)" }}>
         {doc.canonical ? <ShieldCheck size={14} color="#15803d" /> : <ShieldAlert size={14} color="#b45309" />}
-        Fuente {doc.canonical ? "oficial" : doc.provenance.toLowerCase()}
-        {doc.sha256 && <code style={{ fontSize: "0.7rem" }}>{doc.sha256.slice(0, 10)}…</code>}
+        Fuente {doc.canonical ? "oficial verificada" : "institucional"}
       </div>
 
       {doc.warning && (

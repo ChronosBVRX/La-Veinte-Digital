@@ -143,7 +143,7 @@ export function CopyServicePage({ userId }: CopyServicePageProps) {
                 maxWidth: "460px",
               }}
             >
-              Tu documento fue enviado a la computadora de la oficina sindical. Ya puedes imprimirlo.
+              Tu documento fue enviado a la computadora. Ya puedes imprimirlo.
             </p>
           </div>
 
@@ -264,7 +264,7 @@ export function CopyServicePage({ userId }: CopyServicePageProps) {
             Sacar copias
           </h1>
           <p style={{ fontSize: "0.90625rem", color: "var(--muted, #64748b)", margin: "0.375rem 0 0", lineHeight: 1.45 }}>
-            Escanea con tu celular y envía el documento a la computadora de la oficina sindical para imprimirlo.
+            Escanea con tu celular y envía el documento a la computadora para imprimirlo.
           </p>
         </div>
       </div>
@@ -287,7 +287,7 @@ export function CopyServicePage({ userId }: CopyServicePageProps) {
         <ShieldCheck size={20} weight="duotone" style={{ color: "var(--primary, #2563eb)", flexShrink: 0, marginTop: 1 }} />
         <span>
           <strong>No se guardará automáticamente en tus documentos.</strong> El archivo solo se envía cuando escaneas el
-          código QR de la computadora de la oficina.
+          código QR de la computadora donde vas a imprimir.
         </span>
       </div>
 

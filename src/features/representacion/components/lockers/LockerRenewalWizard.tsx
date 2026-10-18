@@ -61,7 +61,7 @@ export function LockerRenewalWizard({
     delegationId: string;
   } | null>(null);
 
-  // Estado de Impresión en la Oficina Sindical
+  // Estado de Impresión Automática
   const [autoPrintStatus, setAutoPrintStatus] = useState<"idle" | "preparing" | "queued" | "printing" | "printed" | "failed">("idle");
   const [autoPrintError, setAutoPrintError] = useState<string | null>(null);
   const [lastPrintedTime, setLastPrintedTime] = useState<string | null>(null);
@@ -243,7 +243,7 @@ export function LockerRenewalWizard({
     }
   }
 
-  // Mandar trabajo a la impresora de la oficina sindical vía Print Agent
+  // Mandar trabajo a la impresora vía Print Agent
   async function handleSendToOfficePrinter(): Promise<void> {
     if (!createdCase) return;
 
@@ -259,7 +259,7 @@ export function LockerRenewalWizard({
 
       const j = await res.json();
       if (!res.ok) {
-        throw new Error(j.error || "No se pudo enviar a la impresora de la oficina.");
+        throw new Error(j.error || "No se pudo enviar a la impresora.");
       }
 
       setAutoPrintStatus("queued");
@@ -548,7 +548,7 @@ export function LockerRenewalWizard({
             </p>
 
             <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem", alignItems: "center" }}>
-              {/* Botón 1: Enviar a la impresora física de la oficina */}
+              {/* Botón 1: Enviar a la impresora física */}
               <Button
                 variant="primary"
                 onClick={handleSendToOfficePrinter}
@@ -556,10 +556,10 @@ export function LockerRenewalWizard({
               >
                 {autoPrintStatus === "preparing" && "Preparando documento…"}
                 {autoPrintStatus === "queued" && "Enviado a impresora (En cola)…"}
-                {autoPrintStatus === "printing" && "Imprimiendo en oficina…"}
-                {autoPrintStatus === "printed" && "✓ Impreso en oficina"}
-                {autoPrintStatus === "failed" && "Reintentar impresora de oficina"}
-                {autoPrintStatus === "idle" && "🖨️ Mandar a Impresora de la Oficina"}
+                {autoPrintStatus === "printing" && "Imprimiendo…"}
+                {autoPrintStatus === "printed" && "✓ Impreso"}
+                {autoPrintStatus === "failed" && "Reintentar envío a impresora"}
+                {autoPrintStatus === "idle" && "🖨️ Mandar a Impresora"}
               </Button>
 
               {/* Botón 2: Diálogo nativo de impresión del navegador */}

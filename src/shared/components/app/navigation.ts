@@ -5,6 +5,7 @@ import {
   Notebook,
   FileText,
   Books,
+  BookOpen,
   Newspaper,
   SquaresFour,
   AirplaneTilt,
@@ -62,6 +63,7 @@ const TOOLS_NAV_GROUP: NavGroup = {
   color: "var(--area-tools)",
   items: [
     { href: "/calculadoras", label: "Calculadoras", icon: Calculator },
+    { href: "/biblioteca-normativa", label: "Biblioteca Normativa", icon: BookOpen },
     { href: "/escritos", label: "Crear un escrito", icon: FileText },
     { href: "/guia", label: "Guía de mi Tarjetón", icon: Books },
   ],

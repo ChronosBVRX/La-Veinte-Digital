@@ -4,7 +4,7 @@ import { CopyServicePage } from "@/features/copy-service/components/CopyServiceP
 
 export const metadata = {
   title: "Sacar copias",
-  description: "Usa tu celular como escáner y envía el documento a imprimir en la oficina sindical.",
+  description: "Usa tu celular como escáner y envía el documento a imprimir en una computadora con QR.",
 }
 
 export default async function CopiasPage() {

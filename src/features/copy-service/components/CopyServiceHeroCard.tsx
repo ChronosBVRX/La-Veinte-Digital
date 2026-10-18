@@ -92,11 +92,11 @@ export function CopyServiceHeroCard() {
                   color: "var(--primary, #2563eb)",
                 }}
               >
-                Servicio sindical
+                Servicio de copias
               </span>
             </div>
             <p style={{ fontSize: "0.84375rem", color: "var(--muted, #64748b)", margin: "0.25rem 0 0", lineHeight: 1.4 }}>
-              Escanea un documento con tu celular y envíalo a imprimir en la oficina sindical.
+              Escanea un documento con tu celular y envíalo a imprimir en una computadora.
             </p>
           </div>
         </div>

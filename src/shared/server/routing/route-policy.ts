@@ -65,7 +65,7 @@ export const API_ACCESS = {
   "/api/union/parking": "authenticated",
   "/api/union/parking/sync": "authenticated",
   "/api/union/parking/[id]/qr": "authenticated",
-  // Impresión Automática en Oficina Sindical (Representantes y Admins)
+  // Impresión Automática (Representantes y Admins)
   "/api/union/print/jobs": "authenticated",
   "/api/union/print/jobs/[id]/retry": "authenticated",
   "/api/union/print/stations": "authenticated",

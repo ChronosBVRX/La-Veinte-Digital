@@ -478,14 +478,14 @@ describe("PassageWizard UI Workflow & Interactions", () => {
           busy={false}
           downloading={false}
           printing={false}
-          printSuccessMessage="✓ Pasaje 026 enviado a la impresora de la oficina"
+          printSuccessMessage="✓ Pasaje 026 enviado a la impresora"
           onPrepare={vi.fn()}
           onDownload={vi.fn()}
           onPrint={vi.fn()}
         />,
       );
 
-      expect(screen.getByText(/✓ Pasaje 026 enviado a la impresora de la oficina/i)).toBeDefined();
+      expect(screen.getByText(/✓ Pasaje 026 enviado a la impresora/i)).toBeDefined();
       expect(screen.getByText(/enviado a impresora/i)).toBeDefined();
     });
   });

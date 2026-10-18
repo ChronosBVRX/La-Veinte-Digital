@@ -56,7 +56,7 @@ export function LicenseWizard({
   const [printingPackage, setPrintingPackage] = useState(false);
   const [printingPart, setPrintingPart] = useState<"both" | "oficio" | "solicitud" | null>(null);
 
-  // Estados de Impresión Automática en Oficina Sindical
+  // Estados de Impresión Automática
   const [autoPrintStatus, setAutoPrintStatus] = useState<"idle" | "preparing" | "queued" | "printing" | "printed" | "failed">("idle");
   const [autoPrintStation, setAutoPrintStation] = useState<{ name: string; printer_name: string; is_online: boolean } | null>(null);
   const [autoPrintError, setAutoPrintError] = useState<string | null>(null);
@@ -997,7 +997,7 @@ export function LicenseWizard({
 
               <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
                 <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                  Acción Principal de Oficina
+                  Acción Principal
                 </div>
                 <Button
                   onClick={() => {
@@ -1018,7 +1018,7 @@ export function LicenseWizard({
                     : autoPrintStatus === "queued"
                       ? "Enviado a impresora (En cola)..."
                       : autoPrintStatus === "printing"
-                        ? "Imprimiendo en oficina..."
+                        ? "Imprimiendo..."
                         : autoPrintStatus === "printed"
                           ? "✓ Impreso correctamente (Reimprimir)"
                           : autoPrintStatus === "failed"
@@ -1028,7 +1028,7 @@ export function LicenseWizard({
 
                 {/* Subtítulo informativo */}
                 <div style={{ fontSize: "0.75rem", color: "var(--muted)", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 0.25rem" }}>
-                  <span>2 hojas separadas (Oficio + Solicitud) · Oficina Sindical</span>
+                  <span>2 hojas separadas (Oficio + Solicitud)</span>
                   {autoPrintStation ? (
                     <span style={{ color: autoPrintStation.is_online ? "#16a34a" : "#dc2626", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "0.25rem" }}>
                       <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: autoPrintStation.is_online ? "#16a34a" : "#dc2626", display: "inline-block" }} />
@@ -1119,7 +1119,7 @@ export function LicenseWizard({
           <div style={{ backgroundColor: "var(--card)", borderRadius: "var(--radius, 0.5rem)", maxWidth: "420px", width: "100%", padding: "1.25rem", display: "flex", flexDirection: "column", gap: "1rem" }}>
             <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 700 }}>Reimprimir Licencia</h3>
             <p style={{ margin: 0, fontSize: "0.875rem", color: "var(--muted)", lineHeight: 1.5 }}>
-              Esta licencia ya fue enviada e impresa {lastPrintedTime ? `a las ${lastPrintedTime}` : "previamente"}. ¿Deseas enviar otra copia a la impresora de la oficina?
+              Esta licencia ya fue enviada e impresa {lastPrintedTime ? `a las ${lastPrintedTime}` : "previamente"}. ¿Deseas enviar otra copia a la impresora?
             </p>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem" }}>
               <Button variant="ghost" size="sm" onClick={() => setShowReprintConfirm(false)}>

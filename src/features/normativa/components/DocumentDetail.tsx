@@ -1,8 +1,9 @@
 "use client"
 
 import { useEffect, useState, type CSSProperties } from "react"
-import { X, ExternalLink, FileText } from "lucide-react"
+import { X, ExternalLink, FileText, BookOpen } from "lucide-react"
 import type { LibraryDocumentEntry } from "../services/catalog"
+import { getPreambulo } from "../data/preambulos-normativos"
 import { PdfViewer } from "./PdfViewer"
 
 interface Props {
@@ -27,10 +28,30 @@ interface DocDetailData {
   citations: CitationRow[] | null
 }
 
+function formatValidez(val: string): string {
+  switch (val) {
+    case "CURRENT": return "🟢 Vigente"
+    case "PENDING_REVIEW": return "🟡 En revisión"
+    case "HISTORICAL": return "🔵 Histórico"
+    case "EXPIRED": return "⚪ Vencido"
+    case "SUPERSEDED": return "⚪ Sustituido"
+    case "REPEALED": return "⚪ Abrogado"
+    default: return val
+  }
+}
+
+function formatProcedencia(prov: string, canonical: boolean): string {
+  if (canonical) return "Portal Oficial IMSS / DOF"
+  if (prov === "CCT") return "Contrato Colectivo de Trabajo"
+  if (prov === "SNTSS") return "SNTSS"
+  return "Acervo Institucional"
+}
+
 export function DocumentDetail({ doc, onClose }: Props) {
   const [detail, setDetail] = useState<DocDetailData | null>(null)
   const [openPage, setOpenPage] = useState(1)
   const [showViewer, setShowViewer] = useState(false)
+  const preambulo = getPreambulo(doc.id) || (doc.key ? getPreambulo(doc.key) : undefined)
 
   useEffect(() => {
     let cancelled = false
@@ -67,18 +88,136 @@ export function DocumentDetail({ doc, onClose }: Props) {
         </div>
 
         <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", fontSize: "0.8rem", marginTop: "0.75rem" }}>
-          <span style={kvStyle}>Validez: <strong>{doc.validity}</strong></span>
-          <span style={kvStyle}>Procedencia: <strong>{doc.provenance}</strong></span>
+          <span style={kvStyle}>Estado: <strong>{formatValidez(doc.validity)}</strong></span>
+          <span style={kvStyle}>Origen: <strong>{formatProcedencia(doc.provenance, doc.canonical)}</strong></span>
           {doc.versionLabel && <span style={kvStyle}>Versión: <strong>{doc.versionLabel}</strong></span>}
-          {doc.effectiveFrom && <span style={kvStyle}>Desde: <strong>{doc.effectiveFrom}</strong></span>}
+          {doc.effectiveFrom && <span style={kvStyle}>Vigente desde: <strong>{doc.effectiveFrom}</strong></span>}
           {doc.effectiveUntil && <span style={kvStyle}>Hasta: <strong>{doc.effectiveUntil}</strong></span>}
           {doc.lastReformDate && <span style={kvStyle}>Última reforma: <strong>{doc.lastReformDate}</strong></span>}
-          {doc.sha256 && (
-            <span style={kvStyle}>
-              SHA-256: <code style={{ fontSize: "0.72rem" }}>{doc.sha256}</code>
-            </span>
-          )}
         </div>
+
+        {preambulo && (
+          <div
+            style={{
+              marginTop: "0.9rem",
+              background: "rgba(37, 99, 235, 0.04)",
+              border: "1px solid rgba(37, 99, 235, 0.2)",
+              borderRadius: "var(--radius)",
+              padding: "0.875rem",
+              display: "flex",
+              flexDirection: "column",
+              gap: "0.75rem",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "0.45rem" }}>
+              <BookOpen size={17} color="var(--primary)" />
+              <span style={{ fontSize: "0.9rem", fontWeight: 700, color: "var(--primary)" }}>
+                Guía en Lenguaje Claro para el Trabajador
+              </span>
+            </div>
+
+            <div
+              style={{
+                fontSize: "0.825rem",
+                fontWeight: 600,
+                background: "var(--card)",
+                padding: "0.55rem 0.7rem",
+                borderRadius: "var(--radius)",
+                border: "1px solid var(--border)",
+                color: "var(--fg)",
+                lineHeight: 1.4,
+              }}
+            >
+              💡 {preambulo.enUnaFrase}
+            </div>
+
+            <div>
+              <div style={{ fontSize: "0.78rem", fontWeight: 700, marginBottom: "0.25rem", color: "var(--fg)" }}>
+                ¿De qué trata este documento?
+              </div>
+              <p style={{ margin: 0, fontSize: "0.8rem", lineHeight: 1.5, color: "var(--fg)", whiteSpace: "pre-line" }}>
+                {preambulo.preambulo}
+              </p>
+            </div>
+
+            {preambulo.aQuienAplica && preambulo.aQuienAplica.length > 0 && (
+              <div>
+                <div style={{ fontSize: "0.78rem", fontWeight: 700, marginBottom: "0.3rem", color: "var(--fg)" }}>
+                  ¿A quién le aplica?
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "0.3rem" }}>
+                  {preambulo.aQuienAplica.map((quien, i) => (
+                    <span key={i} style={{ fontSize: "0.72rem", padding: "0.2rem 0.5rem", background: "var(--accent)", borderRadius: 999 }}>
+                      ✓ {quien}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {preambulo.aquiPuedesEncontrar && preambulo.aquiPuedesEncontrar.length > 0 && (
+              <div>
+                <div style={{ fontSize: "0.78rem", fontWeight: 700, marginBottom: "0.3rem", color: "var(--fg)" }}>
+                  Aquí puedes encontrar:
+                </div>
+                <ul style={{ margin: 0, paddingLeft: "1.1rem", fontSize: "0.8rem", lineHeight: 1.45, display: "flex", flexDirection: "column", gap: "0.2rem" }}>
+                  {preambulo.aquiPuedesEncontrar.map((item, i) => (
+                    <li key={i}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {preambulo.temasClave && preambulo.temasClave.length > 0 && (
+              <div>
+                <div style={{ fontSize: "0.78rem", fontWeight: 700, marginBottom: "0.3rem", color: "var(--fg)" }}>
+                  Temas y Derechos Clave:
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+                  {preambulo.temasClave.map((t, i) => (
+                    <div key={i} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "0.45rem 0.65rem" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                        <span style={{ fontWeight: 700, fontSize: "0.8rem" }}>{t.tema}</span>
+                        <span style={{ fontSize: "0.7rem", padding: "0.15rem 0.45rem", background: "rgba(37, 99, 235, 0.1)", color: "var(--primary)", borderRadius: 999, fontWeight: 600 }}>
+                          {t.referencia}
+                        </span>
+                      </div>
+                      <p style={{ margin: "0.2rem 0 0", fontSize: "0.76rem", color: "var(--muted)", lineHeight: 1.35 }}>
+                        {t.queEncontraras}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {preambulo.cuandoConsultarlo && preambulo.cuandoConsultarlo.length > 0 && (
+              <div>
+                <div style={{ fontSize: "0.78rem", fontWeight: 700, marginBottom: "0.3rem", color: "var(--fg)" }}>
+                  ¿Cuándo debes consultarlo? (Casos comunes):
+                </div>
+                <ul style={{ margin: 0, paddingLeft: "1.1rem", fontSize: "0.78rem", lineHeight: 1.4, color: "var(--muted)", display: "flex", flexDirection: "column", gap: "0.2rem" }}>
+                  {preambulo.cuandoConsultarlo.map((caso, i) => (
+                    <li key={i}>{caso}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {preambulo.ojoConEsto && preambulo.ojoConEsto.length > 0 && (
+              <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: "var(--radius)", padding: "0.55rem 0.7rem" }}>
+                <div style={{ fontSize: "0.76rem", fontWeight: 700, color: "#92400e", marginBottom: "0.2rem" }}>
+                  ⚠️ Ojo con esto para proteger tus derechos:
+                </div>
+                <ul style={{ margin: 0, paddingLeft: "1.1rem", fontSize: "0.76rem", color: "#92400e", lineHeight: 1.35 }}>
+                  {preambulo.ojoConEsto.map((ojo, i) => (
+                    <li key={i}>{ojo}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
 
         {doc.warning && (
           <div style={{ marginTop: "0.75rem", fontSize: "0.8rem", color: "#92400e", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: "var(--radius)", padding: "0.6rem" }}>

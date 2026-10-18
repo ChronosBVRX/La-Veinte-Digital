@@ -310,8 +310,8 @@ export function PassageWizard(): React.JSX.Element {
 
       const msg =
         concept === "026"
-          ? "✓ Pasaje 026 enviado a la impresora de la oficina"
-          : "✓ Pasaje 027 enviado a la impresora de la oficina";
+          ? "✓ Pasaje 026 enviado a la impresora"
+          : "✓ Pasaje 027 enviado a la impresora";
       setPrintSuccessMessage(msg);
     } catch (err: unknown) {
       setCustomError(err instanceof Error ? err.message : "No se pudo enviar a la impresora.");

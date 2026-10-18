@@ -80,8 +80,8 @@ export async function POST(req: Request): Promise<NextResponse> {
 
       const st = bridgeRes.stationStatus;
       const reason = st.stationOnline && !st.bridgeCapable
-        ? `La estación "${st.stationName || "Oficina Sindical"}" está en línea pero tiene la versión ${st.agentVersion || "1.0.0"}. Actualice La Veinte Print a v1.1.0 en la PC de la oficina para activar el Puente en Vivo.`
-        : "La solicitud de sincronización quedó en cola en el Puente en Vivo y se ejecutará automáticamente en cuanto el agente de la oficina responda.";
+        ? `La estación "${st.stationName || "Estación Local"}" está en línea pero tiene la versión ${st.agentVersion || "1.0.0"}. Actualice La Veinte Print a v1.1.0 en la PC para activar el Puente en Vivo.`
+        : "La solicitud de sincronización quedó en cola en el Puente en Vivo y se ejecutará automáticamente en cuanto el agente responda.";
 
       return noStore(
         NextResponse.json({

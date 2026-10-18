@@ -639,7 +639,7 @@ function DocumentViewerModalContent({
           {onSendPrint && (
             <button
               onClick={() => onSendPrint(rawDoc)}
-              title="Escanear QR para imprimir en oficina sindical"
+              title="Escanear QR para imprimir en computadora"
               aria-label="Imprimir"
               className="doc-viewer-action-btn"
               style={{

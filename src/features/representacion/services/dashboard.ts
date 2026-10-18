@@ -328,7 +328,7 @@ export async function getUnionDashboardSummary(delegationId: string): Promise<Un
       id: "att-print-failed",
       type: "print_failed",
       title: `${failedPrintJobs.length} trabajo${failedPrintJobs.length > 1 ? "s" : ""} de impresión con error`,
-      subtitle: failedPrintJobs[0]?.error_message || "Revisa la cola de impresión de la oficina",
+      subtitle: failedPrintJobs[0]?.error_message || "Revisa la cola de impresión",
       actionLabel: "Revisar",
       actionHref: "/representacion/impresion",
       urgency: "high",
