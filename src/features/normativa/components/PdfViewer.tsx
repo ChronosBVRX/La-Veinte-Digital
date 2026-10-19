@@ -94,11 +94,18 @@ export function PdfViewer({ documentId, initialPage = 1 }: Props) {
           <Download size={16} /> Original
         </a>
       </div>
-      <div style={{ overflow: "auto", background: "#525659", padding: "0.75rem", display: "flex", justifyContent: "center" }}>
+      <div style={{ overflow: "auto", background: "#334155", padding: "1.25rem", display: "flex", justifyContent: "center" }}>
         {error ? (
-          <p style={{ color: "#fecaca", fontSize: "0.85rem" }}>{error}</p>
+          <div style={{ textAlign: "center", padding: "1.5rem 1rem", color: "#f8fafc", maxWidth: 440 }}>
+            <p style={{ fontWeight: 700, fontSize: "0.95rem", margin: "0 0 0.5rem", color: "#f8fafc" }}>
+              Facsímil PDF no precargado en el servidor
+            </p>
+            <p style={{ fontSize: "0.825rem", color: "#cbd5e1", lineHeight: 1.45, margin: 0 }}>
+              Todo el texto oficial, artículos y procedimientos están disponibles directamente en la pestaña <strong>Lectura y Artículos</strong> dentro de la app sin necesidad de descargar el PDF.
+            </p>
+          </div>
         ) : (
-          <canvas ref={canvasRef} style={{ maxWidth: "100%", height: "auto", background: "#fff" }} />
+          <canvas ref={canvasRef} style={{ maxWidth: "100%", height: "auto", background: "#fff", borderRadius: 4 }} />
         )}
       </div>
       <div style={{ padding: "0.4rem 0.6rem", fontSize: "0.7rem", color: "var(--muted)", borderTop: "1px solid var(--border)" }}>

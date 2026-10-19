@@ -131,13 +131,13 @@ export function BibliotecaNormativaPage({ data }: Props) {
       <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", width: "100%", minWidth: 0, justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
           <button onClick={() => setMode("preambulos")} style={mode === "preambulos" ? activeMode : modeStyle}>
-            <Sparkles size={16} /> Guía y Preámbulos (Lenguaje Claro)
+            <Sparkles size={16} /> Guías y Normativas en Lenguaje Claro
           </button>
           <button onClick={() => setMode("biblioteca")} style={mode === "biblioteca" ? activeMode : modeStyle}>
-            <BookMarked size={16} /> Catálogo Oficial y PDFs
+            <BookMarked size={16} /> Catálogo Oficial de Normas
           </button>
           <button onClick={() => setMode("buscar")} style={mode === "buscar" ? activeMode : modeStyle}>
-            <Search size={16} /> Buscar en normativa
+            <Search size={16} /> Búsqueda de Texto en Corpus
           </button>
           <button onClick={() => setMode("comparar")} style={mode === "comparar" ? activeMode : modeStyle}>
             <GitCompareArrows size={16} /> Comparador CCT
@@ -153,7 +153,7 @@ export function BibliotecaNormativaPage({ data }: Props) {
             fontWeight: 600,
           }}
         >
-          <BookOpen size={16} /> Buscar Cláusula CCT
+          <BookOpen size={16} /> Búsqueda Rápida de Cláusula CCT / Estatutos
         </button>
       </div>
 
