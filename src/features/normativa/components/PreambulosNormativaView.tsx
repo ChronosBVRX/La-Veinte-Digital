@@ -11,6 +11,8 @@ import {
 import {
   TEMAS_COTIDIANOS_TRABAJADOR,
   searchPreambulosEnLenguajeNatural,
+  PREAMBULOS_NORMATIVOS,
+  type PreambuloNormativo,
 } from "../data/preambulos-normativos"
 import type { LibraryDocumentEntry } from "../services/catalog"
 
@@ -43,17 +45,64 @@ export function PreambulosNormativaView({ documents, onOpenDoc }: Props) {
   }
 
   const handleOpenDocById = (docId: string) => {
+    const cleanId = docId.trim().toLowerCase()
     const found = documents.find(
       (d) =>
-        d.id.toLowerCase() === docId.toLowerCase() ||
-        (d.key && d.key.toLowerCase() === docId.toLowerCase())
+        d.id.toLowerCase() === cleanId ||
+        (d.key && d.key.toLowerCase() === cleanId) ||
+        (d.key && d.key.toLowerCase().includes(cleanId)) ||
+        (cleanId.length > 5 && d.id.toLowerCase().includes(cleanId))
     )
     if (found) {
       onOpenDoc(found)
-    } else {
-      // Si el docId es un virtual o subdocumento (ej. CCT::BOLSA), abrimos el CCT
-      const cct = documents.find((d) => d.id === "CCT-IMSS-SNTSS-2025-2027")
-      if (cct) onOpenDoc(cct)
+      return
+    }
+
+    // Si no está en el listado base, construir la entrada exacta desde PREAMBULOS_NORMATIVOS (NUNCA mandar a CCT)
+    const p = PREAMBULOS_NORMATIVOS.find(
+      (item: PreambuloNormativo) =>
+        item.documentId.toLowerCase() === cleanId ||
+        (item.claveOficial && item.claveOficial.toLowerCase() === cleanId) ||
+        item.aliasIds?.some((a: string) => a.toLowerCase() === cleanId)
+    )
+    if (p) {
+      const entry: LibraryDocumentEntry = {
+        id: p.documentId,
+        key: p.claveOficial ?? null,
+        title: p.tituloComun,
+        organization: [p.organizacion],
+        type: p.categoria === "cct" ? "collective_agreement" : p.categoria === "sntss" ? "union_statutes" : p.categoria === "leyes" ? "federal_law" : p.categoria === "seguridad" ? "NOM" : "procedure",
+        category: p.categoria,
+        canonical: true,
+        provenance: p.organizacion || "IMSS",
+        validity: "CURRENT",
+        verificationStatus: "VERIFIED",
+        priority: "high",
+        url: null,
+        mirror: null,
+        landingPage: null,
+        effectiveFrom: null,
+        effectiveUntil: null,
+        lastReformDate: null,
+        warning: null,
+        topics: p.temasClave.map((t: { tema: string }) => t.tema),
+        versionLabel: p.vigenciaTexto ?? "Vigente Oficial",
+        sha256: null,
+        pages: null,
+        chunks: p.temasClave.length,
+        sections: p.temasClave.length,
+        versionStatus: "VERIFIED",
+      }
+      onOpenDoc(entry)
+      return
+    }
+
+    // Búsqueda por coincidencia de palabras clave en el título
+    const byTitle = PREAMBULOS_NORMATIVOS.find((item: PreambuloNormativo) =>
+      cleanId.split(/[-_\s]+/).some((part) => part.length >= 4 && item.tituloComun.toLowerCase().includes(part))
+    )
+    if (byTitle) {
+      handleOpenDocById(byTitle.documentId)
     }
   }
 

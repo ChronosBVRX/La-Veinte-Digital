@@ -3184,12 +3184,15 @@ export const TEMAS_COTIDIANOS_TRABAJADOR: Array<{
  */
 export function getPreambulo(docIdOrAlias: string): PreambuloNormativo | undefined {
   if (!docIdOrAlias) return undefined
-  const clean = docIdOrAlias.trim()
+  const clean = docIdOrAlias.trim().toLowerCase()
   return PREAMBULOS_NORMATIVOS.find(
     (p) =>
-      p.documentId.toLowerCase() === clean.toLowerCase() ||
-      (p.claveOficial && p.claveOficial.toLowerCase() === clean.toLowerCase()) ||
-      p.aliasIds?.some((a) => a.toLowerCase() === clean.toLowerCase())
+      p.documentId.toLowerCase() === clean ||
+      (p.claveOficial && p.claveOficial.toLowerCase() === clean) ||
+      p.aliasIds?.some((a) => a.toLowerCase() === clean) ||
+      (p.claveOficial && p.claveOficial.toLowerCase().includes(clean)) ||
+      (clean.length > 5 && p.documentId.toLowerCase().includes(clean)) ||
+      (clean.length > 5 && clean.includes(p.documentId.toLowerCase()))
   )
 }
 
