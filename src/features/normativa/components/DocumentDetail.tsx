@@ -12,11 +12,9 @@ import {
   Check,
   Share2,
   Sparkles,
-  AlertTriangle,
   ShieldCheck,
   Info,
   ChevronRight,
-  Layers,
 } from "lucide-react"
 import type { LibraryDocumentEntry } from "../services/catalog"
 import { getOrSynthesizePreambulo, formatTipoDocumento } from "../lib/preambulo-helper"
@@ -97,16 +95,7 @@ const ESTATUTOS_SHORTCUTS = [
   { label: "Art. 130 (Asambleas)", query: "130" },
 ]
 
-export function DocumentDetail({ doc, onClose, initialTab = "lectura", initialQuery = "" }: Props) {
-  const [activeTab, setActiveTab] = useState<"lectura" | "guia" | "pdf">(initialTab)
-  const [searchQuery, setSearchQuery] = useState(initialQuery)
-  const [copiedId, setCopiedId] = useState<string | null>(null)
-  const [openPage, setOpenPage] = useState(1)
-  const [detail, setDetail] = useState<DocDetailData | null>(null)
-
-  const preambulo = useMemo(() => getOrSynthesizePreambulo(doc), [doc])
-  const vBadge = getValidezBadge(doc.validity)
-
+export function DocumentDetail({ doc, onClose, initialTab, initialQuery = "" }: Props) {
   const isCct = useMemo(() => {
     const clean = doc.id.trim().toLowerCase()
     return clean === "cct-imss-sntss-2025-2027" || clean === "cct" || clean === "contrato-colectivo"
@@ -116,6 +105,29 @@ export function DocumentDetail({ doc, onClose, initialTab = "lectura", initialQu
     const clean = doc.id.trim().toLowerCase()
     return clean === "sntss-estatutos-2022" || clean === "estatutos" || clean === "estatutos-sntss"
   }, [doc.id])
+
+  // Por defecto, si es CCT o Estatutos se abre directo su articulado completo.
+  // Para procedimientos, reglamentos, leyes y NOMs, se abre DIRECTO el documento oficial (PDF/facsímil),
+  // sin forzar al trabajador a pasar por explicaciones redundantes previas.
+  const defaultTab = useMemo(() => {
+    if (initialTab) return initialTab
+    return (isCct || isEstatutos) ? "lectura" : "pdf"
+  }, [initialTab, isCct, isEstatutos])
+
+  const [prevDocId, setPrevDocId] = useState(doc.id)
+  const [activeTab, setActiveTab] = useState<"lectura" | "guia" | "pdf">(defaultTab)
+  const [searchQuery, setSearchQuery] = useState(initialQuery)
+  const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [openPage, setOpenPage] = useState(1)
+  const [detail, setDetail] = useState<DocDetailData | null>(null)
+
+  if (prevDocId !== doc.id) {
+    setPrevDocId(doc.id)
+    setActiveTab(defaultTab)
+  }
+
+  const preambulo = useMemo(() => getOrSynthesizePreambulo(doc), [doc])
+  const vBadge = getValidezBadge(doc.validity)
 
   // Bloquear scroll de la página al abrir
   useEffect(() => {
@@ -259,32 +271,55 @@ export function DocumentDetail({ doc, onClose, initialTab = "lectura", initialQu
 
         {/* BARRA DE PESTAÑAS DENTRO DEL LECTOR */}
         <div style={tabBarStyle}>
-          <button
-            type="button"
-            onClick={() => setActiveTab("lectura")}
-            style={activeTab === "lectura" ? tabBtnActive : tabBtnStyle}
-          >
-            <BookOpen size={16} />
-            <span>
-              {isCct ? "Cláusulas CCT (144)" : isEstatutos ? "Artículos Estatutos (155)" : "Lectura y Procedimiento"}
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab("guia")}
-            style={activeTab === "guia" ? tabBtnActive : tabBtnStyle}
-          >
-            <Sparkles size={16} />
-            <span>Guía y Derechos Clave</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab("pdf")}
-            style={activeTab === "pdf" ? tabBtnActive : tabBtnStyle}
-          >
-            <FileText size={16} />
-            <span>PDF Original</span>
-          </button>
+          {isCct || isEstatutos ? (
+            <>
+              <button
+                type="button"
+                onClick={() => setActiveTab("lectura")}
+                style={activeTab === "lectura" ? tabBtnActive : tabBtnStyle}
+              >
+                <BookOpen size={16} />
+                <span>
+                  {isCct ? "Cláusulas CCT (144)" : "Artículos Estatutos (155)"}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("pdf")}
+                style={activeTab === "pdf" ? tabBtnActive : tabBtnStyle}
+              >
+                <FileText size={16} />
+                <span>PDF Original</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("guia")}
+                style={activeTab === "guia" ? tabBtnActive : tabBtnStyle}
+              >
+                <Sparkles size={16} />
+                <span>Guía y Derechos Clave</span>
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => setActiveTab("pdf")}
+                style={activeTab === "pdf" ? tabBtnActive : tabBtnStyle}
+              >
+                <FileText size={16} />
+                <span>Documento Oficial</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("guia")}
+                style={activeTab === "guia" ? tabBtnActive : tabBtnStyle}
+              >
+                <Sparkles size={16} />
+                <span>Guía y Resumen</span>
+              </button>
+            </>
+          )}
         </div>
 
         {/* CUERPO DEL LECTOR */}
@@ -501,165 +536,10 @@ export function DocumentDetail({ doc, onClose, initialTab = "lectura", initialQu
                 </div>
               )}
 
-              {/* VISTA 1C: PROCEDIMIENTOS, MANUALES, LEYES Y NOMS */}
+              {/* VISTA DIRECTA AL DOCUMENTO OFICIAL PARA OTRAS NORMATIVAS */}
               {!isCct && !isEstatutos && (
-                <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-                  {/* Bloque 1: Objetivo y Fundamento Institucional */}
-                  <div style={sectionBlockStyle}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.45rem", marginBottom: "0.35rem" }}>
-                      <Layers size={17} color="var(--primary)" />
-                      <h3 style={sectionTitleStyle}>1. Objetivo y Fundamento Institucional</h3>
-                    </div>
-                    <p style={{ margin: 0, fontSize: "0.825rem", lineHeight: 1.6, color: "var(--fg)", whiteSpace: "pre-line" }}>
-                      {preambulo?.preambulo}
-                    </p>
-                  </div>
-
-                  {/* Bloque 2: Personal Involucrado y Alcance */}
-                  {preambulo?.aQuienAplica && preambulo.aQuienAplica.length > 0 && (
-                    <div style={sectionBlockStyle}>
-                      <h3 style={sectionTitleStyle}>2. A Quién Aplica y Ámbito Operativo</h3>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem", marginTop: "0.35rem" }}>
-                        {preambulo.aQuienAplica.map((quien, idx) => (
-                          <span key={idx} style={{ fontSize: "0.75rem", padding: "0.25rem 0.6rem", background: "var(--accent)", borderRadius: 999, color: "var(--fg)", fontWeight: 500 }}>
-                            ✓ {quien}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Bloque 3: Flujo de Actividades y Puntos Operativos */}
-                  {operationalPoints.length > 0 ? (
-                    <div style={sectionBlockStyle}>
-                      <h3 style={sectionTitleStyle}>3. Flujo Oficial de Actividades y Responsabilidades</h3>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.45rem", marginTop: "0.45rem" }}>
-                        {operationalPoints.map((point, idx) => (
-                          <div key={idx} style={{ display: "flex", alignItems: "flex-start", gap: "0.5rem", background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "0.55rem 0.75rem" }}>
-                            <span style={{ fontSize: "0.72rem", fontWeight: 700, padding: "0.1rem 0.45rem", background: "rgba(37, 99, 235, 0.1)", color: "var(--primary)", borderRadius: 999, flexShrink: 0, marginTop: 2 }}>
-                              Paso {idx + 1}
-                            </span>
-                            <span style={{ fontSize: "0.825rem", color: "var(--fg)", lineHeight: 1.45 }}>
-                              {point}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ) : preambulo?.aquiPuedesEncontrar && preambulo.aquiPuedesEncontrar.length > 0 ? (
-                    <div style={sectionBlockStyle}>
-                      <h3 style={sectionTitleStyle}>3. Contenido Clave y Procedimientos</h3>
-                      <ul style={{ margin: "0.35rem 0 0", paddingLeft: "1.2rem", fontSize: "0.825rem", lineHeight: 1.5, display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                        {preambulo.aquiPuedesEncontrar.map((item, idx) => (
-                          <li key={idx}>{item}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  ) : null}
-
-                  {/* Bloque 4: Temas Clave y Artículos/Cláusulas Fundantes */}
-                  {preambulo?.temasClave && preambulo.temasClave.length > 0 && (
-                    <div style={sectionBlockStyle}>
-                      <h3 style={sectionTitleStyle}>4. Temas Clave y Cláusulas / Artículos Fundantes</h3>
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 300px), 1fr))", gap: "0.5rem", marginTop: "0.45rem" }}>
-                        {preambulo.temasClave.map((t, idx) => (
-                          <div key={idx} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "0.6rem 0.75rem" }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
-                              <strong style={{ fontSize: "0.825rem", color: "var(--fg)" }}>{t.tema}</strong>
-                              <span style={{ fontSize: "0.7rem", fontWeight: 700, padding: "0.15rem 0.45rem", background: "rgba(37, 99, 235, 0.1)", color: "var(--primary)", borderRadius: 999 }}>
-                                {t.referencia}
-                              </span>
-                            </div>
-                            <p style={{ margin: "0.25rem 0 0", fontSize: "0.78rem", color: "var(--muted)", lineHeight: 1.35 }}>
-                              {t.queEncontraras}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Bloque 5: Casos Comunes de Consulta */}
-                  {preambulo?.cuandoConsultarlo && preambulo.cuandoConsultarlo.length > 0 && (
-                    <div style={sectionBlockStyle}>
-                      <h3 style={sectionTitleStyle}>5. ¿Cuándo Debes Consultarlo para Defender tus Derechos?</h3>
-                      <ul style={{ margin: "0.35rem 0 0", paddingLeft: "1.2rem", fontSize: "0.8rem", color: "var(--fg)", lineHeight: 1.45, display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                        {preambulo.cuandoConsultarlo.map((caso, idx) => (
-                          <li key={idx}>{caso}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {/* Bloque 6: Alertas Laborales */}
-                  {preambulo?.ojoConEsto && preambulo.ojoConEsto.length > 0 && (
-                    <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: "var(--radius)", padding: "0.75rem 0.9rem" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "0.35rem", color: "#92400e", fontWeight: 700, fontSize: "0.825rem", marginBottom: "0.35rem" }}>
-                        <AlertTriangle size={16} />
-                        <span>6. Ojo con esto para proteger tus derechos laborales:</span>
-                      </div>
-                      <ul style={{ margin: 0, paddingLeft: "1.2rem", fontSize: "0.78rem", color: "#92400e", lineHeight: 1.45, display: "flex", flexDirection: "column", gap: "0.2rem" }}>
-                        {preambulo.ojoConEsto.map((ojo, idx) => (
-                          <li key={idx}>{ojo}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {/* Bloque 7: Citas Oficiales / Numerales del Corpus */}
-                  {detail?.citations && detail.citations.length > 0 && (
-                    <div style={sectionBlockStyle}>
-                      <h3 style={sectionTitleStyle}>
-                        7. Citas y Numerales Oficiales del Documento ({detail.citations.length})
-                      </h3>
-                      <div style={{ maxHeight: 320, overflowY: "auto", display: "flex", flexDirection: "column", gap: "0.4rem", marginTop: "0.45rem" }}>
-                        {detail.citations.map((c) => (
-                          <div
-                            key={c.id}
-                            style={{
-                              background: "var(--card)",
-                              border: "1px solid var(--border)",
-                              borderRadius: "var(--radius)",
-                              padding: "0.55rem 0.75rem",
-                              fontSize: "0.78rem",
-                            }}
-                          >
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.3rem" }}>
-                              <span style={{ fontWeight: 700, color: "var(--primary)" }}>
-                                Pág. PDF {c.pdf_page ?? "-"}
-                                {c.section_label ? ` · ${c.section_label}` : ""}
-                                {c.clause ? ` · Cláusula ${c.clause}` : ""}
-                                {c.article ? ` · Artículo ${c.article}` : ""}
-                              </span>
-                              {c.pdf_page && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    if (c.pdf_page) setOpenPage(c.pdf_page)
-                                    setActiveTab("pdf")
-                                  }}
-                                  style={{
-                                    fontSize: "0.7rem",
-                                    padding: "0.15rem 0.45rem",
-                                    background: "var(--accent)",
-                                    border: "1px solid var(--border)",
-                                    borderRadius: 4,
-                                    cursor: "pointer",
-                                    color: "var(--fg)",
-                                  }}
-                                >
-                                  Ver en PDF
-                                </button>
-                              )}
-                            </div>
-                            <div style={{ color: "var(--fg)", marginTop: "0.2rem", lineHeight: 1.4 }}>
-                              {c.text}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                <div style={{ border: "1px solid var(--border)", borderRadius: "var(--radius)", overflow: "hidden" }}>
+                  <PdfViewer documentId={doc.id} initialPage={openPage} officialUrl={doc.url} />
                 </div>
               )}
             </div>
@@ -670,6 +550,36 @@ export function DocumentDetail({ doc, onClose, initialTab = "lectura", initialQu
           {/* ============================================================== */}
           {activeTab === "guia" && (
             <div style={{ display: "flex", flexDirection: "column", gap: "0.85rem" }}>
+              {/* Botón destacado para ir directo al documento oficial */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem" }}>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab(isCct || isEstatutos ? "lectura" : "pdf")}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "0.45rem",
+                    padding: "0.55rem 0.95rem",
+                    background: "var(--primary)",
+                    color: "var(--primary-fg)",
+                    borderRadius: "var(--radius)",
+                    fontSize: "0.825rem",
+                    fontWeight: 700,
+                    border: "none",
+                    cursor: "pointer",
+                  }}
+                >
+                  <FileText size={15} />
+                  <span>
+                    {isCct
+                      ? "📖 Ir a las Cláusulas del CCT (144)"
+                      : isEstatutos
+                      ? "📖 Ir a los Artículos de Estatutos (155)"
+                      : "📄 Ver documento oficial completo"}
+                  </span>
+                </button>
+              </div>
+
               {/* Etiquetas de estado y origen */}
               <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", fontSize: "0.78rem" }}>
                 <span style={kvStyle}>Estado: <strong>{vBadge.label}</strong></span>
@@ -718,6 +628,26 @@ export function DocumentDetail({ doc, onClose, initialTab = "lectura", initialQu
                       </div>
                     )}
 
+                    {operationalPoints.length > 0 && (
+                      <div>
+                        <div style={{ fontSize: "0.78rem", fontWeight: 700, marginBottom: "0.3rem", color: "var(--fg)" }}>
+                          Flujo Oficial de Actividades y Pasos Operativos:
+                        </div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+                          {operationalPoints.map((point, idx) => (
+                            <div key={idx} style={{ display: "flex", alignItems: "flex-start", gap: "0.45rem", background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "0.45rem 0.65rem" }}>
+                              <span style={{ fontSize: "0.7rem", fontWeight: 700, padding: "0.1rem 0.4rem", background: "rgba(37, 99, 235, 0.1)", color: "var(--primary)", borderRadius: 999, flexShrink: 0, marginTop: 2 }}>
+                                Paso {idx + 1}
+                              </span>
+                              <span style={{ fontSize: "0.78rem", color: "var(--fg)", lineHeight: 1.4 }}>
+                                {point}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {preambulo.temasClave && preambulo.temasClave.length > 0 && (
                       <div>
                         <div style={{ fontSize: "0.78rem", fontWeight: 700, marginBottom: "0.3rem", color: "var(--fg)" }}>
@@ -731,8 +661,12 @@ export function DocumentDetail({ doc, onClose, initialTab = "lectura", initialQu
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    setActiveTab("lectura")
-                                    setSearchQuery(t.referencia.replace(/^Cláusula\s+/i, ""))
+                                    if (isCct || isEstatutos) {
+                                      setActiveTab("lectura")
+                                      setSearchQuery(t.referencia.replace(/^Cláusula\s+/i, "").replace(/^Art[íi]culo\s+/i, ""))
+                                    } else {
+                                      setActiveTab("pdf")
+                                    }
                                   }}
                                   style={{
                                     fontSize: "0.7rem",
@@ -783,6 +717,60 @@ export function DocumentDetail({ doc, onClose, initialTab = "lectura", initialQu
                             <li key={i}>{ojo}</li>
                           ))}
                         </ul>
+                      </div>
+                    )}
+
+                    {detail?.citations && detail.citations.length > 0 && (
+                      <div>
+                        <div style={{ fontSize: "0.78rem", fontWeight: 700, marginBottom: "0.3rem", color: "var(--fg)" }}>
+                          Citas y Numerales Oficiales ({detail.citations.length}):
+                        </div>
+                        <div style={{ maxHeight: 260, overflowY: "auto", display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+                          {detail.citations.map((c) => (
+                            <div
+                              key={c.id}
+                              style={{
+                                background: "var(--card)",
+                                border: "1px solid var(--border)",
+                                borderRadius: "var(--radius)",
+                                padding: "0.45rem 0.65rem",
+                                fontSize: "0.76rem",
+                              }}
+                            >
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.3rem" }}>
+                                <span style={{ fontWeight: 700, color: "var(--primary)" }}>
+                                  Pág. PDF {c.pdf_page ?? "-"}
+                                  {c.section_label ? ` · ${c.section_label}` : ""}
+                                  {c.clause ? ` · Cláusula ${c.clause}` : ""}
+                                  {c.article ? ` · Artículo ${c.article}` : ""}
+                                </span>
+                                {c.pdf_page && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (c.pdf_page) setOpenPage(c.pdf_page)
+                                      setActiveTab("pdf")
+                                    }}
+                                    style={{
+                                      fontSize: "0.7rem",
+                                      padding: "0.15rem 0.45rem",
+                                      background: "var(--accent)",
+                                      border: "1px solid var(--border)",
+                                      borderRadius: 4,
+                                      cursor: "pointer",
+                                      color: "var(--fg)",
+                                    }}
+                                  >
+                                    Ver en PDF
+                                  </button>
+                                )}
+                              </div>
+                              <div style={{ color: "var(--fg)", marginTop: "0.2rem", lineHeight: 1.4 }}>
+                                {c.text}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -1029,20 +1017,6 @@ const actionIconBtn: CSSProperties = {
   background: "var(--accent)",
   color: "var(--fg)",
   cursor: "pointer",
-}
-
-const sectionBlockStyle: CSSProperties = {
-  background: "var(--accent)",
-  border: "1px solid var(--border)",
-  borderRadius: "var(--radius)",
-  padding: "0.85rem 1rem",
-}
-
-const sectionTitleStyle: CSSProperties = {
-  margin: 0,
-  fontSize: "0.875rem",
-  fontWeight: 700,
-  color: "var(--fg)",
 }
 
 const kvStyle: CSSProperties = {
