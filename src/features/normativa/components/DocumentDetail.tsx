@@ -108,22 +108,14 @@ export function DocumentDetail({ doc, onClose, initialTab = "lectura", initialQu
   const vBadge = getValidezBadge(doc.validity)
 
   const isCct = useMemo(() => {
-    return (
-      doc.id === "CCT-IMSS-SNTSS-2025-2027" ||
-      doc.category === "cct" ||
-      doc.type === "collective_agreement" ||
-      doc.id.toLowerCase().includes("cct")
-    )
-  }, [doc])
+    const clean = doc.id.trim().toLowerCase()
+    return clean === "cct-imss-sntss-2025-2027" || clean === "cct" || clean === "contrato-colectivo"
+  }, [doc.id])
 
   const isEstatutos = useMemo(() => {
-    return (
-      doc.id === "SNTSS-ESTATUTOS-2022" ||
-      doc.category === "sntss" ||
-      doc.type === "union_statutes" ||
-      doc.id.toLowerCase().includes("estatutos")
-    )
-  }, [doc])
+    const clean = doc.id.trim().toLowerCase()
+    return clean === "sntss-estatutos-2022" || clean === "estatutos" || clean === "estatutos-sntss"
+  }, [doc.id])
 
   // Bloquear scroll de la página al abrir
   useEffect(() => {

@@ -21,6 +21,12 @@ export function formatTipoDocumento(type: string): string {
       return "Norma Oficial Mexicana (NOM)"
     case "procedure":
       return "Procedimiento Institucional"
+    case "flujos-clinicos":
+    case "flujo-clinico":
+      return "Procedimiento Clínico"
+    case "administrativos":
+    case "administrativo":
+      return "Procedimiento Administrativo"
     case "salary_table":
       return "Tabulador Salarial"
     case "integrity_code":

@@ -16,14 +16,16 @@ interface Props {
 }
 
 type TabId =
-  | "todos" | "cct" | "reglamentos" | "procedimientos" | "sntss" | "leyes" | "nom"
+  | "todos" | "clinicos" | "administrativos" | "cct" | "reglamentos" | "procedimientos" | "sntss" | "leyes" | "nom"
   | "riesgos" | "seguridad" | "integridad" | "tabuladores" | "historicos" | "pendientes"
 
 const TABS: Array<{ id: TabId; label: string }> = [
   { id: "todos", label: "Todos" },
+  { id: "clinicos", label: "Puestos Clínicos" },
+  { id: "administrativos", label: "Personal Administrativo" },
   { id: "cct", label: "CCT" },
   { id: "reglamentos", label: "Reglamentos" },
-  { id: "procedimientos", label: "Procedimientos" },
+  { id: "procedimientos", label: "Procedimientos IMSS" },
   { id: "sntss", label: "SNTSS" },
   { id: "leyes", label: "Leyes" },
   { id: "nom", label: "NOM" },
@@ -39,12 +41,27 @@ function matchTab(doc: LibraryDocumentEntry, tab: TabId): boolean {
   switch (tab) {
     case "todos":
       return true
+    case "clinicos":
+      return (
+        doc.category === "flujos-clinicos" ||
+        /enfermer|asistente|médic|radiodiag|imagenolog|rayos|camiller|laboratorio|farmacia|urgencias|triage|nutrici|ceye|sangre/i.test(doc.title)
+      )
+    case "administrativos":
+      return (
+        doc.category === "administrativos" ||
+        /administrativ|auo|oficinas|arimac|archivo|vigencia|almac|mantenimiento|ambulancia|taod|soporte|informática/i.test(doc.title)
+      )
     case "cct":
       return doc.category === "cct" || doc.type === "collective_agreement"
     case "reglamentos":
       return ["regulation", "institutional_regulation", "federal_regulation", "union_regulation"].includes(doc.type)
     case "procedimientos":
-      return doc.type === "procedure"
+      return (
+        doc.type === "procedure" ||
+        doc.category === "procedimientos" ||
+        doc.category === "flujos-clinicos" ||
+        doc.category === "administrativos"
+      )
     case "sntss":
       return doc.category === "sntss" || ["union_statutes", "union_regulation"].includes(doc.type)
     case "leyes":

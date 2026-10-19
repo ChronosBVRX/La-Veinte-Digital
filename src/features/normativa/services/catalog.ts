@@ -203,7 +203,7 @@ export class NormativeCatalog {
         const manifestPath = path.join(this.repoRoot, "resources", "normativa", "bootstrap-sources.yaml");
         if (fs.existsSync(manifestPath)) {
           const manifest = loadManifest(manifestPath);
-          const fallbackDocs: LibraryDocumentEntry[] = manifest.sources.map((s) => ({
+          documents = manifest.sources.map((s) => ({
             id: s.id,
             key: s.key ?? null,
             title: s.title,
@@ -230,76 +230,67 @@ export class NormativeCatalog {
             sections: 0,
             versionStatus: "VERIFIED",
           }));
-          return {
-            available: true,
-            health: {
-              documents: fallbackDocs.length,
-              versions: fallbackDocs.length,
-              sections: 7593,
-              chunks: 22270,
-              vigentes: fallbackDocs.filter((d) => d.validity === "CURRENT").length,
-              revisar: fallbackDocs.filter((d) => d.validity === "PENDING_REVIEW").length,
-              historicos: fallbackDocs.filter((d) => d.validity === "HISTORICAL").length,
-              errores: 0,
-              latestUpdate: null,
-              nextExpiration: { document: "IMSS-TABULADOR-BASE-2025-2026", date: "2026-10-15" },
-              missingRefs: 0,
-            },
-            documents: fallbackDocs,
-          };
         }
       } catch (e) {
         console.error("Error al cargar manifest fallback:", e);
       }
-
-      // 2. Respaldo en memoria compilado desde PREAMBULOS_NORMATIVOS (siempre disponible sin I/O)
-      const fallbackPreambulos: LibraryDocumentEntry[] = PREAMBULOS_NORMATIVOS.map((p) => ({
-        id: p.documentId,
-        key: p.claveOficial ?? null,
-        title: p.tituloComun,
-        organization: [p.organizacion],
-        type: p.categoria,
-        category: p.categoria,
-        canonical: true,
-        provenance: "OFFICIAL",
-        validity: "CURRENT",
-        verificationStatus: "VERIFIED",
-        priority: "high",
-        url: null,
-        mirror: null,
-        landingPage: null,
-        effectiveFrom: null,
-        effectiveUntil: null,
-        lastReformDate: null,
-        warning: null,
-        topics: [p.enUnaFrase],
-        versionLabel: p.vigenciaTexto ?? "Vigente",
-        sha256: null,
-        pages: null,
-        chunks: 0,
-        sections: 0,
-        versionStatus: "VERIFIED",
-      }));
-
-      return {
-        available: true,
-        health: {
-          documents: fallbackPreambulos.length,
-          versions: fallbackPreambulos.length,
-          sections: 7593,
-          chunks: 22270,
-          vigentes: fallbackPreambulos.length,
-          revisar: 0,
-          historicos: 0,
-          errores: 0,
-          latestUpdate: null,
-          nextExpiration: { document: "IMSS-TABULADOR-BASE-2025-2026", date: "2026-10-15" },
-          missingRefs: 0,
-        },
-        documents: fallbackPreambulos,
-      };
     }
 
-    return { available: hasDb, health, documents };
+    // Garantizar que todos los documentos de PREAMBULOS_NORMATIVOS estén incorporados en la biblioteca
+    const existingIds = new Set(documents.map((d) => d.id.toLowerCase()));
+    for (const p of PREAMBULOS_NORMATIVOS) {
+      if (!existingIds.has(p.documentId.toLowerCase())) {
+        existingIds.add(p.documentId.toLowerCase());
+        documents.push({
+          id: p.documentId,
+          key: p.claveOficial ?? null,
+          title: p.tituloComun,
+          organization: [p.organizacion],
+          type: p.categoria === "cct" ? "collective_agreement" : p.categoria === "sntss" ? "union_statutes" : p.categoria === "leyes" ? "federal_law" : p.categoria === "seguridad" ? "NOM" : "procedure",
+          category: p.categoria,
+          canonical: true,
+          provenance: p.organizacion || "OFFICIAL",
+          validity: "CURRENT",
+          verificationStatus: "VERIFIED",
+          priority: "high",
+          url: null,
+          mirror: null,
+          landingPage: null,
+          effectiveFrom: null,
+          effectiveUntil: null,
+          lastReformDate: null,
+          warning: null,
+          topics: p.temasClave.map((t) => t.tema),
+          versionLabel: p.vigenciaTexto ?? "Vigente Oficial",
+          sha256: null,
+          pages: null,
+          chunks: p.temasClave.length,
+          sections: p.temasClave.length,
+          versionStatus: "VERIFIED",
+        });
+      }
+    }
+
+    const totalDocs = documents.length;
+    const vigentes = documents.filter((d) => d.validity === "CURRENT").length;
+    const revisar = documents.filter((d) => d.validity === "PENDING_REVIEW").length;
+    const historicos = documents.filter((d) => d.validity === "HISTORICAL").length;
+    const safeHealth: CorpusHealth = health ?? {
+      documents: totalDocs,
+      versions: totalDocs,
+      sections: 7593,
+      chunks: 22270,
+      vigentes,
+      revisar,
+      historicos,
+      errores: 0,
+      latestUpdate: null,
+      nextExpiration: { document: "IMSS-TABULADOR-BASE-2025-2026", date: "2026-10-15" },
+      missingRefs: 0,
+    };
+    safeHealth.documents = totalDocs;
+    safeHealth.vigentes = vigentes;
+
+    return { available: true, health: safeHealth, documents };
   }
 }
