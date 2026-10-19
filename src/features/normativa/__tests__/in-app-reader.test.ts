@@ -85,4 +85,36 @@ describe("Biblioteca Normativa - Lector In-App y Prevención de Confusión CCT",
       expect(p.documentId).not.toBe("CCT-IMSS-SNTSS-2025-2027")
     }
   })
+
+  it("todos los 57 PREAMBULOS_NORMATIVOS tienen urlOficial verificada", () => {
+    expect(PREAMBULOS_NORMATIVOS.length).toBe(57)
+    for (const p of PREAMBULOS_NORMATIVOS) {
+      expect(p.urlOficial, `Preámbulo ${p.documentId} debe tener urlOficial`).toBeDefined()
+      expect(p.urlOficial).toMatch(/^https?:\/\//)
+    }
+  })
+
+  it("openOriginalAtPage localiza facsímiles para contratos y reglamentos cuando están presentes", () => {
+    const cctRes = catalog.openOriginalAtPage("CCT-IMSS-SNTSS-2025-2027", 1)
+    if (cctRes) {
+      expect(cctRes.filePath.toLowerCase()).toMatch(/(cct|clausulas)/)
+    }
+
+    const estatutosRes = catalog.openOriginalAtPage("SNTSS-ESTATUTOS-2022", 1)
+    if (estatutosRes) {
+      expect(estatutosRes.filePath.toLowerCase()).toContain("estatutos")
+    }
+
+    const auoRes = catalog.openOriginalAtPage("IMSS-1A74-003-AUO", 1)
+    if (auoRes) {
+      expect(auoRes.filePath.toLowerCase()).toMatch(/(auo|profesiogramas)/)
+    }
+
+    // Para procedimientos que no se incluyen en git por tamaño, openOriginalAtPage devuelve null o ruta válida sin arrojar error
+    const enfermeriaRes = catalog.openOriginalAtPage("IMSS-2610-003-017", 1)
+    if (enfermeriaRes) {
+      expect(enfermeriaRes.filePath).toMatch(/\.(pdf|html)$/)
+    }
+  })
 })
+

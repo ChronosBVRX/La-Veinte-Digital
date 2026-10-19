@@ -149,13 +149,68 @@ export class NormativeCatalog {
 
   openOriginalAtPage(documentId: string, pdfPage: number): { filePath: string; page: number } | null {
     const doc = this.db.getDocument(documentId);
-    if (!doc?.currentVersion) return null;
-    const ver = this.db.getVersion(doc.currentVersion);
-    if (!ver) return null;
-    for (const ext of ["pdf", "html"]) {
-      const p = path.join(ver.dir, `original.${ext}`);
-      if (fs.existsSync(p)) return { filePath: p, page: pdfPage };
+    if (doc?.currentVersion) {
+      const ver = this.db.getVersion(doc.currentVersion);
+      if (ver) {
+        for (const ext of ["pdf", "html"]) {
+          const p = path.join(ver.dir, `original.${ext}`);
+          if (fs.existsSync(p)) return { filePath: p, page: pdfPage };
+        }
+      }
     }
+
+    // Búsqueda en acervo local de originales descargados y bot-api/pdfs
+    const searchDirs = [
+      path.join(this.root, "originales"),
+      path.join(this.repoRoot, "data", "normativa", "originales"),
+      path.join(this.repoRoot, "bot-api", "pdfs"),
+    ].filter((d) => fs.existsSync(d));
+
+    const cleanId = documentId.replace(/^IMSS-/i, "").toLowerCase();
+    const p = PREAMBULOS_NORMATIVOS.find(
+      (item) =>
+        item.documentId.toLowerCase() === documentId.toLowerCase() ||
+        item.aliasIds?.some((a) => a.toLowerCase() === documentId.toLowerCase())
+    );
+
+    const candidates = [
+      documentId,
+      cleanId,
+      documentId.replace(/:+/g, "-"),
+      cleanId.replace(/:+/g, "-"),
+      ...(p?.claveOficial ? p.claveOficial.split("/").map((s) => s.trim()) : []),
+      ...(p?.aliasIds ?? []),
+    ]
+      .filter(Boolean)
+      .map((c) => c.toLowerCase());
+
+    for (const dir of searchDirs) {
+      for (const ext of ["pdf", "html"]) {
+        const direct = path.join(dir, `${documentId}.${ext}`);
+        if (fs.existsSync(direct)) return { filePath: direct, page: pdfPage };
+        const cleanDirect = path.join(dir, `${cleanId}.${ext}`);
+        if (fs.existsSync(cleanDirect)) return { filePath: cleanDirect, page: pdfPage };
+      }
+
+      const files = fs.readdirSync(dir);
+      for (const cand of candidates) {
+        if (!cand || cand.length < 3) continue;
+        const cleanCand = cand.replace(/^IMSS-/i, "").toLowerCase();
+        const match = files.find((f) => {
+          const fLow = f.toLowerCase();
+          return (
+            fLow === `${cand}.pdf` ||
+            fLow === `${cleanCand}.pdf` ||
+            fLow.includes(cand) ||
+            fLow.includes(cleanCand)
+          );
+        });
+        if (match) {
+          return { filePath: path.join(dir, match), page: pdfPage };
+        }
+      }
+    }
+
     return null;
   }
 
@@ -253,9 +308,9 @@ export class NormativeCatalog {
           validity: "CURRENT",
           verificationStatus: "VERIFIED",
           priority: "high",
-          url: null,
-          mirror: null,
-          landingPage: null,
+          url: p.urlOficial ?? (p.claveOficial && /^[0-9A-Za-z]{4}-[0-9A-Za-z]{3}-[0-9A-Za-z]{3}/.test(p.claveOficial) ? `https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/${p.claveOficial.split("/")[0].trim()}.pdf` : null),
+          mirror: p.urlOficial ? null : "https://www.imss.gob.mx/conoce-al-imss/marco-normativo",
+          landingPage: "https://www.imss.gob.mx/conoce-al-imss/marco-normativo",
           effectiveFrom: null,
           effectiveUntil: null,
           lastReformDate: null,
@@ -268,6 +323,21 @@ export class NormativeCatalog {
           sections: p.temasClave.length,
           versionStatus: "VERIFIED",
         });
+      }
+    }
+
+    // Enriquecer URLs oficiales para cualquier documento existente en la biblioteca
+    for (const d of documents) {
+      if (!d.url) {
+        const p = PREAMBULOS_NORMATIVOS.find(
+          (item) =>
+            item.documentId.toLowerCase() === d.id.toLowerCase() ||
+            (item.claveOficial && d.key && item.claveOficial.toLowerCase().includes(d.key.toLowerCase())) ||
+            item.aliasIds?.some((a) => a.toLowerCase() === d.id.toLowerCase())
+        );
+        if (p?.urlOficial) {
+          d.url = p.urlOficial;
+        }
       }
     }
 

@@ -1,15 +1,16 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { ChevronLeft, ChevronRight, Download } from "lucide-react"
+import { ChevronLeft, ChevronRight, Download, ExternalLink } from "lucide-react"
 import { loadPdfDocument } from "../lib/pdfjs-client"
 
 interface Props {
   documentId: string
   initialPage?: number
+  officialUrl?: string | null
 }
 
-export function PdfViewer({ documentId, initialPage = 1 }: Props) {
+export function PdfViewer({ documentId, initialPage = 1, officialUrl = null }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [page, setPage] = useState(initialPage)
   const [numPages, setNumPages] = useState(0)
@@ -103,6 +104,29 @@ export function PdfViewer({ documentId, initialPage = 1 }: Props) {
             <p style={{ fontSize: "0.825rem", color: "#cbd5e1", lineHeight: 1.45, margin: 0 }}>
               Todo el texto oficial, artículos y procedimientos están disponibles directamente en la pestaña <strong>Lectura y Artículos</strong> dentro de la app sin necesidad de descargar el PDF.
             </p>
+            {officialUrl && (
+              <a
+                href={officialUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.45rem",
+                  marginTop: "1rem",
+                  padding: "0.55rem 1rem",
+                  background: "var(--primary)",
+                  color: "#fff",
+                  borderRadius: "var(--radius)",
+                  fontSize: "0.825rem",
+                  fontWeight: 700,
+                  textDecoration: "none",
+                }}
+              >
+                <ExternalLink size={15} />
+                Abrir documento en repositorio oficial (IMSS / DOF)
+              </a>
+            )}
           </div>
         ) : (
           <canvas ref={canvasRef} style={{ maxWidth: "100%", height: "auto", background: "#fff", borderRadius: 4 }} />

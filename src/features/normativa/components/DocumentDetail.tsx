@@ -797,7 +797,7 @@ export function DocumentDetail({ doc, onClose, initialTab = "lectura", initialQu
           {activeTab === "pdf" && (
             <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
               <div style={{ border: "1px solid var(--border)", borderRadius: "var(--radius)", overflow: "hidden" }}>
-                <PdfViewer documentId={doc.id} initialPage={openPage} />
+                <PdfViewer documentId={doc.id} initialPage={openPage} officialUrl={doc.url} />
               </div>
 
               {doc.url && (

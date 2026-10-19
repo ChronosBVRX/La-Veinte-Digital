@@ -17,6 +17,7 @@ export interface PreambuloNormativo {
   aliasIds?: string[]
   tituloComun: string
   claveOficial?: string
+  urlOficial?: string
   organizacion: string
   categoria: "cct" | "sntss" | "reglamentos" | "leyes" | "seguridad" | "integridad" | "procedimientos" | "flujos-clinicos" | "administrativos"
   enUnaFrase: string
@@ -32,7 +33,8 @@ export interface PreambuloNormativo {
 export const PREAMBULOS_NORMATIVOS: PreambuloNormativo[] = [
   {
     documentId: "CCT-IMSS-SNTSS-2025-2027",
-    aliasIds: ["cct", "CCT", "contrato-colectivo"],
+    urlOficial: "https://www.imss.gob.mx/sites/all/statics/pdf/CCT-2025-2027.pdf",
+    aliasIds: ["cct", "CCT", "contrato-colectivo", "clausulas", "Clausulas"],
     tituloComun: "Contrato Colectivo de Trabajo IMSS-SNTSS (CCT)",
     claveOficial: "CCT 2025-2027",
     organizacion: "IMSS / SNTSS",
@@ -115,9 +117,10 @@ Aquí puedes encontrar las reglas exactas de cómo te pagan, cuántos días de v
   },
   {
     documentId: "SNTSS-ESTATUTOS-2022",
+    urlOficial: "https://media.sntss.org.mx/media/elements/estatutos-sntss-2022-kc64-image.pdf",
     aliasIds: ["estatutos", "estatutos-sntss"],
     tituloComun: "Estatutos del SNTSS",
-    claveOficial: "Edición Octubre 2022",
+    claveOficial: "Estatutos Sindicales Ed. 2022",
     organizacion: "SNTSS",
     categoria: "sntss",
     vigenciaTexto: "Publicación oficial SNTSS vigente (sujeto a proceso de reforma estatutaria)",
@@ -169,6 +172,7 @@ Aquí puedes encontrar cuáles son tus derechos como socio activo: desde votar e
   },
   {
     documentId: "SNTSS-FAS-2025",
+    urlOficial: "https://media.sntss.org.mx/media/elements/Reglamento%20FAS%202025%20VF%201.pdf",
     aliasIds: ["fas", "fondo-de-ayuda-sindical"],
     tituloComun: "Reglamento del Fondo de Ayuda Sindical por Defunción (FAS)",
     claveOficial: "Reglamento FAS 2025",
@@ -214,9 +218,10 @@ Aquí puedes encontrar cómo registrar tu Pliego Testamentario, quiénes pueden 
   },
   {
     documentId: "CCT::BOLSA",
+    urlOficial: "https://www.imss.gob.mx/sites/all/statics/pdf/CCT-2025-2027.pdf",
     aliasIds: ["IMSS-BOLSA-TRABAJO", "bolsa-de-trabajo"],
     tituloComun: "Reglamento de Bolsa de Trabajo IMSS-SNTSS",
-    claveOficial: "Anexo al CCT",
+    claveOficial: "Reglamento Anexo al CCT IMSS-SNTSS",
     organizacion: "Comisión Nacional Mixta de Bolsa de Trabajo",
     categoria: "reglamentos",
     vigenciaTexto: "Vigente incorporado al CCT",
@@ -260,9 +265,10 @@ Aquí puedes encontrar los requisitos para ingresar a las listas de bolsa, cómo
   },
   {
     documentId: "CCT::ESCALAFON",
+    urlOficial: "https://www.imss.gob.mx/sites/all/statics/pdf/CCT-2025-2027.pdf",
     aliasIds: ["IMSS-ESCALAFON", "escalafon"],
     tituloComun: "Reglamento de Escalafón IMSS-SNTSS",
-    claveOficial: "Anexo al CCT",
+    claveOficial: "Reglamento Anexo al CCT IMSS-SNTSS",
     organizacion: "Comisión Nacional Mixta de Escalafón",
     categoria: "reglamentos",
     vigenciaTexto: "Vigente incorporado al CCT",
@@ -304,9 +310,10 @@ Aquí puedes encontrar cómo se califica tu antigüedad, cursos tomados, discipl
   },
   {
     documentId: "CCT::RIT",
+    urlOficial: "https://www.imss.gob.mx/sites/all/statics/pdf/CCT-2025-2027.pdf",
     aliasIds: ["IMSS-RIT", "reglamento-interior-de-trabajo"],
     tituloComun: "Reglamento Interior de Trabajo IMSS-SNTSS (RIT)",
-    claveOficial: "Anexo al CCT",
+    claveOficial: "Reglamento Interior de Trabajo Anexo al CCT",
     organizacion: "IMSS / SNTSS",
     categoria: "reglamentos",
     vigenciaTexto: "Vigente incorporado al CCT",
@@ -355,9 +362,10 @@ Aquí puedes encontrar cuántos minutos de tolerancia tienes al checar, cuántos
   },
   {
     documentId: "CCT::JUBILACIONES",
+    urlOficial: "https://www.imss.gob.mx/sites/all/statics/pdf/CCT-2025-2027.pdf",
     aliasIds: ["rjp", "regimen-de-jubilaciones-y-pensiones"],
     tituloComun: "Régimen de Jubilaciones y Pensiones (RJP)",
-    claveOficial: "Convenio Anexo al CCT",
+    claveOficial: "Convenio Anexo al CCT IMSS-SNTSS",
     organizacion: "IMSS / SNTSS",
     categoria: "cct",
     vigenciaTexto: "Vigente para trabajadores con derechos contractuales",
@@ -400,9 +408,10 @@ Aquí puedes encontrar los años exactos de servicio que requieres (27 años muj
   },
   {
     documentId: "LFT",
+    urlOficial: "https://www.diputados.gob.mx/LeyesBiblio/pdf/LFT.pdf",
     aliasIds: ["ley-federal-del-trabajo"],
     tituloComun: "Ley Federal del Trabajo (LFT)",
-    claveOficial: "Compilación Cámara de Diputados",
+    claveOficial: "Ley Federal del Trabajo (Reforma DOF 2026)",
     organizacion: "Congreso de la Unión",
     categoria: "leyes",
     vigenciaTexto: "Reformas vigentes publicadas en DOF",
@@ -444,6 +453,7 @@ Aquí puedes encontrar los límites máximos de jornada legal, los días de desc
   },
   {
     documentId: "NOM-035-STPS-2018",
+    urlOficial: "https://dof.gob.mx/normasOficiales/7415/stps2a11_C/stps2a11_C.html",
     aliasIds: ["nom-035", "factores-psicosociales"],
     tituloComun: "NOM-035-STPS-2018 (Factores de Riesgo Psicosocial)",
     claveOficial: "NOM-035-STPS-2018",
@@ -487,6 +497,7 @@ Aquí puedes encontrar qué se considera violencia laboral, cómo denunciar un c
   },
   {
     documentId: "NOM-036-1-STPS-2018",
+    urlOficial: "https://dof.gob.mx/normasOficiales/7468/stps11_C/stps11_C.html",
     aliasIds: ["nom-036", "ergonomia-cargas"],
     tituloComun: "NOM-036-1-STPS-2018 (Ergonomía y Manejo de Cargas)",
     claveOficial: "NOM-036-1-STPS-2018",
@@ -523,6 +534,7 @@ Aquí puedes encontrar los límites en kilogramos según edad y género, las con
   },
   {
     documentId: "LEY-SILLA-2025",
+    urlOficial: "https://www.dof.gob.mx/nota_detalle.php?codigo=5763187&fecha=17/07/2025",
     aliasIds: ["ley-silla", "bipedestacion"],
     tituloComun: "Disposiciones de Bipedestación ('Ley Silla')",
     claveOficial: "Reforma LFT DOF 17-07-2025",
@@ -558,9 +570,10 @@ Aquí puedes encontrar la obligación del Instituto de proveer asientos o sillas
   },
   {
     documentId: "IMSS-CODIGO-CONDUCTA",
+    urlOficial: "https://www.imss.gob.mx/sites/all/statics/pdf/codigo-conducta.pdf",
     aliasIds: ["codigo-de-conducta"],
     tituloComun: "Código de Conducta y Prevención de Conflictos de Interés",
-    claveOficial: "Código Oficial IMSS",
+    claveOficial: "Código de Conducta IMSS",
     organizacion: "IMSS / Comité de Ética",
     categoria: "integridad",
     vigenciaTexto: "Publicación oficial vigente",
@@ -594,6 +607,7 @@ Aquí puedes encontrar las definiciones oficiales de acoso laboral, acoso sexual
   // ────────────────────────── PROCEDIMIENTOS CON CLAVE IMSS ──────────────────────────
   {
     documentId: "IMSS-2900-B03-002",
+    urlOficial: "https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/2900-B03-002.pdf",
     aliasIds: ["2900-B03-002", "2900", "plantilla", "plantillas", "dotacion-personal", "indicadores-enfermeria"],
     tituloComun: "Procedimiento de Planeación y Definición de Plantillas en Unidades Médicas",
     claveOficial: "2900-B03-002",
@@ -641,6 +655,7 @@ Aquí puedes encontrar los indicadores oficiales de dotación de personal por se
   },
   {
     documentId: "IMSS-1A74-003-034",
+    urlOficial: "https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/1A74-003-034.pdf",
     aliasIds: ["1A74-003-034", "1A74", "biometrico", "checador", "puntualidad-asistencia", "sustituciones"],
     tituloComun: "Procedimiento para el Control de Asistencia, Puntualidad y Sustituciones",
     claveOficial: "1A74-003-034",
@@ -685,6 +700,7 @@ Aquí puedes encontrar qué hacer cuando el checador no reconoce tu huella, cóm
   },
   {
     documentId: "IMSS-1A74-003-031",
+    urlOficial: "https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/1A74-003-031.pdf",
     aliasIds: ["1A74-003-031", "tiempo-extra", "tiempo-extraordinario", "concepto-037", "concepto-737"],
     tituloComun: "Procedimiento para Tiempo Extraordinario",
     claveOficial: "1A74-003-031",
@@ -722,6 +738,7 @@ Aquí puedes encontrar los formatos oficiales de autorización previa, el regist
   },
   {
     documentId: "IMSS-1A74-003-025",
+    urlOficial: "https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/1A74-003-025.pdf",
     aliasIds: ["1A74-003-025", "tramite-vacaciones", "roles-vacacionales", "formato-vacaciones"],
     tituloComun: "Procedimiento para el Trámite y Otorgamiento de Vacaciones",
     claveOficial: "1A74-003-025",
@@ -759,6 +776,7 @@ Aquí puedes encontrar los calendarios de captura de roles en el sistema SIAP, l
   },
   {
     documentId: "IMSS-1A74-003-030",
+    urlOficial: "https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/1A74-003-030.pdf",
     aliasIds: ["1A74-003-030", "catalogo-plazas", "infecto-plazas", "emanaciones-radiactivas"],
     tituloComun: "Procedimiento para Actualización al Catálogo de Plazas",
     claveOficial: "1A74-003-030",
@@ -794,6 +812,7 @@ Aquí puedes encontrar los estudios de campo que realiza Seguridad en el Trabajo
   },
   {
     documentId: "IMSS-1A74-003-032",
+    urlOficial: "https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/1A74-003-032.pdf",
     aliasIds: ["1A74-003-032", "modificacion-horarios", "cambio-horario-institucional"],
     tituloComun: "Procedimiento para la Modificación de Horarios Institucionales",
     claveOficial: "1A74-003-032",
@@ -829,6 +848,7 @@ Aquí puedes encontrar los plazos de notificación previa y los derechos de los 
   },
   {
     documentId: "IMSS-1A74-003-033",
+    urlOficial: "https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/1A74-003-033.pdf",
     aliasIds: ["1A74-003-033", "siap", "altas-bajas", "cambios-nomina", "nomina-ordinaria"],
     tituloComun: "Procedimiento para Bajas, Altas y Cambios en Nómina Ordinaria (SIAP)",
     claveOficial: "1A74-003-033",
@@ -864,6 +884,7 @@ Aquí puedes encontrar las fechas de corte quincenal de nómina, el alta de cuen
   },
   {
     documentId: "IMSS-1A74-003-024",
+    urlOficial: "https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/1A74-003-024.pdf",
     aliasIds: ["1A74-003-024", "aclaracion-fondo-ahorro", "pago-fondo-ahorro", "concepto-050"],
     tituloComun: "Procedimiento para la Aclaración y Pago de Fondo de Ahorro",
     claveOficial: "1A74-003-024",
@@ -899,6 +920,7 @@ Aquí puedes encontrar los plazos para inconformarte, el cálculo de semanas com
   },
   {
     documentId: "IMSS-1A74-003-023",
+    urlOficial: "https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/1A74-003-023.pdf",
     aliasIds: ["1A74-003-023", "guardias-imss", "autorizacion-guardias", "rol-guardias"],
     tituloComun: "Procedimiento para la Autorización de Guardias",
     claveOficial: "1A74-003-023",
@@ -934,6 +956,7 @@ Aquí puedes encontrar cómo se llena el rol oficial de guardias y los tiempos d
   },
   {
     documentId: "IMSS-3A21-003-010",
+    urlOficial: "https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/3A21-003-010.pdf",
     aliasIds: ["3A21-003-010", "3A21", "accidentes-trabajo", "formato-st-7", "st-7", "riesgo-trabajo", "st-2", "st-3"],
     tituloComun: "Procedimiento para la Dictaminación de los Accidentes de Trabajo",
     claveOficial: "3A21-003-010",
@@ -977,6 +1000,7 @@ Aquí puedes encontrar cómo se solicita y llena el formato ST-7 (Aviso de Atenc
   },
   {
     documentId: "IMSS-3A21-003-003",
+    urlOficial: "https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/3A21-003-003.pdf",
     aliasIds: ["3A21-003-003", "enfermedades-trabajo", "formato-st-9", "st-9", "salud-trabajo"],
     tituloComun: "Procedimiento para la Dictaminación de las Enfermedades de Trabajo",
     claveOficial: "3A21-003-003",
@@ -1014,6 +1038,7 @@ Aquí puedes encontrar el trámite del formato ST-9, la inspección que realiza 
   },
   {
     documentId: "IMSS-1A31-003-015",
+    urlOficial: "https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/1A31-003-015.pdf",
     aliasIds: ["1A31-003-015", "1A31", "reconsiderar-sanciones", "defensa-sanciones", "apelacion-sancion"],
     tituloComun: "Procedimiento para Reconsiderar las Sanciones Laborales",
     claveOficial: "1A31-003-015",
@@ -1050,6 +1075,7 @@ Aquí puedes encontrar los plazos para interponer el recurso de reconsideración
   },
   {
     documentId: "IMSS-1A31-003-001",
+    urlOficial: "https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/1A31-003-001.pdf",
     aliasIds: ["1A31-003-001", "reconocimiento-antiguedad", "antiguedad-sustituto", "quinquenios-retroactivos"],
     tituloComun: "Procedimiento para el Reconocimiento de Antigüedad",
     claveOficial: "1A31-003-001",
@@ -1085,6 +1111,7 @@ Aquí puedes encontrar la documentación probatoria requerida, el cotejo de nóm
   },
   {
     documentId: "IMSS-1A31-003-005",
+    urlOficial: "https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/1A31-003-005.pdf",
     aliasIds: ["1A31-003-005", "ausentismo-no-programado", "faltas-justificadas", "fuerza-mayor"],
     tituloComun: "Procedimiento para el Seguimiento del Ausentismo No Programado",
     claveOficial: "1A31-003-005",
@@ -1120,6 +1147,7 @@ Aquí puedes encontrar los plazos oficiales para avisar al servicio, entregar ju
   },
   {
     documentId: "IMSS-1A31-003-016",
+    urlOficial: "https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/1A31-003-016.pdf",
     aliasIds: ["1A31-003-016", "permisos-clausula-41", "reserva-plaza", "licencias-con-goce"],
     tituloComun: "Procedimiento para Permisos Temporales de la Cláusula 41 del CCT",
     claveOficial: "1A31-003-016",
@@ -1154,6 +1182,7 @@ Aquí puedes encontrar los requisitos de trámite, formatos de solicitud y tiemp
   },
   {
     documentId: "IMSS-1A31-003-003",
+    urlOficial: "https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/1A31-003-003.pdf",
     aliasIds: ["1A31-003-003", "permiso-sin-goce", "licencia-sin-sueldo", "permiso-un-ano"],
     tituloComun: "Procedimiento para Permisos sin Goce de Sueldo",
     claveOficial: "1A31-003-003",
@@ -1189,6 +1218,7 @@ Aquí puedes encontrar la duración máxima permitida (hasta 365 días), cómo s
   },
   {
     documentId: "IMSS-1A32-003-005",
+    urlOficial: "https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/1A32-003-005.pdf",
     aliasIds: ["1A32-003-005", "1A32", "tramite-rjp", "expediente-jubilacion", "finiquito-jubilacion"],
     tituloComun: "Procedimiento para el Trámite de Prestaciones del RJP",
     claveOficial: "1A32-003-005",
@@ -1226,6 +1256,7 @@ Aquí puedes encontrar la lista exhaustiva de documentos que te pedirán en Pres
   },
   {
     documentId: "IMSS-9220-003-329",
+    urlOficial: "https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/9220-003-329.pdf",
     aliasIds: ["9220-003-329", "9220", "prestaciones-dinero", "pago-subsidios-incapacidad", "subsidio-maternidad"],
     tituloComun: "Procedimiento para Prestaciones en Dinero (Subsidios e Incapacidades)",
     claveOficial: "9220-003-329",
@@ -1261,6 +1292,7 @@ Aquí puedes encontrar qué porcentaje corresponde por cada ramo de seguro (Ries
   },
   {
     documentId: "IMSS-1A72-003-005",
+    urlOficial: "https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/1A72-003-005.pdf",
     aliasIds: ["1A72-003-005", "1A72", "prestamos-habitacion", "credito-vivienda-imss", "fomento-habitacion"],
     tituloComun: "Procedimiento para Préstamos de Fomento a la Habitación IMSS",
     claveOficial: "1A72-003-005",
@@ -1296,6 +1328,7 @@ Aquí puedes encontrar los montos máximos autorizados según categoría, la tas
   },
   {
     documentId: "IMSS-1A72-003-014",
+    urlOficial: "https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/1A72-003-014.pdf",
     aliasIds: ["1A72-003-014", "financiamiento-vehiculos", "credito-auto-imss", "seguro-automotores"],
     tituloComun: "Procedimiento para Financiamiento de Vehículos Automotores",
     claveOficial: "1A72-003-014",
@@ -1331,6 +1364,7 @@ Aquí puedes encontrar los requisitos de antigüedad, capacidad crediticia y los
   },
   {
     documentId: "IMSS-1A14-003-011",
+    urlOficial: "https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/1A14-003-011.pdf",
     aliasIds: ["1A14-003-011", "1A14", "fonacot", "credito-fonacot", "descuentos-fonacot"],
     tituloComun: "Procedimiento para la Recuperación del Crédito FONACOT",
     claveOficial: "1A14-003-011",
@@ -1366,6 +1400,7 @@ Aquí puedes encontrar qué hacer si te siguen descontando FONACOT después de t
   },
   {
     documentId: "IMSS-1A74-003-029",
+    urlOficial: "https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/1A74-003-029.pdf",
     aliasIds: ["1A74-003-029", "cambio-residencia", "concepto-031", "clausula-99", "gastos-traslado"],
     tituloComun: "Procedimiento para Pago por Cambio de Lugar de Residencia",
     claveOficial: "1A74-003-029",
@@ -1402,6 +1437,7 @@ Aquí puedes encontrar cómo cotizar y facturar los gastos de mudanza, los días
   },
   {
     documentId: "IMSS-1A32-A03-008",
+    urlOficial: "https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/1A32-A03-008.pdf",
     aliasIds: ["1A32-A03-008", "pago-pasajes", "pasajes-nomina", "comision-oficial", "concepto-pasajes"],
     tituloComun: "Procedimiento para el Pago de Pasajes y su Inclusión en Nómina",
     claveOficial: "1A32-A03-008",
@@ -1437,6 +1473,7 @@ Aquí puedes encontrar los formatos de comprobación, las tarifas autorizadas de
   },
   {
     documentId: "IMSS-2610-003-017",
+    urlOficial: "https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/2660-003-053.pdf",
     aliasIds: [
       "2610-003-017",
       "2610-003-005",
@@ -1450,7 +1487,7 @@ Aquí puedes encontrar los formatos de comprobación, las tarifas autorizadas de
       "enlace-turno",
     ],
     tituloComun: "Manual de Procedimientos y Actividades de Enfermería en Unidades Médicas (1°, 2° y 3° Nivel)",
-    claveOficial: "2610-003-017 / 2610-003-005",
+    claveOficial: "2660-003-053 / 2610-003-017",
     organizacion: "IMSS / Dirección de Prestaciones Médicas",
     categoria: "flujos-clinicos",
     enUnaFrase: "Qué le corresponde y qué NO le corresponde hacer a Auxiliares, Enfermeras Generales y Especialistas en UMF, HGZ y UMAE.",
@@ -1509,6 +1546,7 @@ Diferenciación estricta por categoría contractual:
   },
   {
     documentId: "IMSS-2430-003-018",
+    urlOficial: "https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/2250-003-002.pdf",
     aliasIds: [
       "2430-003-018",
       "2430-003-024",
@@ -1521,7 +1559,7 @@ Diferenciación estricta por categoría contractual:
       "somatometria-asistente",
     ],
     tituloComun: "Manual de Procedimientos de la Asistente Médica en Unidades de Medicina Familiar, Hospitales y Urgencias",
-    claveOficial: "2430-003-018 / 2430-003-024",
+    claveOficial: "2250-003-002 / 2430-003-018",
     organizacion: "IMSS / Dirección de Prestaciones Médicas",
     categoria: "flujos-clinicos",
     enUnaFrase: "Las actividades oficiales de la Asistente Médica en consultorios, Unifila, Triage de Urgencias y qué tareas NO le corresponden por norma.",
@@ -1587,6 +1625,7 @@ La Asistente Médica NO debe realizar diagnósticos clínicos, no prescribe medi
   },
   {
     documentId: "IMSS-2430-003-022",
+    urlOficial: "https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/2660-003-049.pdf",
     aliasIds: [
       "2430-003-022",
       "2430-003-040",
@@ -1603,7 +1642,7 @@ La Asistente Médica NO debe realizar diagnósticos clínicos, no prescribe medi
       "nom-229",
     ],
     tituloComun: "Procedimiento para el Servicio de Radiodiagnóstico e Imagenología (Rayos X, Mastografía, TAC y Resonancia)",
-    claveOficial: "2430-003-022 / 2430-003-040",
+    claveOficial: "2660-003-049 / 2430-003-022",
     organizacion: "IMSS / DPM / Seguridad Radiológica",
     categoria: "flujos-clinicos",
     enUnaFrase: "Operación de equipos, protección radiológica obligatoria, descansos profilácticos y derechos del personal expuesto a radiaciones.",
@@ -1664,6 +1703,7 @@ Seguridad Radiológica y Derechos del Trabajador (POE):
   },
   {
     documentId: "IMSS-2430-003-007",
+    urlOficial: "https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/2250-003-002.pdf",
     aliasIds: [
       "2430-003-007",
       "2430-003-009",
@@ -1677,7 +1717,7 @@ Seguridad Radiológica y Derechos del Trabajador (POE):
       "nom-004",
     ],
     tituloComun: "Procedimiento para la Consulta de Medicina Familiar y Consulta Externa de Especialidades (1°, 2° y 3° Nivel)",
-    claveOficial: "2430-003-007 / 2430-003-009",
+    claveOficial: "2250-003-002 / 2660-003-052",
     organizacion: "IMSS / Dirección de Prestaciones Médicas",
     categoria: "flujos-clinicos",
     enUnaFrase: "Tiempos oficiales por consulta, llenado de notas médicas, expedición de incapacidades y referencia entre niveles.",
@@ -1732,6 +1772,7 @@ Seguridad Radiológica y Derechos del Trabajador (POE):
   },
   {
     documentId: "IMSS-2610-003-028",
+    urlOficial: "https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/2660-003-056.pdf",
     aliasIds: [
       "2610-003-028",
       "camillero",
@@ -1743,7 +1784,7 @@ Seguridad Radiológica y Derechos del Trabajador (POE):
       "nom-036-camillero",
     ],
     tituloComun: "Procedimiento para el Traslado Intrahospitalario de Pacientes en Unidades Médicas (Camillería)",
-    claveOficial: "2610-003-028",
+    claveOficial: "2660-003-056 / 2610-003-028",
     organizacion: "IMSS / DPM / Servicios Básicos de Salud",
     categoria: "flujos-clinicos",
     enUnaFrase: "Técnicas seguras de movilización de pacientes, prevención de lesiones de columna y derechos del personal de camillería.",
@@ -1795,6 +1836,7 @@ Seguridad Radiológica y Derechos del Trabajador (POE):
   },
   {
     documentId: "IMSS-2430-003-015",
+    urlOficial: "https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/2660-003-071.pdf",
     aliasIds: [
       "2430-003-015",
       "trabajador-social",
@@ -1806,7 +1848,7 @@ Seguridad Radiológica y Derechos del Trabajador (POE):
       "dif-ministerio-publico",
     ],
     tituloComun: "Procedimiento para la Operación del Servicio de Trabajo Social en Unidades Médicas (1°, 2° y 3° Nivel)",
-    claveOficial: "2430-003-015",
+    claveOficial: "2660-003-071 / 2430-003-015",
     organizacion: "IMSS / Dirección de Prestaciones Médicas",
     categoria: "flujos-clinicos",
     enUnaFrase: "Intervención socio-médica, pasajes para traslados foráneos, altas voluntarias y canalización legal ante autoridades.",
@@ -1857,6 +1899,7 @@ Seguridad Radiológica y Derechos del Trabajador (POE):
   },
   {
     documentId: "IMSS-2610-003-035",
+    urlOficial: "https://dof.gob.mx/nota_detalle.php?codigo=715206&fecha=17/02/2003",
     aliasIds: [
       "2610-003-035",
       "limpieza-e-higiene",
@@ -1868,7 +1911,7 @@ Seguridad Radiológica y Derechos del Trabajador (POE):
       "nom-087",
     ],
     tituloComun: "Procedimiento para la Limpieza, Desinfección Hospitalaria y Manejo de RPBI (Servicios Generales)",
-    claveOficial: "2610-003-035 / NOM-087-SEMARNAT-SSA1-2002",
+    claveOficial: "NOM-087-SEMARNAT-SSA1-2002 / 2610-003-035",
     organizacion: "IMSS / Servicios Generales / Epidemiología",
     categoria: "flujos-clinicos",
     enUnaFrase: "Técnicas oficiales de sanitización hospitalaria, separación de basura biológico-infecciosa y protección al personal de intendencia.",
@@ -1924,6 +1967,7 @@ Seguridad Radiológica y Derechos del Trabajador (POE):
   },
   {
     documentId: "IMSS-2430-003-019",
+    urlOficial: "https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/1832-003-004.pdf",
     aliasIds: [
       "2430-003-019",
       "farmacia",
@@ -1935,7 +1979,7 @@ Seguridad Radiológica y Derechos del Trabajador (POE):
       "estupefacientes",
     ],
     tituloComun: "Procedimiento para el Manejo, Almacenamiento y Surtimiento en Farmacias Hospitalarias y de UMF",
-    claveOficial: "2430-003-019",
+    claveOficial: "1832-003-004 / 2430-003-019",
     organizacion: "IMSS / Coordinación de Control de Abasto",
     categoria: "flujos-clinicos",
     enUnaFrase: "Reglas para el surtimiento de recetas médicas, control de psicotrópicos, red de frío y protección del despachador.",
@@ -1988,6 +2032,7 @@ Seguridad Radiológica y Derechos del Trabajador (POE):
   },
   {
     documentId: "IMSS-2430-003-021",
+    urlOficial: "https://dof.gob.mx/nota_detalle.php?codigo=5239855&fecha=27/03/2012",
     aliasIds: [
       "2430-003-021",
       "laboratorio-clinico",
@@ -2000,7 +2045,7 @@ Seguridad Radiológica y Derechos del Trabajador (POE):
       "valores-panico",
     ],
     tituloComun: "Procedimiento para la Operación del Laboratorio Clínico y Banco de Sangre en Unidades Médicas",
-    claveOficial: "2430-003-021 / NOM-007-SSA3-2011",
+    claveOficial: "NOM-007-SSA3-2011 / 2430-003-021",
     organizacion: "IMSS / DPM / Servicios Auxiliares de Diagnóstico",
     categoria: "flujos-clinicos",
     enUnaFrase: "Toma segura de muestras, procesamiento analítico, reporte de valores de alarma y bioseguridad del personal de laboratorio.",
@@ -2056,6 +2101,7 @@ Seguridad Radiológica y Derechos del Trabajador (POE):
   },
   {
     documentId: "IMSS-2430-003-027",
+    urlOficial: "https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/2660-003-045.pdf",
     aliasIds: [
       "2430-003-027",
       "urgencias",
@@ -2066,7 +2112,7 @@ Seguridad Radiológica y Derechos del Trabajador (POE):
       "semaforizacion-triage",
     ],
     tituloComun: "Procedimiento para la Atención en Urgencias y Operación del Sistema Triage IMSS",
-    claveOficial: "2430-003-027",
+    claveOficial: "2660-003-045 / 2430-003-027",
     organizacion: "IMSS / Dirección de Prestaciones Médicas",
     categoria: "flujos-clinicos",
     enUnaFrase: "Cómo se clasifican y atienden las urgencias médicas por código de color (Rojo a Azul) y tiempos máximos de respuesta.",
@@ -2125,6 +2171,7 @@ Seguridad Radiológica y Derechos del Trabajador (POE):
   },
   {
     documentId: "IMSS-2610-003-012",
+    urlOficial: "https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/2660-003-019.pdf",
     aliasIds: [
       "2610-003-012",
       "nutricion",
@@ -2136,7 +2183,7 @@ Seguridad Radiológica y Derechos del Trabajador (POE):
       "nom-251",
     ],
     tituloComun: "Procedimiento para el Servicio de Nutrición y Dietética en Hospitales de Segundo y Tercer Nivel",
-    claveOficial: "2610-003-012 / NOM-251-SSA1-2009",
+    claveOficial: "2660-003-019 / 2610-003-012",
     organizacion: "IMSS / DPM / Nutrición y Dietética",
     categoria: "flujos-clinicos",
     enUnaFrase: "Elaboración del censo dietético, preparación de fórmulas terapéuticas, lactarios y entrega de charolas a pacientes.",
@@ -2190,6 +2237,7 @@ Seguridad Radiológica y Derechos del Trabajador (POE):
   },
   {
     documentId: "IMSS-2610-003-025",
+    urlOficial: "https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/2430-A03-042.pdf",
     aliasIds: [
       "2610-003-025",
       "ceye",
@@ -2200,7 +2248,7 @@ Seguridad Radiológica y Derechos del Trabajador (POE):
       "indicadores-biologicos",
     ],
     tituloComun: "Procedimiento para la Operación de la Central de Equipos y Esterilización (CEYE)",
-    claveOficial: "2610-003-025",
+    claveOficial: "2430-A03-042 / 2610-003-025",
     organizacion: "IMSS / DPM / Enfermería y Quirófanos",
     categoria: "flujos-clinicos",
     enUnaFrase: "Lavado, empaque, esterilización por autoclave y control biológico del instrumental quirúrgico de hospitales.",
@@ -2255,9 +2303,12 @@ Seguridad Radiológica y Derechos del Trabajador (POE):
   },
   {
     documentId: "IMSS-1A74-003-AUO",
+    urlOficial: "https://www.imss.gob.mx/sites/all/statics/pdf/CCT-2025-2027.pdf",
     aliasIds: [
       "1a74-003-auo",
       "auo",
+      "profesiogramas",
+      "profesiograma",
       "auxiliar-universal-de-oficinas",
       "oficial-administrativo",
       "administrativo",
@@ -2267,7 +2318,7 @@ Seguridad Radiológica y Derechos del Trabajador (POE):
       "capturista",
     ],
     tituloComun: "Manual de Organización y Procedimientos del Auxiliar Universal de Oficinas (AUO) y Rama Administrativa",
-    claveOficial: "1A74-003-AUO / Profesiograma Administrativo",
+    claveOficial: "Profesiograma Administrativo CCT",
     organizacion: "IMSS / Coordinación de Recursos Humanos y Organización",
     categoria: "administrativos",
     enUnaFrase: "Qué le corresponde y qué límites tiene el AUO en ventanillas, captura de datos, trámites y áreas operativas.",
@@ -2320,6 +2371,7 @@ Seguridad Radiológica y Derechos del Trabajador (POE):
   },
   {
     documentId: "IMSS-2430-003-016",
+    urlOficial: "https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/2430-003-016.pdf",
     aliasIds: [
       "2430-003-016",
       "arimac",
@@ -2384,6 +2436,7 @@ Seguridad Radiológica y Derechos del Trabajador (POE):
   },
   {
     documentId: "IMSS-4130-003-005",
+    urlOficial: "https://www.imss.gob.mx/derechohabientes/vigencia-derechos",
     aliasIds: [
       "4130-003-005",
       "afiliacion-vigencia",
@@ -2395,7 +2448,7 @@ Seguridad Radiológica y Derechos del Trabajador (POE):
       "constancia-semanas",
     ],
     tituloComun: "Procedimiento para la Acreditación de Vigencia de Derechos y Registro de Asegurados",
-    claveOficial: "4130-003-005",
+    claveOficial: "IMSS-02-020-B",
     organizacion: "IMSS / Dirección de Incorporación y Recaudación (DIR)",
     categoria: "administrativos",
     enUnaFrase: "Altas, bajas, asignación de clínica, acreditación de beneficiarios y expedición de constancias de semanas cotizadas.",
@@ -2448,6 +2501,7 @@ Seguridad Radiológica y Derechos del Trabajador (POE):
   },
   {
     documentId: "IMSS-1A11-003-012",
+    urlOficial: "https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/1832-003-001.pdf",
     aliasIds: [
       "1a11-003-012",
       "almacen",
@@ -2460,7 +2514,7 @@ Seguridad Radiológica y Derechos del Trabajador (POE):
       "tarimas-estiba",
     ],
     tituloComun: "Procedimiento para el Almacenamiento, Control y Distribución de Bienes de Consumo en Almacenes IMSS",
-    claveOficial: "1A11-003-012",
+    claveOficial: "1832-003-001 / 1A11-003-012",
     organizacion: "IMSS / Coordinación de Control de Abasto y Suministros",
     categoria: "administrativos",
     enUnaFrase: "Recepción de mercancía, cotejo de remisiones, estiba segura de tarimas, inventarios y distribución a farmacias y servicios.",
@@ -2515,6 +2569,7 @@ Seguridad Radiológica y Derechos del Trabajador (POE):
   },
   {
     documentId: "IMSS-1A13-003-006",
+    urlOficial: "https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/14C2-003-001.pdf",
     aliasIds: [
       "1a13-003-006",
       "conservacion",
@@ -2528,7 +2583,7 @@ Seguridad Radiológica y Derechos del Trabajador (POE):
       "nom-020",
     ],
     tituloComun: "Procedimiento para el Mantenimiento Preventivo y Correctivo a Instalaciones y Equipo Electromecánico",
-    claveOficial: "1A13-003-006 / NOM-020-STPS-2011",
+    claveOficial: "14C2-003-001 / 1A13-003-006",
     organizacion: "IMSS / Coordinación de Infraestructura y Mantenimiento",
     categoria: "administrativos",
     enUnaFrase: "Operación de calderas, plantas de emergencia eléctrica, gases medicinales (oxígeno) y climatización hospitalaria.",
@@ -2583,6 +2638,7 @@ Seguridad Radiológica y Derechos del Trabajador (POE):
   },
   {
     documentId: "IMSS-1A13-003-015",
+    urlOficial: "https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/14E1-003-017.pdf",
     aliasIds: [
       "1a13-003-015",
       "ambulancia",
@@ -2595,7 +2651,7 @@ Seguridad Radiológica y Derechos del Trabajador (POE):
       "codigo-rojo-ambulancia",
     ],
     tituloComun: "Procedimiento para la Operación, Mantenimiento y Control de Ambulancias y Vehículos del IMSS",
-    claveOficial: "1A13-003-015 / NOM-034-SSA3-2013",
+    claveOficial: "14E1-003-017 / 1A13-003-015",
     organizacion: "IMSS / Coordinación de Servicios Generales y Transportes",
     categoria: "administrativos",
     enUnaFrase: "Conducción segura de ambulancias, sirena y códigos de emergencia, bitácora de combustible y mantenimiento vehicular.",
@@ -2648,6 +2704,7 @@ Seguridad Radiológica y Derechos del Trabajador (POE):
   },
   {
     documentId: "IMSS-1A52-003-002",
+    urlOficial: "https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/GC10-003-001.pdf",
     aliasIds: [
       "1a52-003-002",
       "taod",
@@ -2659,7 +2716,7 @@ Seguridad Radiológica y Derechos del Trabajador (POE):
       "siam",
     ],
     tituloComun: "Procedimiento para la Atención de Quejas, Peticiones y Orientación a la Derechohabiencia (TAOD)",
-    claveOficial: "1A52-003-002",
+    claveOficial: "GC10-003-001 / 1A52-003-002",
     organizacion: "IMSS / Coordinación de Atención y Orientación al Derechohabiente",
     categoria: "administrativos",
     enUnaFrase: "Gestión de quejas de servicio, peticiones ciudadanas, orientación médica y resolución pacífica de conflictos en unidades.",
@@ -2711,6 +2768,7 @@ Seguridad Radiológica y Derechos del Trabajador (POE):
   },
   {
     documentId: "IMSS-1A61-003-004",
+    urlOficial: "https://www.imss.gob.mx/conoce-al-imss/marco-normativo",
     aliasIds: [
       "1a61-003-004",
       "sistemas",
@@ -2776,6 +2834,7 @@ Seguridad Radiológica y Derechos del Trabajador (POE):
   },
   {
     documentId: "IMSS-2430-003-033",
+    urlOficial: "https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/0730-003-006.pdf",
     aliasIds: [
       "2430-003-033",
       "estomatologia",
@@ -2787,7 +2846,7 @@ Seguridad Radiológica y Derechos del Trabajador (POE):
       "esterilizacion-dental",
     ],
     tituloComun: "Procedimiento para la Atención Estomatológica en Unidades de Primer y Segundo Nivel",
-    claveOficial: "2430-003-033 / NOM-013-SSA2-2015",
+    claveOficial: "0730-003-006 / 2430-003-033",
     organizacion: "IMSS / DPM / Estomatología",
     categoria: "administrativos",
     enUnaFrase: "Flujo del consultorio dental, preparación de instrumental, prevención de infecciones y protección biológica en odontología.",
@@ -2840,6 +2899,7 @@ Seguridad Radiológica y Derechos del Trabajador (POE):
   },
   {
     documentId: "IMSS-2430-003-038",
+    urlOficial: "https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/2660-003-069.pdf",
     aliasIds: [
       "2430-003-038",
       "anatomia-patologica",
@@ -2852,7 +2912,7 @@ Seguridad Radiológica y Derechos del Trabajador (POE):
       "biopsias",
     ],
     tituloComun: "Procedimiento para los Servicios de Anatomía Patológica y Mortuorio en Hospitales IMSS",
-    claveOficial: "2430-003-038 / NOM-087-SEMARNAT-SSA1-2002",
+    claveOficial: "2660-003-069 / 2430-003-038",
     organizacion: "IMSS / DPM / Anatomía Patológica y Servicios Forenses",
     categoria: "administrativos",
     enUnaFrase: "Manejo de biopsias, preservación de piezas anatómicas, auxilio en necropsias hospitalarias y entrega digna de cadáveres.",
