@@ -134,7 +134,7 @@ export function BibliotecaNormativaPage({ data }: Props) {
               <span style={chipStyle}>📚 <strong>{h.documents}</strong> documentos consultables</span>
               <span style={{ ...chipStyle, color: "#15803d" }}>🟢 {h.vigentes} vigentes</span>
               {h.historicos > 0 && <span style={{ ...chipStyle, color: "#1d4ed8" }}>🔵 {h.historicos} históricos de referencia</span>}
-              <span style={chipStyle}>📑 {h.sections} artículos y cláusulas oficiales</span>
+              {h.sections > 0 && <span style={chipStyle}>📑 {h.sections} artículos y cláusulas oficiales</span>}
               {h.nextExpiration && (
                 <span style={{ ...chipStyle, color: "#b45309", border: "1px solid #f59e0b" }}>
                   ⏳ Próxima revisión: {h.nextExpiration.document.replace("IMSS-", "")} ({h.nextExpiration.date})
@@ -145,21 +145,59 @@ export function BibliotecaNormativaPage({ data }: Props) {
         </div>
       )}
 
-      <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", width: "100%", minWidth: 0, justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-          <button onClick={() => setMode("preambulos")} style={mode === "preambulos" ? activeMode : modeStyle}>
-            <Sparkles size={16} /> Guías y Normativas en Lenguaje Claro
-          </button>
-          <button onClick={() => setMode("biblioteca")} style={mode === "biblioteca" ? activeMode : modeStyle}>
-            <BookMarked size={16} /> Catálogo Oficial de Normas
-          </button>
-          <button onClick={() => setMode("buscar")} style={mode === "buscar" ? activeMode : modeStyle}>
-            <Search size={16} /> Búsqueda de Texto en Corpus
-          </button>
-          <button onClick={() => setMode("comparar")} style={mode === "comparar" ? activeMode : modeStyle}>
-            <GitCompareArrows size={16} /> Comparador CCT
-          </button>
-        </div>
+      {/* Selector de modo - Riel horizontal deslizable sin amontonamiento */}
+      <div
+        style={{
+          display: "flex",
+          gap: "0.4rem",
+          overflowX: "auto",
+          flexWrap: "nowrap",
+          scrollbarWidth: "none",
+          WebkitOverflowScrolling: "touch",
+          padding: "0.2rem 0",
+          width: "100%",
+        }}
+      >
+        <button
+          onClick={() => setMode("preambulos")}
+          style={{
+            ...(mode === "preambulos" ? activeMode : modeStyle),
+            flexShrink: 0,
+            whiteSpace: "nowrap",
+          }}
+        >
+          <Sparkles size={16} /> Guías en Lenguaje Claro
+        </button>
+        <button
+          onClick={() => setMode("biblioteca")}
+          style={{
+            ...(mode === "biblioteca" ? activeMode : modeStyle),
+            flexShrink: 0,
+            whiteSpace: "nowrap",
+          }}
+        >
+          <BookMarked size={16} /> Catálogo Oficial
+        </button>
+        <button
+          onClick={() => setMode("buscar")}
+          style={{
+            ...(mode === "buscar" ? activeMode : modeStyle),
+            flexShrink: 0,
+            whiteSpace: "nowrap",
+          }}
+        >
+          <Search size={16} /> Buscar en Texto
+        </button>
+        <button
+          onClick={() => setMode("comparar")}
+          style={{
+            ...(mode === "comparar" ? activeMode : modeStyle),
+            flexShrink: 0,
+            whiteSpace: "nowrap",
+          }}
+        >
+          <GitCompareArrows size={16} /> Comparador CCT
+        </button>
         <button
           onClick={() => setModalOpen(true)}
           style={{
@@ -168,9 +206,11 @@ export function BibliotecaNormativaPage({ data }: Props) {
             color: "var(--primary)",
             borderColor: "rgba(37, 99, 235, 0.3)",
             fontWeight: 600,
+            flexShrink: 0,
+            whiteSpace: "nowrap",
           }}
         >
-          <BookOpen size={16} /> Búsqueda Rápida de Cláusula CCT / Estatutos
+          <BookOpen size={16} /> Atajo Cláusula CCT
         </button>
       </div>
 

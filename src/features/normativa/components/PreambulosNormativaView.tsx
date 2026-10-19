@@ -114,36 +114,35 @@ export function PreambulosNormativaView({ documents, onOpenDoc }: Props) {
           background: "linear-gradient(135deg, rgba(37, 99, 235, 0.08) 0%, rgba(30, 58, 138, 0.04) 100%)",
           border: "1px solid rgba(37, 99, 235, 0.2)",
           borderRadius: "var(--radius)",
-          padding: "1.1rem",
+          padding: "0.875rem 1rem",
           display: "flex",
           flexDirection: "column",
-          gap: "0.5rem",
+          gap: "0.35rem",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
           <span
             style={{
-              fontSize: "0.72rem",
+              fontSize: "0.7rem",
               fontWeight: 700,
-              padding: "0.2rem 0.6rem",
+              padding: "0.15rem 0.55rem",
               background: "var(--primary)",
               color: "var(--primary-fg)",
               borderRadius: 999,
               letterSpacing: "0.04em",
             }}
           >
-            CONSULTA DIRECTA Y MANUAL
+            CONSULTA DIRECTA
           </span>
-          <span style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
-            Sin intermediarios ni tener que preguntarle a una IA
+          <span style={{ fontSize: "0.78rem", color: "var(--muted)" }}>
+            Sin intermediarios ni IA
           </span>
         </div>
-        <h2 style={{ margin: 0, fontSize: "1.2rem", fontWeight: 700, color: "var(--fg)" }}>
+        <h2 style={{ margin: 0, fontSize: "1.05rem", fontWeight: 700, color: "var(--fg)" }}>
           Normativas en lenguaje claro para las y los trabajadores
         </h2>
-        <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--muted)", lineHeight: 1.5 }}>
-          Aquí encuentras cada contrato, estatuto y reglamento explicado de manera sencilla: de qué trata, qué
-          beneficios contiene, a quién aplica y en qué situaciones de tu trabajo te sirve para defender tus derechos.
+        <p style={{ margin: 0, fontSize: "0.8rem", color: "var(--muted)", lineHeight: 1.45 }}>
+          Explicaciones directas y sencillas de cada contrato, estatuto y procedimiento para defender tus derechos en el trabajo.
         </p>
       </div>
 
@@ -192,24 +191,39 @@ export function PreambulosNormativaView({ documents, onOpenDoc }: Props) {
           )}
         </div>
 
-        {/* Filtros de categoría */}
-        <div style={{ display: "flex", gap: "0.35rem", flexWrap: "wrap" }}>
+        {/* Filtros de categoría - Riel horizontal deslizable sin amontonamiento */}
+        <div
+          style={{
+            display: "flex",
+            gap: "0.45rem",
+            overflowX: "auto",
+            flexWrap: "nowrap",
+            scrollbarWidth: "none",
+            WebkitOverflowScrolling: "touch",
+            padding: "0.2rem 0",
+            width: "100%",
+          }}
+        >
           {[
-            { id: "todas", label: "Todas las normas" },
-            { id: "flujos-clinicos", label: "Puestos Clínicos (Enfermería, Asistente, Radiólogo...)" },
-            { id: "administrativos", label: "Personal Administrativo (AUO, ARIMAC, Almacén...)" },
-            { id: "procedimientos", label: "Procedimientos IMSS (2900, 1A74, ST-7...)" },
-            { id: "cct", label: "CCT y Salarios" },
-            { id: "sntss", label: "SNTSS y FAS" },
-            { id: "reglamentos", label: "Reglamentos y Bolsa" },
-            { id: "seguridad", label: "Seguridad y NOMs" },
-            { id: "leyes", label: "Leyes Federales" },
-            { id: "integridad", label: "Código de Conducta" },
+            { id: "todas", label: "✨ Todas" },
+            { id: "flujos-clinicos", label: "🏥 Puestos Clínicos" },
+            { id: "administrativos", label: "📋 Administrativos" },
+            { id: "procedimientos", label: "📑 Procedimientos IMSS" },
+            { id: "cct", label: "📜 CCT y Salarios" },
+            { id: "sntss", label: "⚖️ SNTSS y FAS" },
+            { id: "reglamentos", label: "🛡️ Reglamentos" },
+            { id: "seguridad", label: "🦺 Seguridad y NOMs" },
+            { id: "leyes", label: "⚖️ Leyes Federales" },
+            { id: "integridad", label: "🤝 Código de Conducta" },
           ].map((cat) => (
             <button
               key={cat.id}
               onClick={() => setSelectedCategoria(cat.id)}
-              style={selectedCategoria === cat.id ? activeChip : chipBtn}
+              style={{
+                ...(selectedCategoria === cat.id ? activeChip : chipBtn),
+                flexShrink: 0,
+                whiteSpace: "nowrap",
+              }}
             >
               {cat.label}
             </button>
@@ -317,6 +331,7 @@ export function PreambulosNormativaView({ documents, onOpenDoc }: Props) {
                   justifyContent: "space-between",
                   alignItems: "flex-start",
                   gap: "0.75rem",
+                  flexWrap: "wrap",
                   background: isExpanded ? "rgba(37, 99, 235, 0.03)" : "transparent",
                 }}
               >

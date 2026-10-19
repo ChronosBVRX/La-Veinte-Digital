@@ -250,7 +250,13 @@ export function DocumentDetail({ doc, onClose, initialTab, initialQuery = "" }: 
       {/* CUERPO DEL LECTOR FULLSCREEN */}
       <div style={fullscreenBodyStyle}>
         {(!isCct && !isEstatutos) || activeTab === "pdf" ? (
-          <PdfViewer documentId={doc.id} officialUrl={doc.url} />
+          <PdfViewer
+            documentId={doc.id}
+            officialUrl={doc.url}
+            title={doc.title}
+            keyLabel={doc.key ?? undefined}
+            category={doc.category}
+          />
         ) : (
           <div style={clauseViewerContainerStyle}>
             {/* Buscador de artículos/cláusulas interactivo */}
