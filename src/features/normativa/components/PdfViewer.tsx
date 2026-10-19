@@ -102,7 +102,7 @@ export function PdfViewer({ documentId, initialPage = 1, officialUrl = null }: P
               Facsímil PDF no precargado en el servidor
             </p>
             <p style={{ fontSize: "0.825rem", color: "#cbd5e1", lineHeight: 1.45, margin: 0 }}>
-              Todo el texto oficial, artículos y procedimientos están disponibles directamente en la pestaña <strong>Lectura y Artículos</strong> dentro de la app sin necesidad de descargar el PDF.
+              Puedes consultar la <strong>Guía y Resumen</strong> con los puntos operativos y derechos clave, o abrir el documento directamente en el repositorio oficial con el botón de abajo.
             </p>
             {officialUrl && (
               <a

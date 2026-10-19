@@ -116,5 +116,32 @@ describe("Biblioteca Normativa - Lector In-App y Prevención de Confusión CCT",
       expect(enfermeriaRes.filePath).toMatch(/\.(pdf|html)$/)
     }
   })
+
+  it("determina la pestaña por defecto: 'pdf' para procedimientos y leyes, 'lectura' para CCT y Estatutos", () => {
+    function computeDefaultTab(docId: string, initialTab?: "lectura" | "guia" | "pdf") {
+      if (initialTab) return initialTab
+      const clean = docId.trim().toLowerCase()
+      const isCct = clean === "cct-imss-sntss-2025-2027" || clean === "cct" || clean === "contrato-colectivo"
+      const isEstatutos = clean === "sntss-estatutos-2022" || clean === "estatutos" || clean === "estatutos-sntss"
+      return (isCct || isEstatutos) ? "lectura" : "pdf"
+    }
+
+    // CCT y Estatutos abren sus articulados interactivos directamente
+    expect(computeDefaultTab("CCT-IMSS-SNTSS-2025-2027")).toBe("lectura")
+    expect(computeDefaultTab("SNTSS-ESTATUTOS-2022")).toBe("lectura")
+    expect(computeDefaultTab("cct")).toBe("lectura")
+
+    // Procedimientos, manuales, leyes y NOMs abren el documento oficial directamente
+    expect(computeDefaultTab("IMSS-2610-003-017")).toBe("pdf")
+    expect(computeDefaultTab("IMSS-1A74-003-AUO")).toBe("pdf")
+    expect(computeDefaultTab("IMSS-2430-003-018")).toBe("pdf")
+    expect(computeDefaultTab("IMSS-2900-B03-002")).toBe("pdf")
+    expect(computeDefaultTab("NOM-019-SSA3-2013")).toBe("pdf")
+    expect(computeDefaultTab("LFT-2026")).toBe("pdf")
+
+    // Si se pasa un tab explícito, se respeta
+    expect(computeDefaultTab("IMSS-2610-003-017", "guia")).toBe("guia")
+  })
 })
+
 
