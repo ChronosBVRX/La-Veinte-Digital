@@ -85,4 +85,29 @@ describe("Biblioteca Normativa - Lector In-App y Prevención de Confusión CCT",
       expect(p.documentId).not.toBe("CCT-IMSS-SNTSS-2025-2027")
     }
   })
+
+  it("todos los 57 PREAMBULOS_NORMATIVOS tienen urlOficial verificada", () => {
+    expect(PREAMBULOS_NORMATIVOS.length).toBe(57)
+    for (const p of PREAMBULOS_NORMATIVOS) {
+      expect(p.urlOficial, `Preámbulo ${p.documentId} debe tener urlOficial`).toBeDefined()
+      expect(p.urlOficial).toMatch(/^https?:\/\//)
+    }
+  })
+
+  it("openOriginalAtPage localiza facsímiles para contratos, reglamentos y procedimientos clave", () => {
+    const cctRes = catalog.openOriginalAtPage("CCT-IMSS-SNTSS-2025-2027", 1)
+    expect(cctRes).not.toBeNull()
+    expect(cctRes?.filePath).toContain("CCT-IMSS-SNTSS-2025-2027.pdf")
+
+    const estatutosRes = catalog.openOriginalAtPage("SNTSS-ESTATUTOS-2022", 1)
+    expect(estatutosRes).not.toBeNull()
+    expect(estatutosRes?.filePath).toContain("SNTSS-ESTATUTOS-2022.pdf")
+
+    const auoRes = catalog.openOriginalAtPage("IMSS-1A74-003-AUO", 1)
+    expect(auoRes).not.toBeNull()
+
+    const enfermeriaRes = catalog.openOriginalAtPage("IMSS-2610-003-017", 1)
+    expect(enfermeriaRes).not.toBeNull()
+  })
 })
+

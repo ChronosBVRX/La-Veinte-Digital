@@ -1,4 +1,4 @@
-﻿# BIBLIOTECA NORMATIVA IMSS/SNTSS — MANIFEST DE BOOTSTRAP
+# BIBLIOTECA NORMATIVA IMSS/SNTSS — MANIFEST DE BOOTSTRAP
 # Fecha de corte inicial del corpus: 2026-08-14
 # Regla fundamental: LA IA NO ES LA FUENTE. LA FUENTE ES EL DOCUMENTO.
 #
@@ -1333,6 +1333,367 @@ sources:
     relates:
       - NOM-012-STPS-2012
       - CCT::INFECTOCONTAGIOSIDAD
+
+  # ────────────────────────── PROCEDIMIENTOS CLÍNICOS Y FLUJOS OPERATIVOS ──────────────────────────
+  - id: IMSS-2660-003-053
+    key: 2660-003-053
+    title: Manual de Procedimientos y Gestión Directiva de los Servicios de Enfermería en Unidades Médicas Hospitalarias de Segundo Nivel de Atención
+    organization: IMSS
+    type: procedure
+    category: flujos-clinicos
+    url: https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/2660-003-053.pdf
+    mirror: https://www.imss.gob.mx/sites/all/statics/pdf/procedimientos/2660-003-053.pdf
+    canonical: true
+    priority: critical
+    topics:
+      - enfermeria
+      - gestion_directiva_enfermeria
+      - hospitalizacion
+      - entrega_recepcion_turno
+      - hoja_enfermeria
+      - administracion_medicamentos
+      - asignacion_camas
+
+  - id: IMSS-2250-003-002
+    key: 2250-003-002
+    title: Procedimiento para Otorgar Atención Integral a la Salud en las Unidades de Medicina Familiar (Asistente Médica)
+    organization: IMSS
+    type: procedure
+    category: flujos-clinicos
+    url: https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/2250-003-002.pdf
+    mirror: https://www.imss.gob.mx/sites/all/statics/pdf/procedimientos/2250-003-002.pdf
+    canonical: true
+    priority: critical
+    topics:
+      - asistente_medica
+      - consulta_familiar
+      - recepcion_pacientes
+      - agenda_citas
+      - simf
+      - atencion_integral
+
+  - id: IMSS-2660-003-049
+    key: 2660-003-049
+    title: Procedimiento para el Consumo, Manejo, Control y Disposición Final de Película Fotosensible y Líquidos de Revelado en Servicios de Imagenología (Radiodiagnóstico)
+    organization: IMSS
+    type: procedure
+    category: flujos-clinicos
+    url: https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/2660-003-049.pdf
+    mirror: https://portal.imss.gob.mx/sites/default/files/2660-003-049.pdf
+    canonical: true
+    priority: high
+    topics:
+      - radiodiagnostico
+      - rayos_x
+      - imagenologia
+      - mastografia
+      - proteccion_radiologica
+      - tecnicos_radiologos
+
+  - id: IMSS-2430-003-016
+    key: 2430-003-016
+    title: Procedimiento para la Integración, Manejo, Control y Préstamo del Expediente Clínico en Archivo Clínico (ARIMAC)
+    organization: IMSS
+    type: procedure
+    category: administrativos
+    url: https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/2430-003-016.pdf
+    mirror: https://www.imss.gob.mx/sites/all/statics/pdf/procedimientos/2430-003-016.pdf
+    canonical: true
+    priority: high
+    topics:
+      - arimac
+      - archivo_clinico
+      - expediente_clinico
+      - depuracion_archivo
+      - prestamo_expediente
+      - confidencialidad
+
+  - id: IMSS-2660-003-056
+    key: 2660-003-056
+    title: Procedimiento para la Atención en Hospitalización y Traslado Intrahospitalario de Pacientes (Camillería)
+    organization: IMSS
+    type: procedure
+    category: flujos-clinicos
+    url: https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/2660-003-056.pdf
+    canonical: true
+    priority: high
+    topics:
+      - camilleria
+      - traslado_pacientes
+      - ergonomia
+      - silla_de_ruedas
+      - camilla
+      - hospitalizacion
+
+  - id: IMSS-2660-003-071
+    key: 2660-003-071
+    title: Procedimiento para la Intervención de Trabajo Social en Unidades Médicas de Segundo Nivel de Atención
+    organization: IMSS
+    type: procedure
+    category: flujos-clinicos
+    url: https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/2660-003-071.pdf
+    canonical: true
+    priority: high
+    topics:
+      - trabajo_social
+      - estudio_socioeconomico
+      - investigacion_social
+      - apoyo_social
+      - altas_voluntarias
+      - prevencion
+
+  - id: IMSS-1832-003-004
+    key: 1832-003-004
+    title: Procedimiento Administrativo para Farmacias con Sistema Automatizado y Manual
+    organization: IMSS
+    type: procedure
+    category: flujos-clinicos
+    url: https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/1832-003-004.pdf
+    canonical: true
+    priority: high
+    topics:
+      - farmacia
+      - surtimiento_recetas
+      - medicamentos_controlados
+      - estupefacientes
+      - saif
+      - red_fria
+
+  - id: IMSS-1832-003-001
+    key: 1832-003-001
+    title: Procedimiento para la Recepción, Almacenamiento, Control y Surtido en Almacén de Unidad Médica con Sistema Automatizado
+    organization: IMSS
+    type: procedure
+    category: administrativos
+    url: https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/1832-003-001.pdf
+    canonical: true
+    priority: high
+    topics:
+      - almacen
+      - almacenamiento
+      - control_abasto
+      - recepcion_bienes
+      - peps
+      - inventario_fisico
+
+  - id: IMSS-2660-003-019
+    key: 2660-003-019
+    title: Procedimiento Clínico Nutricional para Pacientes en Hospitalización en Unidades Médicas Hospitalarias
+    organization: IMSS
+    type: procedure
+    category: flujos-clinicos
+    url: https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/2660-003-019.pdf
+    canonical: true
+    priority: high
+    topics:
+      - nutricion
+      - dietetica
+      - dietas_hospitalarias
+      - soporte_nutricio
+      - evaluacion_nutricional
+      - lactario
+
+  - id: IMSS-2430-A03-042
+    key: 2430-A03-042
+    title: Procedimiento para la Central de Esterilización y Equipos (CEyE) en las Unidades Médicas de Segundo y Tercer Nivel de Atención
+    organization: IMSS
+    type: procedure
+    category: flujos-clinicos
+    url: https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/2430-A03-042.pdf
+    canonical: true
+    priority: high
+    topics:
+      - ceye
+      - esterilizacion
+      - autoclave
+      - instrumental_quirurgico
+      - desinfeccion
+      - indicadores_biologicos
+
+  - id: IMSS-2660-003-069
+    key: 2660-003-069
+    title: Procedimiento para el Manejo y Traslado de Cadáveres, Especímenes Quirúrgicos y Citológicos en Unidades Médicas Hospitalarias (Anatomía Patológica y Mortuorio)
+    organization: IMSS
+    type: procedure
+    category: flujos-clinicos
+    url: https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/2660-003-069.pdf
+    canonical: true
+    priority: high
+    topics:
+      - anatomia_patologica
+      - mortuorio
+      - manejo_cadaveres
+      - necropsias
+      - biopsias
+      - formol
+
+  - id: IMSS-14C2-003-001
+    key: 14C2-003-001
+    title: Procedimiento para la Supervisión y Seguimiento del Mantenimiento Preventivo de los Servicios de Conservación
+    organization: IMSS
+    type: procedure
+    category: administrativos
+    url: https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/14C2-003-001.pdf
+    canonical: true
+    priority: high
+    topics:
+      - mantenimiento
+      - conservacion
+      - mantenimiento_preventivo
+      - equipo_electromecanico
+      - instalaciones
+      - bitacora_mantenimiento
+
+  - id: IMSS-14C2-003-002
+    key: 14C2-003-002
+    title: Procedimiento para el Seguimiento del Mantenimiento Correctivo de los Servicios de Conservación
+    organization: IMSS
+    type: procedure
+    category: administrativos
+    url: https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/14C2-003-002.pdf
+    canonical: true
+    priority: high
+    topics:
+      - mantenimiento_correctivo
+      - conservacion
+      - orden_servicio
+      - reparacion_instalaciones
+      - infraestructura
+
+  - id: IMSS-14E1-003-017
+    key: 14E1-003-017
+    title: Procedimiento para el Traslado de Pacientes Programados y Ordinarios y Transporte de Órganos y Personal en Ambulancias de Tipo Convencional
+    organization: IMSS
+    type: procedure
+    category: administrativos
+    url: https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/14E1-003-017.pdf
+    canonical: true
+    priority: high
+    topics:
+      - ambulancias
+      - traslado_programado
+      - choferes
+      - transporte_terrestre
+      - oxigeno_ambulancia
+      - camilla_ambulancia
+
+  - id: IMSS-GC10-003-001
+    key: GC10-003-001
+    title: Procedimiento para la Atención y Supervisión de Peticiones Captadas en los Módulos de Atención y Orientación al Derechohabiente (TAOD / SIADE)
+    organization: IMSS
+    type: procedure
+    category: administrativos
+    url: https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/GC10-003-001.pdf
+    canonical: true
+    priority: high
+    topics:
+      - taod
+      - orientacion_derechohabiente
+      - quejas_medicas
+      - siade
+      - gestion_peticiones
+      - buen_trato
+
+  - id: IMSS-0730-003-006
+    key: 0730-003-006
+    title: Procedimiento para Otorgar Atención Bucal en Hospital y Unidad de Salud con Servicio de Estomatología
+    organization: IMSS
+    type: procedure
+    category: administrativos
+    url: https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/0730-003-006.pdf
+    canonical: true
+    priority: high
+    topics:
+      - estomatologia
+      - salud_bucal
+      - dental
+      - prevencion_estomatologica
+      - amalgamas
+      - extracciones
+
+  - id: IMSS-2660-003-045
+    key: 2660-003-045
+    title: Procedimiento para la Atención Médica Continua y Urgencias en Unidades Médicas Hospitalarias (Triage IMSS)
+    organization: IMSS
+    type: procedure
+    category: flujos-clinicos
+    url: https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/2660-003-045.pdf
+    canonical: true
+    priority: critical
+    topics:
+      - urgencias
+      - triage
+      - codigo_rojo
+      - sala_choque
+      - atencion_continua
+      - clasificacion_urgencias
+
+  - id: IMSS-2660-003-052
+    key: 2660-003-052
+    title: Procedimiento para la Consulta Externa de Especialidades en Unidades Médicas Hospitalarias de Segundo Nivel
+    organization: IMSS
+    type: procedure
+    category: flujos-clinicos
+    url: https://reposipot.imss.gob.mx/normatividad/DNMR/Procedimiento/2660-003-052.pdf
+    canonical: true
+    priority: high
+    topics:
+      - consulta_externa
+      - especialidades
+      - enfermeria_consulta
+      - asistente_consulta
+      - citas_especialidad
+
+  - id: IMSS-1A74-003-AUO
+    key: 1A74-003-AUO
+    title: Manual de Organización y Procedimientos del Auxiliar Universal de Oficinas (AUO) y Rama Administrativa
+    organization: IMSS
+    type: procedure
+    category: administrativos
+    url: https://www.imss.gob.mx/sites/all/statics/pdf/CCT-2025-2027.pdf
+    canonical: true
+    priority: high
+    topics:
+      - auo
+      - auxiliar_universal_oficinas
+      - correspondencia
+      - archivo
+      - tramites_ventanilla
+      - profiograma_administrativo
+
+  - id: IMSS-4130-003-005
+    key: IMSS-02-020-B
+    title: Procedimiento para la Acreditación de Vigencia de Derechos y Registro de Asegurados (Homoclave IMSS-02-020-B)
+    organization: IMSS
+    type: procedure
+    category: administrativos
+    url: https://www.imss.gob.mx/derechohabientes/vigencia-derechos
+    canonical: true
+    priority: high
+    topics:
+      - vigencia_derechos
+      - afiliacion
+      - acreditacion
+      - imss_digital
+      - subdelegacion
+
+  - id: IMSS-1A61-003-004
+    key: 1A61-003-004
+    title: Procedimiento para el Soporte Técnico, Mantenimiento de Hardware y Redes Institucionales
+    organization: IMSS
+    type: procedure
+    category: administrativos
+    url: https://www.imss.gob.mx/conoce-al-imss/marco-normativo
+    canonical: true
+    priority: medium
+    topics:
+      - soporte_tecnico
+      - sistemas
+      - informatica
+      - redes
+      - equipos_computo
+
+
 
 # ────────────────────────── DESCUBRIMIENTO POSTERIOR ──────────────────────────
 discovery:
