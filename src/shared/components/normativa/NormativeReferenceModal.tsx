@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useMemo, type CSSProperties } from "react"
+import { useState, useMemo, useEffect, type CSSProperties } from "react"
+import { createPortal } from "react-dom"
 import {
   X,
   BookOpen,
@@ -110,6 +111,19 @@ function NormativeReferenceModalDialog({
   const [copied, setCopied] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
 
+  useEffect(() => {
+    const origOverflow = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose()
+    }
+    window.addEventListener("keydown", onKeyDown)
+    return () => {
+      document.body.style.overflow = origOverflow
+      window.removeEventListener("keydown", onKeyDown)
+    }
+  }, [onClose])
+
   if (target !== prevTarget) {
     setPrevTarget(target)
     setSelectedItem(initialItem)
@@ -153,7 +167,7 @@ function NormativeReferenceModalDialog({
 
   const isCct = selectedItem?.documentId === "CCT-IMSS-SNTSS-2025-2027"
 
-  return (
+  const content = (
     <div style={overlayStyle} onClick={onClose} role="dialog" aria-modal="true">
       <div style={panelStyle} onClick={(e) => e.stopPropagation()}>
         {/* Header */}
@@ -435,4 +449,9 @@ function NormativeReferenceModalDialog({
       </div>
     </div>
   )
+
+  if (typeof document !== "undefined" && document.body) {
+    return createPortal(content, document.body)
+  }
+  return content
 }
