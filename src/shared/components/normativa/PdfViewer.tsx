@@ -549,7 +549,7 @@ export function PdfViewer({
       {/* Sugerencia de gestos táctiles para móvil */}
       {showGestureHint && (
         <div style={gestureHintStyle}>
-          <span>💡 Pellizca con 2 dedos para Zoom • Doble toque para ampliar</span>
+          <span>Pellizca con 2 dedos o pulsa dos veces para ampliar</span>
         </div>
       )}
 

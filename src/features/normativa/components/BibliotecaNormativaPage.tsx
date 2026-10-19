@@ -122,8 +122,7 @@ export function BibliotecaNormativaPage({ data }: Props) {
           <Library size={24} color="var(--primary)" style={{ flexShrink: 0 }} /> Biblioteca Normativa
         </h1>
         <p style={{ color: "var(--muted)", fontSize: "0.875rem", margin: "0.25rem 0 0", wordBreak: "break-word" }}>
-          Sistema de evidencia documental IMSS/SNTSS. La IA no es la fuente: la fuente es el documento.
-          Consulta directa en lenguaje claro para las y los trabajadores.
+          Marco normativo oficial IMSS y SNTSS con sustento documental verificado. Explicaciones claras y fundamentadas al servicio de la base trabajadora.
         </p>
       </div>
 
@@ -133,7 +132,7 @@ export function BibliotecaNormativaPage({ data }: Props) {
           <div>
             <strong>Acervo normativo en actualización.</strong>
             <p style={{ margin: "0.25rem 0 0", color: "var(--muted)", fontSize: "0.875rem" }}>
-              Puedes consultar libremente las guías en lenguaje claro, procedimientos y temas cotidianos en las secciones inferiores.
+              Puedes consultar libremente las guías prácticas, procedimientos y temas frecuentes en las secciones inferiores.
             </p>
           </div>
         </div>
@@ -158,10 +157,10 @@ export function BibliotecaNormativaPage({ data }: Props) {
         >
           {h && (
             <>
-              <span style={{ ...chipStyle, flexShrink: 0, whiteSpace: "nowrap" }}>📚 <strong>{h.documents}</strong> consultables</span>
+              <span style={{ ...chipStyle, flexShrink: 0, whiteSpace: "nowrap" }}>📚 <strong>{h.documents}</strong> documentos oficiales</span>
               <span style={{ ...chipStyle, color: "#15803d", flexShrink: 0, whiteSpace: "nowrap" }}>🟢 {h.vigentes} vigentes</span>
               {h.historicos > 0 && <span style={{ ...chipStyle, color: "#1d4ed8", flexShrink: 0, whiteSpace: "nowrap" }}>🔵 {h.historicos} históricos</span>}
-              {h.sections > 0 && <span style={{ ...chipStyle, flexShrink: 0, whiteSpace: "nowrap" }}>📑 {h.sections} artículos/cláusulas</span>}
+              {h.sections > 0 && <span style={{ ...chipStyle, flexShrink: 0, whiteSpace: "nowrap" }}>📑 {h.sections} artículos y cláusulas</span>}
               {h.nextExpiration && (
                 <span style={{ ...chipStyle, color: "#b45309", border: "1px solid #f59e0b", flexShrink: 0, whiteSpace: "nowrap" }}>
                   ⏳ Próxima revisión: {h.nextExpiration.document.replace("IMSS-", "")} ({h.nextExpiration.date})
@@ -193,7 +192,7 @@ export function BibliotecaNormativaPage({ data }: Props) {
             whiteSpace: "nowrap",
           }}
         >
-          <Sparkles size={16} /> Guías en Lenguaje Claro
+          <Sparkles size={16} /> Guías Prácticas
         </button>
         <button
           onClick={() => setMode("biblioteca")}
@@ -213,7 +212,7 @@ export function BibliotecaNormativaPage({ data }: Props) {
             whiteSpace: "nowrap",
           }}
         >
-          <Search size={16} /> Buscar en Texto
+          <Search size={16} /> Búsqueda en Texto
         </button>
         <button
           onClick={() => setMode("comparar")}
@@ -237,7 +236,7 @@ export function BibliotecaNormativaPage({ data }: Props) {
             whiteSpace: "nowrap",
           }}
         >
-          <BookOpen size={16} /> Atajo Cláusula CCT
+          <BookOpen size={16} /> Consulta Rápida CCT / Estatutos
         </button>
       </div>
 
