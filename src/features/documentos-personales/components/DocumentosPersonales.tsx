@@ -20,6 +20,14 @@ import { LoadingSpinner } from "@/shared/components/ui/LoadingSpinner"
 import { SendPrintModal } from "./SendPrintModal"
 import { ImportTarjetonModal } from "./ImportTarjetonModal"
 import { DocumentViewerModal } from "./DocumentViewerModal"
+import { NormativaDocViewerModal } from "./NormativaDocViewerModal"
+import {
+  getSavedNormativaDocs,
+  removeSavedNormativaDoc,
+  saveNormativaToVault,
+  type SavedNormativaDoc,
+} from "../services/normativa-boveda"
+import { BookOpen, Scale, Download } from "lucide-react"
 import {
   deleteWebScannedDocument,
   getWebScannedDocumentFile,
@@ -74,6 +82,22 @@ export function DocumentosPersonales() {
   const [confirmDeleteDoc, setConfirmDeleteDoc] = useState<DocumentoPersonalItem | null>(null)
   const [menuDoc, setMenuDoc] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null)
+  const [vaultTab, setVaultTab] = useState<"laborales" | "normativos">("laborales")
+  const [savedNormativos, setSavedNormativos] = useState<SavedNormativaDoc[]>([])
+  const [activeNormativoDoc, setActiveNormativoDoc] = useState<SavedNormativaDoc | null>(null)
+  const [confirmDeleteNormativo, setConfirmDeleteNormativo] = useState<SavedNormativaDoc | null>(null)
+
+  const reloadNormativos = useCallback((uid: string | null) => {
+    setSavedNormativos(getSavedNormativaDocs(uid))
+  }, [])
+
+  useEffect(() => {
+    const onVaultChange = () => {
+      reloadNormativos(userId)
+    }
+    window.addEventListener("lvd:normativa-vault-changed", onVaultChange)
+    return () => window.removeEventListener("lvd:normativa-vault-changed", onVaultChange)
+  }, [userId, reloadNormativos])
 
   const isNative = typeof window !== "undefined" && !!window.LaVeinteApp?.listNativeDocuments
 
@@ -149,6 +173,7 @@ export function DocumentosPersonales() {
           }))
         )
         void reloadEscaneados(user.id)
+        reloadNormativos(user.id)
 
         const { data: p } = await supabase
           .from("profiles")
@@ -168,6 +193,7 @@ export function DocumentosPersonales() {
         setUserId("anonymous")
         setEscritos([])
         setEscaneados([])
+        reloadNormativos("anonymous")
       }
       setCargando(false)
     })
@@ -175,7 +201,7 @@ export function DocumentosPersonales() {
     return () => {
       cancelled = true
     }
-  }, [supabase, reloadEscaneados])
+  }, [supabase, reloadEscaneados, reloadNormativos])
 
   const reloadProfile = useCallback(async () => {
     if (!userId || userId === "anonymous") return
@@ -525,16 +551,109 @@ export function DocumentosPersonales() {
         </div>
       </div>
 
-      {!isNative && nativos.length === 0 && (
-        <div style={{
-          background: "var(--accent)", border: "1px solid var(--border)",
-          borderRadius: "0.75rem", padding: "1rem 1.25rem", width: "100%", boxSizing: "border-box",
-        }}>
-          <p style={{ fontSize: "0.8125rem", color: "var(--muted)", margin: 0, lineHeight: 1.5, wordBreak: "break-word" }}>
-            📱 Los tarjetones y checadas descargados del IMSS se sincronizan en la aplicación móvil instalada. Aquí puedes gestionar tus escritos redactados.
-          </p>
-        </div>
-      )}
+      {/* Pestañas de la Bóveda: Documentos Laborales vs Documentos Normativos */}
+      <div
+        style={{
+          display: "flex",
+          background: "var(--accent)",
+          padding: 4,
+          borderRadius: "0.75rem",
+          border: "1px solid var(--border)",
+          width: "100%",
+          boxSizing: "border-box",
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setVaultTab("laborales")}
+          style={{
+            flex: 1,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "0.5rem",
+            padding: "0.625rem 0.75rem",
+            borderRadius: "0.5rem",
+            border: "none",
+            background: vaultTab === "laborales" ? "var(--card)" : "transparent",
+            color: vaultTab === "laborales" ? "var(--primary)" : "var(--muted)",
+            fontWeight: 700,
+            fontSize: "0.875rem",
+            cursor: "pointer",
+            boxShadow: vaultTab === "laborales" ? "0 2px 6px rgba(0,0,0,0.06)" : "none",
+            transition: "all 0.15s ease",
+          }}
+        >
+          <FileText size={18} weight={vaultTab === "laborales" ? "fill" : "regular"} />
+          <span>Documentos laborales</span>
+          {items.length > 0 && (
+            <span
+              style={{
+                fontSize: "0.7rem",
+                padding: "0.1rem 0.45rem",
+                borderRadius: 999,
+                background: vaultTab === "laborales" ? "rgba(37, 99, 235, 0.12)" : "rgba(0,0,0,0.06)",
+                color: vaultTab === "laborales" ? "var(--primary)" : "var(--muted)",
+                fontWeight: 700,
+              }}
+            >
+              {items.length}
+            </span>
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setVaultTab("normativos")}
+          style={{
+            flex: 1,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "0.5rem",
+            padding: "0.625rem 0.75rem",
+            borderRadius: "0.5rem",
+            border: "none",
+            background: vaultTab === "normativos" ? "var(--card)" : "transparent",
+            color: vaultTab === "normativos" ? "var(--primary)" : "var(--muted)",
+            fontWeight: 700,
+            fontSize: "0.875rem",
+            cursor: "pointer",
+            boxShadow: vaultTab === "normativos" ? "0 2px 6px rgba(0,0,0,0.06)" : "none",
+            transition: "all 0.15s ease",
+          }}
+        >
+          <Scale size={18} />
+          <span>Documentos normativos</span>
+          {savedNormativos.length > 0 && (
+            <span
+              style={{
+                fontSize: "0.7rem",
+                padding: "0.1rem 0.45rem",
+                borderRadius: 999,
+                background: vaultTab === "normativos" ? "rgba(37, 99, 235, 0.12)" : "rgba(0,0,0,0.06)",
+                color: vaultTab === "normativos" ? "var(--primary)" : "var(--muted)",
+                fontWeight: 700,
+              }}
+            >
+              {savedNormativos.length}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {vaultTab === "laborales" && (
+        <>
+          {!isNative && nativos.length === 0 && (
+            <div style={{
+              background: "var(--accent)", border: "1px solid var(--border)",
+              borderRadius: "0.75rem", padding: "1rem 1.25rem", width: "100%", boxSizing: "border-box",
+            }}>
+              <p style={{ fontSize: "0.8125rem", color: "var(--muted)", margin: 0, lineHeight: 1.5, wordBreak: "break-word" }}>
+                📱 Los tarjetones y checadas descargados del IMSS se sincronizan en la aplicación móvil instalada. Aquí puedes gestionar tus escritos redactados.
+              </p>
+            </div>
+          )}
 
       {cargando && (
         <p style={{ color: "var(--muted)", fontSize: "0.875rem", textAlign: "center", padding: "2rem 0" }}>Cargando documentos…</p>
@@ -909,6 +1028,248 @@ export function DocumentosPersonales() {
           })}
         </div>
       )}
+        </>
+      )}
+
+      {vaultTab === "normativos" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", width: "100%", boxSizing: "border-box" }}>
+          {/* Tarjeta informativa */}
+          <div
+            style={{
+              background: "rgba(37, 99, 235, 0.04)",
+              border: "1px solid rgba(37, 99, 235, 0.15)",
+              borderRadius: "0.75rem",
+              padding: "0.875rem 1rem",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "0.75rem",
+              flexWrap: "wrap",
+            }}
+          >
+            <div>
+              <div style={{ fontSize: "0.875rem", fontWeight: 700, color: "var(--fg)" }}>
+                Contratos, Estatutos y Normas oficiales
+              </div>
+              <div style={{ fontSize: "0.8rem", color: "var(--muted)", marginTop: "0.15rem" }}>
+                Documentos normativos guardados en tu dispositivo para consulta rápida.
+              </div>
+            </div>
+            <Link
+              href="/biblioteca-normativa"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.35rem",
+                fontSize: "0.8rem",
+                fontWeight: 600,
+                color: "var(--primary)",
+                textDecoration: "none",
+                background: "rgba(37, 99, 235, 0.08)",
+                padding: "0.35rem 0.75rem",
+                borderRadius: "0.5rem",
+                border: "1px solid rgba(37, 99, 235, 0.2)",
+              }}
+            >
+              <BookOpen size={14} /> Explorar biblioteca
+            </Link>
+          </div>
+
+          {/* Estado vacío si no hay normativos guardados */}
+          {savedNormativos.length === 0 ? (
+            <div
+              style={{
+                background: "var(--card)",
+                border: "1px solid var(--border)",
+                borderRadius: "0.75rem",
+                padding: "2.5rem 1.25rem",
+                textAlign: "center",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: "0.75rem",
+              }}
+            >
+              <div
+                style={{
+                  width: 52,
+                  height: 52,
+                  borderRadius: "50%",
+                  background: "rgba(37, 99, 235, 0.1)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "var(--primary)",
+                }}
+              >
+                <Scale size={26} />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: "1.0625rem", fontWeight: 700 }}>
+                  Aún no tienes documentos normativos en tu bóveda
+                </h3>
+                <p style={{ margin: "0.35rem 0 0", fontSize: "0.85rem", color: "var(--muted)", lineHeight: 1.45, maxWidth: 460 }}>
+                  Puedes guardar el Contrato Colectivo de Trabajo (CCT), los Estatutos Sindicales, o cualquier procedimiento y NOM oficial desde la Biblioteca Normativa.
+                </p>
+              </div>
+
+              {/* Botones de guardado rápido de documentos esenciales */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", width: "100%", maxWidth: 360, marginTop: "0.5rem" }}>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => {
+                    saveNormativaToVault(
+                      {
+                        id: "CCT-IMSS-SNTSS-2025-2027",
+                        title: "Contrato Colectivo de Trabajo IMSS-SNTSS 2025-2027",
+                        key: "CCT 2025-2027",
+                        category: "cct",
+                      },
+                      userId
+                    )
+                    setFeedback({ type: "success", message: "CCT 2025-2027 guardado en tu bóveda." })
+                  }}
+                >
+                  📜 Guardar CCT IMSS-SNTSS 2025-2027
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    saveNormativaToVault(
+                      {
+                        id: "SNTSS-ESTATUTOS-2022",
+                        title: "Estatutos Sindicales SNTSS (Edición Oficial)",
+                        key: "Estatutos 2022",
+                        category: "sntss",
+                      },
+                      userId
+                    )
+                    setFeedback({ type: "success", message: "Estatutos SNTSS guardados en tu bóveda." })
+                  }}
+                >
+                  ⚖️ Guardar Estatutos SNTSS
+                </Button>
+              </div>
+            </div>
+          ) : (
+            /* Lista de documentos normativos guardados */
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", width: "100%", boxSizing: "border-box" }}>
+              {savedNormativos.map((doc) => (
+                <div
+                  key={doc.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "0.875rem 1rem",
+                    background: "var(--card)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "0.875rem",
+                    gap: "0.75rem",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem", flex: "1 1 230px", minWidth: 0 }}>
+                    <div
+                      style={{
+                        width: 42,
+                        height: 42,
+                        borderRadius: "0.75rem",
+                        flexShrink: 0,
+                        background: "rgba(37, 99, 235, 0.1)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "var(--primary)",
+                        marginTop: "0.125rem",
+                      }}
+                    >
+                      <Scale size={20} />
+                    </div>
+
+                    <div style={{ flex: 1, minWidth: 0, wordBreak: "break-word" }}>
+                      <div style={{ fontSize: "var(--text-sm)", fontWeight: 700, color: "var(--fg)", lineHeight: 1.35 }}>
+                        {doc.title}
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", flexWrap: "wrap", marginTop: "0.25rem", fontSize: "var(--text-xs)", color: "var(--muted)" }}>
+                        {doc.key && (
+                          <span
+                            style={{
+                              fontSize: "0.68rem",
+                              fontWeight: 700,
+                              color: "var(--primary)",
+                              background: "rgba(37, 99, 235, 0.1)",
+                              padding: "0.125rem 0.45rem",
+                              borderRadius: 999,
+                            }}
+                          >
+                            {doc.key}
+                          </span>
+                        )}
+                        <span>Guardado el {new Date(doc.savedAt).toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" })}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Botones de acción */}
+                  <div style={{ display: "flex", gap: "0.375rem", flexShrink: 0, alignItems: "center" }}>
+                    <button
+                      type="button"
+                      onClick={() => setActiveNormativoDoc(doc)}
+                      title="Abrir en lector oficial"
+                      aria-label="Abrir documento normativo"
+                      style={{
+                        ...iconBtn,
+                        background: "var(--accent)",
+                        color: "var(--fg)",
+                        border: "1px solid var(--border)",
+                      }}
+                    >
+                      <Eye size={18} weight="bold" />
+                    </button>
+
+                    <a
+                      href={`/api/normativa/visor?id=${encodeURIComponent(doc.id)}`}
+                      target="_blank"
+                      download
+                      title="Descargar archivo original"
+                      aria-label="Descargar archivo original"
+                      style={{
+                        ...iconBtn,
+                        background: "var(--accent)",
+                        color: "var(--primary)",
+                        border: "1px solid var(--border)",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Download size={18} />
+                    </a>
+
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDeleteNormativo(doc)}
+                      title="Quitar de mi bóveda"
+                      aria-label="Quitar de mi bóveda"
+                      style={{
+                        ...iconBtn,
+                        background: "transparent",
+                        color: "#ef4444",
+                        border: "1px solid #fecaca",
+                      }}
+                    >
+                      <Trash size={18} weight="bold" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Modal de Confirmación de Eliminación */}
       <ConfirmDialog
@@ -984,6 +1345,35 @@ export function DocumentosPersonales() {
         profile={profile}
         userId={userId}
         onClose={() => setImportDoc(null)}
+      />
+
+      {/* Visor de documento normativo con Zoom y controles de lectura */}
+      <NormativaDocViewerModal
+        open={!!activeNormativoDoc}
+        doc={activeNormativoDoc}
+        onClose={() => setActiveNormativoDoc(null)}
+      />
+
+      {/* Modal de Confirmación de Eliminación de Normativo */}
+      <ConfirmDialog
+        open={!!confirmDeleteNormativo}
+        title="Quitar de mi bóveda"
+        description={
+          confirmDeleteNormativo
+            ? `¿Estás seguro de que deseas quitar "${confirmDeleteNormativo.title}" de tu bóveda de documentos? Podrás volver a guardarlo desde la Biblioteca Normativa cuando lo desees.`
+            : ""
+        }
+        confirmLabel="Quitar"
+        cancelLabel="Conservar"
+        destructive
+        onConfirm={() => {
+          if (confirmDeleteNormativo) {
+            removeSavedNormativaDoc(confirmDeleteNormativo.id, userId)
+            setConfirmDeleteNormativo(null)
+            setFeedback({ type: "success", message: "Documento quitado de tu bóveda." })
+          }
+        }}
+        onCancel={() => setConfirmDeleteNormativo(null)}
       />
     </div>
   )

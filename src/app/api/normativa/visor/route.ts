@@ -28,6 +28,10 @@ function findInBotApiPdfs(repoRoot: string, id: string, aliases: string[]): stri
   return null
 }
 
+function isPdfBuffer(buf: Buffer): boolean {
+  return buf.length >= 4 && buf[0] === 0x25 && buf[1] === 0x50 && buf[2] === 0x44 && buf[3] === 0x46 // "%PDF"
+}
+
 export async function GET(req: NextRequest) {
   const auth = await requireUser()
   if (auth.response) return auth.response
@@ -44,12 +48,13 @@ export async function GET(req: NextRequest) {
   const location = catalog.openOriginalAtPage(id, Number.isFinite(page) && page > 0 ? page : 1)
   if (location && fs.existsSync(location.filePath)) {
     const buf = fs.readFileSync(location.filePath)
-    const isPdf = location.filePath.endsWith(".pdf")
+    const isPdf = isPdfBuffer(buf)
     const headers: Record<string, string> = {
       "Content-Type": isPdf ? "application/pdf" : "text/html; charset=utf-8",
       "Content-Disposition": `inline; filename="${id}-original.${isPdf ? "pdf" : "html"}"`,
       "Cache-Control": "public, max-age=86400",
       "X-Normativa-Page": String(location.page),
+      "X-Normativa-Format": isPdf ? "pdf" : "html",
       "X-Normativa-Source": "copia local utilizada por la Biblioteca Normativa",
     }
     return new NextResponse(new Uint8Array(buf), { headers })
@@ -61,10 +66,12 @@ export async function GET(req: NextRequest) {
   const cachedFilePath = path.join(cacheDir, `${safeId}.pdf`)
   if (fs.existsSync(cachedFilePath)) {
     const buf = fs.readFileSync(cachedFilePath)
+    const isPdf = isPdfBuffer(buf)
     const headers: Record<string, string> = {
-      "Content-Type": "application/pdf",
-      "Content-Disposition": `inline; filename="${safeId}.pdf"`,
+      "Content-Type": isPdf ? "application/pdf" : "text/html; charset=utf-8",
+      "Content-Disposition": `inline; filename="${safeId}.${isPdf ? "pdf" : "html"}"`,
       "Cache-Control": "public, max-age=86400",
+      "X-Normativa-Format": isPdf ? "pdf" : "html",
       "X-Normativa-Source": "cache-local",
     }
     return new NextResponse(new Uint8Array(buf), { headers })
@@ -114,11 +121,12 @@ export async function GET(req: NextRequest) {
           fs.writeFileSync(cachedFilePath, buf)
         } catch {}
 
-        const isPdf = cand.endsWith(".pdf") || storageRes.headers.get("content-type")?.includes("pdf")
+        const isPdf = isPdfBuffer(buf)
         const headers: Record<string, string> = {
           "Content-Type": isPdf ? "application/pdf" : "text/html; charset=utf-8",
           "Content-Disposition": `inline; filename="${safeId}.${isPdf ? "pdf" : "html"}"`,
           "Cache-Control": "public, max-age=86400",
+          "X-Normativa-Format": isPdf ? "pdf" : "html",
           "X-Normativa-Source": "supabase-storage-normativa",
         }
         return new NextResponse(new Uint8Array(buf), { headers })
@@ -132,10 +140,12 @@ export async function GET(req: NextRequest) {
   const botMatch = findInBotApiPdfs(process.cwd(), id, p?.aliasIds ?? [])
   if (botMatch && fs.existsSync(botMatch)) {
     const buf = fs.readFileSync(botMatch)
+    const isPdf = isPdfBuffer(buf)
     const headers: Record<string, string> = {
-      "Content-Type": "application/pdf",
+      "Content-Type": isPdf ? "application/pdf" : "text/html; charset=utf-8",
       "Content-Disposition": `inline; filename="${path.basename(botMatch)}"`,
       "Cache-Control": "public, max-age=86400",
+      "X-Normativa-Format": isPdf ? "pdf" : "html",
       "X-Normativa-Source": "bot-api-acervo",
     }
     return new NextResponse(new Uint8Array(buf), { headers })
@@ -162,10 +172,12 @@ export async function GET(req: NextRequest) {
           fs.writeFileSync(cachedFilePath, buf)
         } catch {}
 
+        const isPdf = isPdfBuffer(buf)
         const headers: Record<string, string> = {
-          "Content-Type": "application/pdf",
-          "Content-Disposition": `inline; filename="${safeId}.pdf"`,
+          "Content-Type": isPdf ? "application/pdf" : "text/html; charset=utf-8",
+          "Content-Disposition": `inline; filename="${safeId}.${isPdf ? "pdf" : "html"}"`,
           "Cache-Control": "public, max-age=86400",
+          "X-Normativa-Format": isPdf ? "pdf" : "html",
           "X-Normativa-Source": "repositorio-oficial-proxy",
         }
         return new NextResponse(new Uint8Array(buf), { headers })
