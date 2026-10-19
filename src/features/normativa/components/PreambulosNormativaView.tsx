@@ -193,7 +193,7 @@ export function PreambulosNormativaView({ documents, onOpenDoc }: Props) {
           type="text"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          placeholder="¿Qué buscas? ej. vacaciones, aguinaldo, AUO, enfermería..."
+          placeholder="Buscar por tema, derecho o categoría (ej. vacaciones, aguinaldo, enfermería, AUO)..."
           style={{
             border: "none",
             outline: "none",
@@ -220,13 +220,13 @@ export function PreambulosNormativaView({ documents, onOpenDoc }: Props) {
         )}
       </div>
 
-      {/* TEMAS COTIDIANOS EN RIEL HORIZONTAL DESLIZABLE COMPACTO (1 SOLA FILA) */}
+      {/* TEMAS FRECUENTES EN RIEL HORIZONTAL DESLIZABLE COMPACTO (1 SOLA FILA) */}
       {!searchTerm && selectedCategoria === "todas" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
             <Sparkles size={14} color="var(--primary)" />
             <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--fg)" }}>
-              Atajos cotidianos:
+              Temas y consultas frecuentes:
             </span>
           </div>
 
@@ -286,16 +286,16 @@ export function PreambulosNormativaView({ documents, onOpenDoc }: Props) {
         }}
       >
         {[
-          { id: "todas", label: "✨ Todas" },
-          { id: "cct", label: "📜 CCT y Salarios" },
-          { id: "sntss", label: "⚖️ SNTSS y Estatutos" },
-          { id: "flujos-clinicos", label: "🏥 Puestos Clínicos" },
-          { id: "administrativos", label: "📋 Administrativos" },
+          { id: "todas", label: "Todos los documentos" },
+          { id: "cct", label: "📜 CCT y Tabulador" },
+          { id: "sntss", label: "⚖️ Estatutos SNTSS" },
+          { id: "flujos-clinicos", label: "🏥 Personal Clínico" },
+          { id: "administrativos", label: "📋 Personal Administrativo" },
           { id: "procedimientos", label: "📑 Procedimientos IMSS" },
           { id: "reglamentos", label: "🛡️ Reglamentos" },
-          { id: "seguridad", label: "🦺 Seguridad y NOMs" },
+          { id: "seguridad", label: "🦺 Seguridad y Salud (NOM)" },
           { id: "leyes", label: "⚖️ Leyes Federales" },
-          { id: "integridad", label: "🤝 Código de Conducta" },
+          { id: "integridad", label: "🤝 Integridad y Conducta" },
         ].map((cat) => (
           <button
             key={cat.id}
@@ -625,36 +625,37 @@ export function PreambulosNormativaView({ documents, onOpenDoc }: Props) {
               </button>
             </div>
 
-            {/* En una frase */}
+            {/* Resumen normativo */}
             <div
               style={{
-                fontSize: "0.8rem",
+                fontSize: "0.82rem",
                 fontWeight: 600,
                 color: "var(--primary)",
                 background: "rgba(37, 99, 235, 0.06)",
                 borderLeft: "3px solid var(--primary)",
-                padding: "0.5rem 0.65rem",
+                padding: "0.55rem 0.75rem",
                 borderRadius: "0 6px 6px 0",
+                lineHeight: 1.4,
               }}
             >
-              💡 {detailModalDoc.enUnaFrase}
+              {detailModalDoc.enUnaFrase}
             </div>
 
-            {/* De qué trata y por qué te protege */}
+            {/* Propósito y alcance del documento */}
             <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
               <strong style={{ fontSize: "0.82rem", color: "var(--fg)" }}>
-                ¿De qué trata y por qué te protege?
+                Propósito y alcance del documento
               </strong>
               <div style={{ fontSize: "0.78rem", color: "var(--fg)", lineHeight: 1.45, whiteSpace: "pre-line" }}>
                 {detailModalDoc.preambulo}
               </div>
             </div>
 
-            {/* A quién aplica */}
+            {/* Personal y áreas comprendidas */}
             {detailModalDoc.aQuienAplica && detailModalDoc.aQuienAplica.length > 0 && (
               <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
                 <strong style={{ fontSize: "0.82rem", color: "var(--fg)" }}>
-                  ¿A quién le aplica?
+                  Personal y áreas comprendidas
                 </strong>
                 <ul style={{ margin: 0, paddingLeft: "1.2rem", fontSize: "0.76rem", color: "var(--muted)", lineHeight: 1.4 }}>
                   {detailModalDoc.aQuienAplica.map((item, idx) => (
@@ -664,11 +665,11 @@ export function PreambulosNormativaView({ documents, onOpenDoc }: Props) {
               </div>
             )}
 
-            {/* Temas clave más consultados */}
+            {/* Disposiciones y temas clave */}
             {detailModalDoc.temasClave && detailModalDoc.temasClave.length > 0 && (
               <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
                 <strong style={{ fontSize: "0.82rem", color: "var(--fg)" }}>
-                  Temas clave más consultados:
+                  Disposiciones y temas clave
                 </strong>
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
                   {detailModalDoc.temasClave.map((tema, tIdx) => (
@@ -690,6 +691,34 @@ export function PreambulosNormativaView({ documents, onOpenDoc }: Props) {
                     </div>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* Situaciones de consulta recomendada */}
+            {detailModalDoc.cuandoConsultarlo && detailModalDoc.cuandoConsultarlo.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+                <strong style={{ fontSize: "0.82rem", color: "var(--fg)" }}>
+                  Situaciones de consulta recomendada
+                </strong>
+                <ul style={{ margin: 0, paddingLeft: "1.2rem", fontSize: "0.76rem", color: "var(--muted)", lineHeight: 1.4 }}>
+                  {detailModalDoc.cuandoConsultarlo.map((item, idx) => (
+                    <li key={idx}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Consideraciones importantes para tus derechos */}
+            {detailModalDoc.ojoConEsto && detailModalDoc.ojoConEsto.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+                <strong style={{ fontSize: "0.82rem", color: "var(--fg)" }}>
+                  Consideraciones importantes para tus derechos
+                </strong>
+                <ul style={{ margin: 0, paddingLeft: "1.2rem", fontSize: "0.76rem", color: "var(--muted)", lineHeight: 1.4 }}>
+                  {detailModalDoc.ojoConEsto.map((item, idx) => (
+                    <li key={idx}>{item}</li>
+                  ))}
+                </ul>
               </div>
             )}
 

@@ -86,7 +86,7 @@ export function BusquedaNormativa({ onCrearEpisodio }: Props = {}) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && run()}
-          placeholder="¿Qué quieres saber? ej. ¿quién autoriza mi tiempo extra?"
+          placeholder="Ingresa tu consulta normativa (ej. autorización de tiempo extraordinario, prima dominical)..."
           style={inputStyle}
         />
         <button onClick={run} disabled={loading !== "none"} style={searchBtn}>
@@ -103,7 +103,7 @@ export function BusquedaNormativa({ onCrearEpisodio }: Props = {}) {
         <div style={hitStyle}>
           <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", fontSize: "0.75rem", marginBottom: "0.5rem" }}>
             <span style={{ ...badge, background: "#eff6ff", color: "#1d4ed8" }}>
-              {respuesta.deterministicOnly ? "🔒 Cita documental directa" : "✨ Fundamento oficial verificado"}
+              {respuesta.deterministicOnly ? "Cita documental directa" : "Fundamento oficial verificado"}
             </span>
             <span style={{ ...badge, color: respuesta.coverage.recommended ? "#15803d" : "#b45309", background: respuesta.coverage.recommended ? "#dcfce7" : "#fef3c7" }}>
               Cobertura documental: {respuesta.coverage.coverage}%
