@@ -2307,6 +2307,8 @@ Seguridad Radiológica y Derechos del Trabajador (POE):
     aliasIds: [
       "1a74-003-auo",
       "auo",
+      "profesiogramas",
+      "profesiograma",
       "auxiliar-universal-de-oficinas",
       "oficial-administrativo",
       "administrativo",
