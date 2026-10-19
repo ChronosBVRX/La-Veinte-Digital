@@ -70,7 +70,7 @@ export async function GET(req: NextRequest) {
     return new NextResponse(new Uint8Array(buf), { headers })
   }
 
-  // 3. Documento en bot-api/pdfs si existe coincidencia
+  // 2.5. Acervo oficial en Supabase Storage (bucket público 'normativa')
   const cleanId = id.trim().toLowerCase()
   const p = PREAMBULOS_NORMATIVOS.find(
     (item) =>
@@ -79,6 +79,56 @@ export async function GET(req: NextRequest) {
       item.aliasIds?.some((a) => a.toLowerCase() === cleanId)
   )
 
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://supabase.la20.com.mx"
+  const candidates: string[] = []
+  if (p?.urlOficial) {
+    try {
+      const parsed = new URL(p.urlOficial)
+      const base = path.basename(parsed.pathname)
+      if (base) candidates.push(base)
+    } catch {}
+  }
+  if (location?.filePath) {
+    candidates.push(path.basename(location.filePath))
+  }
+  candidates.push(`${id}.pdf`)
+  candidates.push(`${safeId}.pdf`)
+  if (p?.documentId) candidates.push(`${p.documentId}.pdf`)
+  if (p?.aliasIds) {
+    for (const a of p.aliasIds) candidates.push(`${a}.pdf`)
+  }
+
+  const uniqueCandidates = Array.from(new Set(candidates.filter(Boolean)))
+
+  for (const cand of uniqueCandidates) {
+    try {
+      const storageUrl = `${supabaseUrl}/storage/v1/object/public/normativa/${encodeURIComponent(cand)}`
+      const storageRes = await fetch(storageUrl, {
+        signal: AbortSignal.timeout(8000),
+      })
+      if (storageRes.ok) {
+        const arrayBuf = await storageRes.arrayBuffer()
+        const buf = Buffer.from(arrayBuf)
+        try {
+          if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir, { recursive: true })
+          fs.writeFileSync(cachedFilePath, buf)
+        } catch {}
+
+        const isPdf = cand.endsWith(".pdf") || storageRes.headers.get("content-type")?.includes("pdf")
+        const headers: Record<string, string> = {
+          "Content-Type": isPdf ? "application/pdf" : "text/html; charset=utf-8",
+          "Content-Disposition": `inline; filename="${safeId}.${isPdf ? "pdf" : "html"}"`,
+          "Cache-Control": "public, max-age=86400",
+          "X-Normativa-Source": "supabase-storage-normativa",
+        }
+        return new NextResponse(new Uint8Array(buf), { headers })
+      }
+    } catch (e) {
+      console.warn(`[Visor API] Error comprobando Supabase Storage para ${cand}:`, e)
+    }
+  }
+
+  // 3. Documento en bot-api/pdfs si existe coincidencia
   const botMatch = findInBotApiPdfs(process.cwd(), id, p?.aliasIds ?? [])
   if (botMatch && fs.existsSync(botMatch)) {
     const buf = fs.readFileSync(botMatch)
@@ -123,9 +173,6 @@ export async function GET(req: NextRequest) {
     } catch (err) {
       console.warn(`[Visor API] Error haciendo fetch a ${targetUrl}:`, err)
     }
-
-    // Redirección directa al repositorio oficial si el proxy no pudo descargar los bytes
-    return NextResponse.redirect(targetUrl, 302)
   }
 
   return privateJsonError(404, "Archivo original no disponible en acervo local ni remoto", crypto.randomUUID(), "not_found")
