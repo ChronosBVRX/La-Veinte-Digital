@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState, type CSSProperties } from "react"
+import { useMemo, useState, useEffect, type CSSProperties } from "react"
 import { BookMarked, Search, Library, Database, GitCompareArrows, BookOpen, Sparkles } from "lucide-react"
 import type { LibraryData, LibraryDocumentEntry } from "../services/catalog"
 import { DocumentCard } from "./DocumentCard"
@@ -99,6 +99,16 @@ export function BibliotecaNormativaPage({ data }: Props) {
   const [selected, setSelected] = useState<LibraryDocumentEntry | null>(null)
   const [mode, setMode] = useState<"preambulos" | "biblioteca" | "buscar" | "comparar">("preambulos")
   const [modalOpen, setModalOpen] = useState<boolean>(false)
+  const [isDesktop, setIsDesktop] = useState(false)
+
+  useEffect(() => {
+    const checkWidth = () => {
+      setIsDesktop(typeof window !== "undefined" && window.innerWidth >= 768)
+    }
+    checkWidth()
+    window.addEventListener("resize", checkWidth)
+    return () => window.removeEventListener("resize", checkWidth)
+  }, [])
 
   const filtered = useMemo(() => data.documents.filter((d) => matchTab(d, tab)), [data.documents, tab])
 
@@ -128,15 +138,32 @@ export function BibliotecaNormativaPage({ data }: Props) {
           </div>
         </div>
       ) : (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem", padding: "0.75rem 0.875rem", background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--radius)", width: "100%", minWidth: 0, boxSizing: "border-box", alignItems: "center" }}>
+        <div
+          style={{
+            display: "flex",
+            gap: "0.45rem",
+            padding: "0.45rem 0.65rem",
+            background: "var(--card)",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius)",
+            width: "100%",
+            minWidth: 0,
+            boxSizing: "border-box",
+            alignItems: "center",
+            overflowX: "auto",
+            flexWrap: "nowrap",
+            scrollbarWidth: "none",
+            WebkitOverflowScrolling: "touch",
+          }}
+        >
           {h && (
             <>
-              <span style={chipStyle}>📚 <strong>{h.documents}</strong> documentos consultables</span>
-              <span style={{ ...chipStyle, color: "#15803d" }}>🟢 {h.vigentes} vigentes</span>
-              {h.historicos > 0 && <span style={{ ...chipStyle, color: "#1d4ed8" }}>🔵 {h.historicos} históricos de referencia</span>}
-              {h.sections > 0 && <span style={chipStyle}>📑 {h.sections} artículos y cláusulas oficiales</span>}
+              <span style={{ ...chipStyle, flexShrink: 0, whiteSpace: "nowrap" }}>📚 <strong>{h.documents}</strong> consultables</span>
+              <span style={{ ...chipStyle, color: "#15803d", flexShrink: 0, whiteSpace: "nowrap" }}>🟢 {h.vigentes} vigentes</span>
+              {h.historicos > 0 && <span style={{ ...chipStyle, color: "#1d4ed8", flexShrink: 0, whiteSpace: "nowrap" }}>🔵 {h.historicos} históricos</span>}
+              {h.sections > 0 && <span style={{ ...chipStyle, flexShrink: 0, whiteSpace: "nowrap" }}>📑 {h.sections} artículos/cláusulas</span>}
               {h.nextExpiration && (
-                <span style={{ ...chipStyle, color: "#b45309", border: "1px solid #f59e0b" }}>
+                <span style={{ ...chipStyle, color: "#b45309", border: "1px solid #f59e0b", flexShrink: 0, whiteSpace: "nowrap" }}>
                   ⏳ Próxima revisión: {h.nextExpiration.document.replace("IMSS-", "")} ({h.nextExpiration.date})
                 </span>
               )}
@@ -223,9 +250,29 @@ export function BibliotecaNormativaPage({ data }: Props) {
 
       {mode === "biblioteca" && (
         <>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.375rem", width: "100%", minWidth: 0 }}>
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "nowrap",
+              overflowX: "auto",
+              gap: "0.35rem",
+              width: "100%",
+              minWidth: 0,
+              padding: "0.15rem 0",
+              scrollbarWidth: "none",
+              WebkitOverflowScrolling: "touch",
+            }}
+          >
             {TABS.map((t) => (
-              <button key={t.id} onClick={() => setTab(t.id)} style={tab === t.id ? activeTabStyle : tabStyle}>
+              <button
+                key={t.id}
+                onClick={() => setTab(t.id)}
+                style={{
+                  ...(tab === t.id ? activeTabStyle : tabStyle),
+                  flexShrink: 0,
+                  whiteSpace: "nowrap",
+                }}
+              >
                 {t.label}
                 {t.id === "pendientes" && pendientes > 0 ? ` (${pendientes})` : ""}
               </button>
@@ -243,12 +290,23 @@ export function BibliotecaNormativaPage({ data }: Props) {
             </div>
           )}
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 280px), 1fr))", gap: "0.875rem", width: "100%", minWidth: 0, boxSizing: "border-box" }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: isDesktop ? "repeat(auto-fill, minmax(260px, 1fr))" : "repeat(2, minmax(0, 1fr))",
+              gap: "0.6rem",
+              width: "100%",
+              minWidth: 0,
+              boxSizing: "border-box",
+            }}
+          >
             {filtered.map((doc) => (
               <DocumentCard key={doc.id} doc={doc} onOpen={() => setSelected(doc)} />
             ))}
             {filtered.length === 0 && (
-              <p style={{ color: "var(--muted)", gridColumn: "1 / -1" }}>No hay documentos en esta pestaña.</p>
+              <p style={{ color: "var(--muted)", gridColumn: "1 / -1", textAlign: "center", padding: "2rem 0" }}>
+                No hay documentos en esta pestaña.
+              </p>
             )}
           </div>
         </>
