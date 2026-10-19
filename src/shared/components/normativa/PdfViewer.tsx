@@ -86,6 +86,36 @@ export function PdfViewer({
   const searchCacheRef = useRef<Map<number, PageSearchData>>(new Map())
   const searchAbortRef = useRef<boolean>(false)
   const lastTapRef = useRef<number>(0)
+  const pendingScrollAdjustRef = useRef<{ scrollLeft: number; scrollTop: number } | null>(null)
+  const zoomTo = useCallback(
+    (
+      targetScaleOrUpdater: number | ((prev: number) => number),
+      focalPoint?: { clientX: number; clientY: number }
+    ) => {
+      const currentScale = scale
+      const newScale =
+        typeof targetScaleOrUpdater === "function"
+          ? targetScaleOrUpdater(currentScale)
+          : targetScaleOrUpdater
+      const clampedScale = Math.min(3.5, Math.max(0.6, Number(newScale.toFixed(2))))
+      if (clampedScale === currentScale) return
+
+      const el = viewportRef.current
+      if (el && currentScale > 0) {
+        const vRect = el.getBoundingClientRect()
+        const ratio = clampedScale / currentScale
+        const focalX = focalPoint ? focalPoint.clientX - vRect.left : el.clientWidth / 2
+        const focalY = focalPoint ? focalPoint.clientY - vRect.top : el.clientHeight / 2
+        const docX = el.scrollLeft + focalX
+        const docY = el.scrollTop + focalY
+        const newScrollLeft = Math.max(0, docX * ratio - focalX)
+        const newScrollTop = Math.max(0, docY * ratio - focalY)
+        pendingScrollAdjustRef.current = { scrollLeft: newScrollLeft, scrollTop: newScrollTop }
+      }
+      setScale(clampedScale)
+    },
+    [scale]
+  )
 
   const url = `/api/normativa/visor?id=${encodeURIComponent(documentId)}`
 
@@ -216,6 +246,13 @@ export function PdfViewer({
       const ctx = canvas.getContext("2d")
       if (!ctx) return
       await p.render({ canvas, canvasContext: ctx, viewport }).promise
+      if (cancelled) return
+
+      if (pendingScrollAdjustRef.current && viewportRef.current) {
+        viewportRef.current.scrollLeft = pendingScrollAdjustRef.current.scrollLeft
+        viewportRef.current.scrollTop = pendingScrollAdjustRef.current.scrollTop
+        pendingScrollAdjustRef.current = null
+      }
     })
 
     return () => {
@@ -250,9 +287,15 @@ export function PdfViewer({
         const t2 = e.touches[1]
         startDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY)
         startScale = scale
-        pinchOriginX = (t1.clientX + t2.clientX) / 2
-        pinchOriginY = (t1.clientY + t2.clientY) / 2
+        const midX = (t1.clientX + t2.clientX) / 2
+        const midY = (t1.clientY + t2.clientY) / 2
+        pinchOriginX = midX
+        pinchOriginY = midY
         if (canvasWrapperRef.current) {
+          const rect = canvasWrapperRef.current.getBoundingClientRect()
+          const originX = midX - rect.left
+          const originY = midY - rect.top
+          canvasWrapperRef.current.style.transformOrigin = `${originX}px ${originY}px`
           canvasWrapperRef.current.style.transition = "none"
         }
       }
@@ -268,7 +311,6 @@ export function PdfViewer({
           const factor = currentDist / startDist
           if (canvasWrapperRef.current) {
             canvasWrapperRef.current.style.transform = `scale(${factor})`
-            canvasWrapperRef.current.style.transformOrigin = `${pinchOriginX}px ${pinchOriginY}px`
           }
         }
       }
@@ -285,8 +327,8 @@ export function PdfViewer({
           if (match) {
             const factor = parseFloat(match[1])
             if (!isNaN(factor) && factor !== 1) {
-              const targetScale = Math.min(3.5, Math.max(0.6, Number((startScale * factor).toFixed(2))))
-              setScale(targetScale)
+              const targetScale = startScale * factor
+              zoomTo(targetScale, { clientX: pinchOriginX, clientY: pinchOriginY })
             }
           }
         }
@@ -297,7 +339,10 @@ export function PdfViewer({
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault()
         const delta = e.deltaY > 0 ? -0.15 : 0.15
-        setScale((s) => Math.min(3.5, Math.max(0.6, Number((s + delta).toFixed(2)))))
+        zoomTo(
+          (s) => Math.min(3.5, Math.max(0.6, Number((s + delta).toFixed(2)))),
+          { clientX: e.clientX, clientY: e.clientY }
+        )
       }
     }
 
@@ -314,14 +359,14 @@ export function PdfViewer({
       el.removeEventListener("touchcancel", onTouchEnd)
       el.removeEventListener("wheel", onWheel)
     }
-  }, [scale])
+  }, [zoomTo, scale])
 
-  // GESTO: Doble toque para ampliar/restablecer
-  const handleContentTap = () => {
+  // GESTO: Doble toque para ampliar/restablecer enfocado en el punto del toque
+  const handleContentTap = (e: React.MouseEvent) => {
     const now = Date.now()
     if (now - lastTapRef.current < 300) {
-      // Doble toque detectado
-      setScale((s) => (s > 1.4 ? 1.2 : 2.0))
+      const targetScale = scale > 1.4 ? 1.2 : 2.0
+      zoomTo(targetScale, { clientX: e.clientX, clientY: e.clientY })
       lastTapRef.current = 0
     } else {
       lastTapRef.current = now
@@ -354,9 +399,9 @@ export function PdfViewer({
       } else if (e.key === "ArrowRight" || e.key === "PageDown") {
         setPage((p) => Math.min(numPages, p + 1))
       } else if (e.key === "+" || e.key === "=") {
-        setScale((s) => Math.min(3.5, Number((s + 0.2).toFixed(1))))
+        zoomTo((s) => Math.min(3.5, Number((s + 0.2).toFixed(1))))
       } else if (e.key === "-" || e.key === "_") {
-        setScale((s) => Math.max(0.6, Number((s - 0.2).toFixed(1))))
+        zoomTo((s) => Math.max(0.6, Number((s - 0.2).toFixed(1))))
       } else if (e.key === "Escape") {
         setSearchOpen(false)
         setPageJumpOpen(false)
@@ -365,7 +410,7 @@ export function PdfViewer({
 
     window.addEventListener("keydown", onKeyDown)
     return () => window.removeEventListener("keydown", onKeyDown)
-  }, [numPages])
+  }, [numPages, zoomTo])
 
   // Lógica de búsqueda en todo el documento
   const executeSearch = useCallback(
@@ -604,7 +649,7 @@ export function PdfViewer({
           {/* Zoom Out */}
           <button
             type="button"
-            onClick={() => setScale((s) => Math.max(0.6, Number((s - 0.2).toFixed(1))))}
+            onClick={() => zoomTo((s) => Math.max(0.6, Number((s - 0.2).toFixed(1))))}
             style={toolbarBtn}
             title="Alejar (Zoom -)"
             aria-label="Alejar"
@@ -615,7 +660,7 @@ export function PdfViewer({
           {/* Reset Zoom a 130% */}
           <button
             type="button"
-            onClick={() => setScale(1.3)}
+            onClick={() => zoomTo(1.3)}
             style={{ ...toolbarBtn, minWidth: 42, fontSize: "0.72rem", padding: "0.25rem 0.35rem" }}
             title="Restablecer zoom al 130%"
           >
@@ -625,7 +670,7 @@ export function PdfViewer({
           {/* Zoom In */}
           <button
             type="button"
-            onClick={() => setScale((s) => Math.min(3.5, Number((s + 0.2).toFixed(1))))}
+            onClick={() => zoomTo((s) => Math.min(3.5, Number((s + 0.2).toFixed(1))))}
             style={toolbarBtn}
             title="Acercar (Zoom +)"
             aria-label="Acercar"
@@ -870,12 +915,37 @@ export function PdfViewer({
       {/* ÁREA DE VISUALIZACIÓN DEL DOCUMENTO (PANTALLA AMPLIA + CANVAS + HIGHLIGHTS) */}
       <div ref={viewportRef} style={viewportStyle}>
         {loading ? (
-          <div style={{ padding: "4rem 1rem", display: "flex", flexDirection: "column", alignItems: "center", gap: "1rem" }}>
+          <div
+            style={{
+              minHeight: "100%",
+              width: "100%",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "4rem 1rem",
+              boxSizing: "border-box",
+            }}
+          >
             <LoadingSpinner text="Abriendo documento oficial completo..." />
           </div>
         ) : error ? (
-          <div style={{ textAlign: "center", padding: "3rem 1.5rem", color: "#f8fafc", maxWidth: 480, margin: "auto" }}>
-            <p style={{ fontWeight: 700, fontSize: "1.05rem", margin: "0 0 0.5rem", color: "#f8fafc" }}>
+          <div
+            style={{
+              minHeight: "100%",
+              width: "100%",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              textAlign: "center",
+              padding: "3rem 1.5rem",
+              color: "#f8fafc",
+              boxSizing: "border-box",
+            }}
+          >
+            <div style={{ maxWidth: 480, margin: "auto" }}>
+              <p style={{ fontWeight: 700, fontSize: "1.05rem", margin: "0 0 0.5rem", color: "#f8fafc" }}>
               Visualización directa del documento oficial
             </p>
             <p style={{ fontSize: "0.85rem", color: "#cbd5e1", lineHeight: 1.5, margin: "0 0 1.5rem" }}>
@@ -959,7 +1029,8 @@ export function PdfViewer({
               </a>
             </div>
           </div>
-        ) : docType === "html" ? (
+        </div>
+      ) : docType === "html" ? (
           <div style={{ width: "100%", height: "100%", background: "#fff", flex: 1, display: "flex", flexDirection: "column" }}>
             <iframe
               ref={iframeRef}
@@ -978,11 +1049,15 @@ export function PdfViewer({
         ) : (
           <div
             style={{
-              width: "100%",
-              display: "flex",
-              justifyContent: "center",
-              padding: "0.5rem 0",
+              minWidth: "100%",
+              width: "max-content",
               minHeight: "100%",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "flex-start",
+              padding: "0.75rem 0.5rem",
+              boxSizing: "border-box",
             }}
             onClick={handleContentTap}
           >
@@ -992,18 +1067,20 @@ export function PdfViewer({
               style={{
                 position: "relative",
                 display: "inline-block",
-                margin: "auto",
+                margin: "0 auto",
+                transformOrigin: "center top",
               }}
             >
               <canvas
                 ref={canvasRef}
                 style={{
-                  maxWidth: scale <= 1.3 ? "100%" : "none",
+                  maxWidth: "none",
                   height: "auto",
                   background: "#fff",
                   borderRadius: 2,
                   boxShadow: "0 8px 30px rgba(0, 0, 0, 0.6)",
                   display: "block",
+                  touchAction: "pan-x pan-y",
                 }}
               />
 
@@ -1169,9 +1246,8 @@ const viewportStyle: CSSProperties = {
   height: "100%",
   overflow: "auto",
   background: "#1e293b",
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
+  position: "relative",
+  touchAction: "pan-x pan-y",
   WebkitOverflowScrolling: "touch",
 }
 
