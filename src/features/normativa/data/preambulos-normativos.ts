@@ -34,7 +34,7 @@ export const PREAMBULOS_NORMATIVOS: PreambuloNormativo[] = [
   {
     documentId: "CCT-IMSS-SNTSS-2025-2027",
     urlOficial: "https://www.imss.gob.mx/sites/all/statics/pdf/CCT-2025-2027.pdf",
-    aliasIds: ["cct", "CCT", "contrato-colectivo"],
+    aliasIds: ["cct", "CCT", "contrato-colectivo", "clausulas", "Clausulas"],
     tituloComun: "Contrato Colectivo de Trabajo IMSS-SNTSS (CCT)",
     claveOficial: "CCT 2025-2027",
     organizacion: "IMSS / SNTSS",
