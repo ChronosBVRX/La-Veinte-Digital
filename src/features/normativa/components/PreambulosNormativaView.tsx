@@ -6,7 +6,7 @@ import {
   Sparkles,
   ChevronRight,
   AlertTriangle,
-  FileText,
+  BookOpen,
 } from "lucide-react"
 import {
   TEMAS_COTIDIANOS_TRABAJADOR,
@@ -299,21 +299,44 @@ export function PreambulosNormativaView({ documents, onOpenDoc }: Props) {
                   </div>
                 </div>
 
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.4rem",
-                    padding: "0.3rem 0.6rem",
-                    borderRadius: "var(--radius)",
-                    background: "var(--accent)",
-                    fontSize: "0.75rem",
-                    fontWeight: 600,
-                    color: "var(--fg)",
-                    flexShrink: 0,
-                  }}
-                >
-                  {isExpanded ? "Ocultar preámbulo" : "Ver qué contiene"}
+                <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", flexShrink: 0 }}>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleOpenDocById(norma.documentId)
+                    }}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "0.35rem",
+                      padding: "0.35rem 0.7rem",
+                      borderRadius: "var(--radius)",
+                      background: "var(--primary)",
+                      color: "var(--primary-fg)",
+                      fontSize: "0.78rem",
+                      fontWeight: 600,
+                      border: "none",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <BookOpen size={14} /> Leer en la app
+                  </button>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.35rem",
+                      padding: "0.35rem 0.6rem",
+                      borderRadius: "var(--radius)",
+                      background: "var(--accent)",
+                      fontSize: "0.75rem",
+                      fontWeight: 600,
+                      color: "var(--fg)",
+                    }}
+                  >
+                    {isExpanded ? "Ocultar" : "Detalles"}
+                  </div>
                 </div>
               </div>
 
@@ -526,7 +549,7 @@ export function PreambulosNormativaView({ documents, onOpenDoc }: Props) {
                         cursor: "pointer",
                       }}
                     >
-                      <FileText size={15} /> Ver documento oficial y citas
+                      <BookOpen size={16} /> 📖 Leer documento completo y artículos en la app
                     </button>
                   </div>
                 </div>
