@@ -8,7 +8,7 @@ import {
   ExternalLink,
   ZoomIn,
   ZoomOut,
-  Maximize2,
+  RotateCw,
 } from "lucide-react"
 import { loadPdfDocument } from "../lib/pdfjs-client"
 import { LoadingSpinner } from "@/shared/components/ui/LoadingSpinner"
@@ -26,7 +26,7 @@ export function PdfViewer({ documentId, initialPage = 1, officialUrl = null }: P
   const [scale, setScale] = useState(1.3)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [useIframe, setUseIframe] = useState(false)
+  const [retryCount, setRetryCount] = useState(0)
   const pdfRef = useRef<Awaited<ReturnType<typeof loadPdfDocument>> | null>(null)
 
   const url = `/api/normativa/visor?id=${encodeURIComponent(documentId)}`
@@ -59,9 +59,8 @@ export function PdfViewer({ documentId, initialPage = 1, officialUrl = null }: P
         setError(null)
       } catch (e) {
         if (!cancelled) {
-          console.warn("[PdfViewer] Fallback a visor nativo:", e)
-          // Si PDF.js falla o el binario es pesado, activar visor iframe para garantizar que abra siempre
-          setUseIframe(true)
+          console.warn("[PdfViewer] Error cargando PDF:", e)
+          setError(e instanceof Error ? e.message : "Error al procesar el archivo")
           setLoading(false)
         }
       }
@@ -72,11 +71,11 @@ export function PdfViewer({ documentId, initialPage = 1, officialUrl = null }: P
       void pdfRef.current?.loadingTask.destroy()
       pdfRef.current = null
     }
-  }, [url])
+  }, [url, retryCount])
 
   useEffect(() => {
     const pdf = pdfRef.current
-    if (!pdf || useIframe) return
+    if (!pdf) return
     let cancelled = false
 
     void pdf.pdf.getPage(page).then(async (p) => {
@@ -94,13 +93,13 @@ export function PdfViewer({ documentId, initialPage = 1, officialUrl = null }: P
     return () => {
       cancelled = true
     }
-  }, [page, numPages, scale, useIframe])
+  }, [page, numPages, scale])
 
   return (
     <div style={containerStyle}>
       {/* BARRA DE HERRAMIENTAS DEL VISOR PDF */}
       <div style={toolbarStyle}>
-        {!useIframe && numPages > 0 ? (
+        {numPages > 0 ? (
           <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
             <button
               type="button"
@@ -145,9 +144,9 @@ export function PdfViewer({ documentId, initialPage = 1, officialUrl = null }: P
           </div>
         )}
 
-        {/* CONTROLES DE ZOOM Y MODO */}
-        <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-          {!useIframe && (
+        {/* CONTROLES DE ZOOM Y ACCIONES */}
+        <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", flexWrap: "wrap" }}>
+          {numPages > 0 && (
             <div style={{ display: "flex", alignItems: "center", gap: "0.25rem", marginRight: "0.35rem" }}>
               <button
                 type="button"
@@ -170,16 +169,6 @@ export function PdfViewer({ documentId, initialPage = 1, officialUrl = null }: P
               </button>
             </div>
           )}
-
-          <button
-            type="button"
-            onClick={() => setUseIframe((u) => !u)}
-            style={{ ...toolbarBtn, fontSize: "0.76rem" }}
-            title={useIframe ? "Cambiar a visor interactivo canvas" : "Cambiar a visor nativo del navegador"}
-          >
-            <Maximize2 size={14} />
-            <span>{useIframe ? "Visor canvas" : "Visor nativo"}</span>
-          </button>
 
           <a
             href={url}
@@ -213,42 +202,90 @@ export function PdfViewer({ documentId, initialPage = 1, officialUrl = null }: P
           <div style={{ padding: "4rem 1rem", display: "flex", flexDirection: "column", alignItems: "center", gap: "1rem" }}>
             <LoadingSpinner text="Abriendo documento oficial completo..." />
           </div>
-        ) : useIframe ? (
-          <iframe
-            src={url}
-            style={{ width: "100%", height: "100%", border: "none", background: "#334155" }}
-            title={`Documento oficial ${documentId}`}
-          />
         ) : error ? (
-          <div style={{ textAlign: "center", padding: "2rem 1rem", color: "#f8fafc", maxWidth: 480, margin: "auto" }}>
-            <p style={{ fontWeight: 700, fontSize: "1rem", margin: "0 0 0.5rem" }}>
-              Visualización directa en el portal oficial
+          <div style={{ textAlign: "center", padding: "3rem 1.5rem", color: "#f8fafc", maxWidth: 480, margin: "auto" }}>
+            <p style={{ fontWeight: 700, fontSize: "1.05rem", margin: "0 0 0.5rem", color: "#f8fafc" }}>
+              Visualización directa del documento oficial
             </p>
-            <p style={{ fontSize: "0.85rem", color: "#cbd5e1", lineHeight: 1.5, margin: "0 0 1.25rem" }}>
-              No se pudo renderizar la copia previa en canvas, pero el documento oficial está disponible para lectura inmediata.
+            <p style={{ fontSize: "0.85rem", color: "#cbd5e1", lineHeight: 1.5, margin: "0 0 1.5rem" }}>
+              No se pudo renderizar la vista previa en el navegador, pero el archivo oficial está completamente disponible para consulta.
             </p>
-            {officialUrl && (
-              <a
-                href={officialUrl}
-                target="_blank"
-                rel="noopener noreferrer"
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", alignItems: "center", width: "100%" }}>
+              <button
+                type="button"
+                onClick={() => setRetryCount((c) => c + 1)}
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
+                  justifyContent: "center",
                   gap: "0.45rem",
                   padding: "0.6rem 1.25rem",
-                  background: "var(--primary)",
-                  color: "#fff",
+                  background: "rgba(255, 255, 255, 0.12)",
+                  color: "#f8fafc",
                   borderRadius: "var(--radius)",
                   fontSize: "0.85rem",
-                  fontWeight: 700,
-                  textDecoration: "none",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  border: "1px solid rgba(255, 255, 255, 0.2)",
+                  width: "100%",
+                  maxWidth: 320,
                 }}
               >
-                <ExternalLink size={16} />
-                Abrir documento en portal oficial (IMSS / DOF)
+                <RotateCw size={15} />
+                Reintentar carga del visor
+              </button>
+
+              {officialUrl && (
+                <a
+                  href={officialUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "0.45rem",
+                    padding: "0.65rem 1.25rem",
+                    background: "var(--primary)",
+                    color: "#fff",
+                    borderRadius: "var(--radius)",
+                    fontSize: "0.85rem",
+                    fontWeight: 700,
+                    textDecoration: "none",
+                    width: "100%",
+                    maxWidth: 320,
+                  }}
+                >
+                  <ExternalLink size={16} />
+                  Abrir en portal oficial (IMSS / DOF)
+                </a>
+              )}
+
+              <a
+                href={url}
+                target="_blank"
+                download
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "0.45rem",
+                  padding: "0.6rem 1.25rem",
+                  background: "rgba(255, 255, 255, 0.08)",
+                  color: "#f8fafc",
+                  borderRadius: "var(--radius)",
+                  fontSize: "0.85rem",
+                  fontWeight: 600,
+                  textDecoration: "none",
+                  border: "1px solid rgba(255, 255, 255, 0.15)",
+                  width: "100%",
+                  maxWidth: 320,
+                }}
+              >
+                <Download size={15} />
+                Descargar copia oficial PDF
               </a>
-            )}
+            </div>
           </div>
         ) : (
           <div style={{ width: "100%", display: "flex", justifyContent: "center", padding: "1.25rem 0.5rem" }}>

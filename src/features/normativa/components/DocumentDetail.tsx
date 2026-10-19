@@ -4,18 +4,15 @@ import { useEffect, useState, useMemo, type CSSProperties } from "react"
 import { createPortal } from "react-dom"
 import {
   X,
-  ExternalLink,
   FileText,
   BookOpen,
   Search,
   Copy,
   Check,
   Share2,
-  Download,
   ArrowLeft,
 } from "lucide-react"
 import type { LibraryDocumentEntry } from "../services/catalog"
-import { formatTipoDocumento } from "../lib/preambulo-helper"
 import { PdfViewer } from "./PdfViewer"
 import cctClausesRaw from "@/shared/data/normativa/cct-clausulas.json"
 import estatutosArticlesRaw from "@/shared/data/normativa/estatutos-articulos.json"
@@ -179,7 +176,7 @@ export function DocumentDetail({ doc, onClose, initialTab, initialQuery = "" }: 
     <div style={fullscreenContainerStyle} role="dialog" aria-modal="true">
       {/* BARRA SUPERIOR FULLSCREEN FIJA */}
       <div style={fullscreenHeaderStyle}>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", minWidth: 0, flex: 1 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", minWidth: 0, flex: 1, overflow: "hidden" }}>
           <button
             type="button"
             onClick={onClose}
@@ -191,10 +188,7 @@ export function DocumentDetail({ doc, onClose, initialTab, initialQuery = "" }: 
             <span style={{ fontWeight: 700 }}>Volver</span>
           </button>
 
-          <div style={{ display: "flex", alignItems: "center", gap: "0.45rem", minWidth: 0, overflow: "hidden" }}>
-            <span style={{ fontSize: "0.72rem", fontWeight: 700, padding: "0.15rem 0.5rem", background: "rgba(255, 255, 255, 0.1)", borderRadius: 999, color: "#93c5fd", flexShrink: 0 }}>
-              {formatTipoDocumento(doc.type)}
-            </span>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", minWidth: 0, overflow: "hidden" }}>
             {doc.key && (
               <span style={{ fontSize: "0.72rem", fontWeight: 700, padding: "0.15rem 0.5rem", background: "rgba(37, 99, 235, 0.25)", color: "#bfdbfe", borderRadius: 999, flexShrink: 0 }}>
                 {doc.key}
@@ -224,7 +218,7 @@ export function DocumentDetail({ doc, onClose, initialTab, initialQuery = "" }: 
                 }}
               >
                 <BookOpen size={14} />
-                <span>{isCct ? "Cláusulas (144)" : "Artículos (155)"}</span>
+                <span>{isCct ? "Cláusulas" : "Artículos"}</span>
               </button>
               <button
                 type="button"
@@ -236,33 +230,9 @@ export function DocumentDetail({ doc, onClose, initialTab, initialQuery = "" }: 
                 }}
               >
                 <FileText size={14} />
-                <span>PDF Facsímil</span>
+                <span>PDF</span>
               </button>
             </div>
-          )}
-
-          <a
-            href={`/api/normativa/visor?id=${encodeURIComponent(doc.id)}`}
-            target="_blank"
-            download
-            style={headerActionLink}
-            title="Descargar documento PDF original"
-          >
-            <Download size={14} />
-            <span style={{ fontSize: "0.78rem", fontWeight: 600 }}>Descargar</span>
-          </a>
-
-          {doc.url && (
-            <a
-              href={doc.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ ...headerActionLink, color: "#93c5fd" }}
-              title="Abrir en portal oficial gubernamental"
-            >
-              <ExternalLink size={14} />
-              <span style={{ fontSize: "0.78rem", fontWeight: 600 }}>Portal oficial</span>
-            </a>
           )}
 
           <button
@@ -560,19 +530,6 @@ const toggleBtnStyle: CSSProperties = {
   cursor: "pointer",
 }
 
-const headerActionLink: CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  gap: "0.35rem",
-  padding: "0.35rem 0.65rem",
-  background: "rgba(255, 255, 255, 0.08)",
-  border: "1px solid rgba(255, 255, 255, 0.15)",
-  borderRadius: 6,
-  color: "#f8fafc",
-  fontSize: "0.78rem",
-  fontWeight: 600,
-  textDecoration: "none",
-}
 
 const headerCloseBtn: CSSProperties = {
   display: "inline-flex",

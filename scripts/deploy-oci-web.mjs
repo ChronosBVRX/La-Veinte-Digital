@@ -167,6 +167,13 @@ async function main() {
     fs.cpSync(resourcesDir, path.join(stagingDir, "resources"), { recursive: true });
   }
 
+  // Copiar bot-api/pdfs (acervo de reglamentos, LFT y estatutos para visor oficial)
+  const botPdfsDir = path.join(process.cwd(), "bot-api", "pdfs");
+  if (fs.existsSync(botPdfsDir)) {
+    console.log("Copiando bot-api/pdfs...");
+    fs.cpSync(botPdfsDir, path.join(stagingDir, "bot-api", "pdfs"), { recursive: true });
+  }
+
   // Copiar Dockerfile.web
   fs.copyFileSync(
     path.join(process.cwd(), "Dockerfile.web"),
