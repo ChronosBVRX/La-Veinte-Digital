@@ -13,6 +13,7 @@ import {
   ArrowLeft,
 } from "lucide-react"
 import type { LibraryDocumentEntry } from "../services/catalog"
+import { PREAMBULOS_NORMATIVOS } from "../data/preambulos-normativos"
 import { PdfViewer } from "./PdfViewer"
 import cctClausesRaw from "@/shared/data/normativa/cct-clausulas.json"
 import estatutosArticlesRaw from "@/shared/data/normativa/estatutos-articulos.json"
@@ -83,6 +84,18 @@ export function DocumentDetail({ doc, onClose, initialTab, initialQuery = "" }: 
     if (initialTab) return initialTab
     return isCct || isEstatutos ? "lectura" : "pdf"
   }, [initialTab, isCct, isEstatutos])
+
+  const effectiveOfficialUrl = useMemo(() => {
+    if (doc.url) return doc.url
+    const cleanId = doc.id.trim().toLowerCase()
+    const p = PREAMBULOS_NORMATIVOS.find(
+      (item) =>
+        item.documentId.toLowerCase() === cleanId ||
+        (item.claveOficial && item.claveOficial.toLowerCase() === cleanId) ||
+        item.aliasIds?.some((a) => a.toLowerCase() === cleanId)
+    )
+    return p?.urlOficial ?? null
+  }, [doc.id, doc.url])
 
   const [prevDocId, setPrevDocId] = useState(doc.id)
   const [activeTab, setActiveTab] = useState<"lectura" | "guia" | "pdf">(defaultTab)
@@ -252,7 +265,7 @@ export function DocumentDetail({ doc, onClose, initialTab, initialQuery = "" }: 
         {(!isCct && !isEstatutos) || activeTab === "pdf" ? (
           <PdfViewer
             documentId={doc.id}
-            officialUrl={doc.url}
+            officialUrl={effectiveOfficialUrl}
             title={doc.title}
             keyLabel={doc.key ?? undefined}
             category={doc.category}

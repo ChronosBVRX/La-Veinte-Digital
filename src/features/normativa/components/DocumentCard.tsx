@@ -1,8 +1,8 @@
 "use client"
 
-import { FileText, ShieldCheck, ShieldAlert, AlertTriangle, BookOpen } from "lucide-react"
+import { BookOpen } from "lucide-react"
 import type { LibraryDocumentEntry } from "../services/catalog"
-import { getOrSynthesizePreambulo, formatDocSubtitle, formatTipoDocumento } from "../lib/preambulo-helper"
+import { getOrSynthesizePreambulo, formatDocSubtitle } from "../lib/preambulo-helper"
 
 interface Props {
   doc: LibraryDocumentEntry
@@ -36,116 +36,157 @@ export function DocumentCard({ doc, onOpen }: Props) {
   return (
     <div
       style={{
-        display: "flex", flexDirection: "column", gap: "0.55rem",
-        background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--radius)",
-        padding: "1rem", cursor: "pointer", transition: "box-shadow var(--transition)",
-        boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "space-between",
+        gap: "0.45rem",
+        background: "var(--card)",
+        border: "1px solid var(--border)",
+        borderRadius: "var(--radius)",
+        padding: "0.65rem 0.65rem 0.55rem",
+        cursor: "pointer",
+        transition: "box-shadow var(--transition)",
+        boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+        boxSizing: "border-box",
+        minHeight: 165,
+        position: "relative",
       }}
       onClick={onOpen}
       role="button"
       tabIndex={0}
-      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen() } }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault()
+          onOpen()
+        }
+      }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: "0.45rem", flexWrap: "wrap" }}>
-        <span style={{ fontSize: "0.72rem", fontWeight: 700, padding: "0.2rem 0.55rem", borderRadius: 999, background: "var(--accent)", color: v.color }}>
-          {v.label}
-        </span>
-        {doc.key && (
-          <span style={{ fontSize: "0.72rem", fontWeight: 700, padding: "0.2rem 0.55rem", borderRadius: 999, background: "rgba(37, 99, 235, 0.08)", color: "var(--primary)" }}>
-            Clave {doc.key}
-          </span>
-        )}
-        <span style={{ fontSize: "0.72rem", padding: "0.2rem 0.5rem", borderRadius: 999, background: "var(--accent)", color: "var(--muted)" }}>
-          {formatTipoDocumento(doc.type)}
-        </span>
-        {doc.versionStatus === "SOURCE_MISMATCH" && (
-          <span style={{ fontSize: "0.72rem", padding: "0.2rem 0.55rem", borderRadius: 999, background: "#fef3c7", color: "#92400e" }}>
-            ⚠ En actualización
-          </span>
-        )}
-      </div>
-
-      <div style={{ fontWeight: 700, fontSize: "0.95rem", lineHeight: 1.35, color: "var(--fg)" }}>
-        {doc.title}
-      </div>
-
-      {subtitle && (
-        <div style={{ fontSize: "0.78rem", color: "var(--muted)" }}>
-          {subtitle}
-        </div>
-      )}
-
-      {preambulo && (
+      <div>
+        {/* Cabecera con Badge y Clave */}
         <div
           style={{
-            fontSize: "0.8rem",
-            color: "var(--fg)",
-            background: "rgba(37, 99, 235, 0.04)",
-            border: "1px solid rgba(37, 99, 235, 0.15)",
-            borderRadius: "var(--radius)",
-            padding: "0.5rem 0.65rem",
-            lineHeight: 1.4,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "0.25rem",
+            marginBottom: "0.35rem",
           }}
         >
-          <span style={{ fontWeight: 700, color: "var(--primary)" }}>En cristiano: </span>
-          {preambulo.enUnaFrase}
+          <span
+            style={{
+              fontSize: "0.66rem",
+              fontWeight: 700,
+              padding: "0.15rem 0.4rem",
+              borderRadius: 4,
+              background: "var(--accent)",
+              color: v.color,
+              whiteSpace: "nowrap",
+            }}
+          >
+            {v.label}
+          </span>
+          {doc.key && (
+            <span
+              style={{
+                fontSize: "0.65rem",
+                fontWeight: 700,
+                padding: "0.15rem 0.35rem",
+                borderRadius: 4,
+                background: "rgba(37, 99, 235, 0.08)",
+                color: "var(--primary)",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                maxWidth: "50%",
+              }}
+            >
+              {doc.key}
+            </span>
+          )}
         </div>
-      )}
 
-      {(doc.effectiveFrom || doc.effectiveUntil) && (
-        <div style={{ fontSize: "0.78rem", color: "var(--muted)" }}>
-          {doc.effectiveFrom ?? "Vigente"} → {doc.effectiveUntil ?? "Indefinido"}
-          {doc.lastReformDate ? ` · Reforma ${doc.lastReformDate}` : ""}
-        </div>
-      )}
+        {/* Título: Máximo 2 líneas */}
+        <h3
+          style={{
+            margin: "0 0 0.25rem",
+            fontSize: "0.82rem",
+            fontWeight: 700,
+            color: "var(--fg)",
+            lineHeight: 1.25,
+            display: "-webkit-box",
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: "vertical",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+          title={doc.title}
+        >
+          {doc.title}
+        </h3>
 
-      <div style={{ fontSize: "0.78rem", color: "var(--muted)", display: "flex", gap: "0.9rem", flexWrap: "wrap", alignItems: "center" }}>
-        {doc.pages && doc.pages > 0 ? (
-          <span><FileText size={13} style={{ verticalAlign: -2 }} /> {doc.pages} págs</span>
-        ) : (
-          <span><FileText size={13} style={{ verticalAlign: -2 }} /> Documento oficial</span>
-        )}
-        {doc.sections && doc.sections > 0 ? (
-          <span>{doc.sections} artículos y cláusulas</span>
-        ) : (
-          <span>Texto íntegro oficial</span>
-        )}
+        {/* Frase clave o subtítulo: Máximo 2 líneas */}
+        {preambulo ? (
+          <p
+            style={{
+              margin: 0,
+              fontSize: "0.7rem",
+              color: "var(--muted)",
+              lineHeight: 1.3,
+              display: "-webkit-box",
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: "vertical",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            {preambulo.enUnaFrase}
+          </p>
+        ) : subtitle ? (
+          <p
+            style={{
+              margin: 0,
+              fontSize: "0.7rem",
+              color: "var(--muted)",
+              lineHeight: 1.3,
+              display: "-webkit-box",
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: "vertical",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            {subtitle}
+          </p>
+        ) : null}
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: "0.45rem", fontSize: "0.75rem", color: "var(--muted)" }}>
-        {doc.canonical ? <ShieldCheck size={14} color="#15803d" /> : <ShieldAlert size={14} color="#b45309" />}
-        Fuente {doc.canonical ? "oficial verificada" : "institucional"}
-      </div>
-
-      {doc.warning && (
-        <div style={{ fontSize: "0.75rem", color: "#92400e", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: "var(--radius)", padding: "0.5rem", display: "flex", gap: "0.4rem", alignItems: "flex-start" }}>
-          <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
-          <span>{doc.warning}</span>
-        </div>
-      )}
-
-      <div style={{ marginTop: "auto", paddingTop: "0.35rem" }}>
+      {/* Botón de acción al fondo */}
+      <div style={{ marginTop: "0.45rem", paddingTop: "0.4rem", borderTop: "1px solid var(--border)" }}>
         <button
           type="button"
-          onClick={(e) => { e.stopPropagation(); onOpen() }}
+          onClick={(e) => {
+            e.stopPropagation()
+            onOpen()
+          }}
           style={{
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
-            gap: "0.45rem",
-            fontSize: "0.825rem",
-            fontWeight: 600,
-            padding: "0.5rem 0.85rem",
-            borderRadius: "var(--radius)",
+            gap: "0.3rem",
+            fontSize: "0.74rem",
+            fontWeight: 700,
+            padding: "0.35rem 0.5rem",
+            borderRadius: 6,
             background: "var(--primary)",
-            color: "var(--primary-fg)",
+            color: "#fff",
             width: "100%",
             border: "none",
             cursor: "pointer",
-            transition: "opacity 0.15s ease",
           }}
+          title="Leer documento oficial en la app"
         >
-          <BookOpen size={15} /> Leer documento en la app
+          <BookOpen size={13} />
+          <span>Leer</span>
         </button>
       </div>
     </div>

@@ -5,6 +5,7 @@ import { ArrowLeft, X, BookOpen } from "lucide-react"
 import Link from "next/link"
 import { FullscreenPortal } from "@/shared/components/ui/FullscreenPortal"
 import { PdfViewer } from "@/shared/components/normativa/PdfViewer"
+import { PREAMBULOS_NORMATIVOS } from "@/features/normativa/data/preambulos-normativos"
 import type { SavedNormativaDoc } from "../services/normativa-boveda"
 
 interface Props {
@@ -41,6 +42,16 @@ export function NormativaDocViewerModal({ open, doc, onClose }: Props) {
     doc.id.toLowerCase().includes("estatutos") ||
     doc.category === "cct" ||
     doc.category === "sntss"
+
+  const effectiveOfficialUrl =
+    doc.url ||
+    PREAMBULOS_NORMATIVOS.find(
+      (item) =>
+        item.documentId.toLowerCase() === doc.id.toLowerCase() ||
+        (item.claveOficial && item.claveOficial.toLowerCase() === doc.id.toLowerCase()) ||
+        item.aliasIds?.some((a) => a.toLowerCase() === doc.id.toLowerCase())
+    )?.urlOficial ||
+    null
 
   return (
     <FullscreenPortal open={open} onClose={onClose} ariaLabel="Visor de documento normativo">
@@ -99,7 +110,7 @@ export function NormativaDocViewerModal({ open, doc, onClose }: Props) {
         <div style={fullscreenBodyStyle}>
           <PdfViewer
             documentId={doc.id}
-            officialUrl={doc.url}
+            officialUrl={effectiveOfficialUrl}
             title={doc.title}
             keyLabel={doc.key ?? undefined}
             category={doc.category}
