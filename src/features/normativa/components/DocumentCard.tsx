@@ -3,7 +3,7 @@
 import type { CSSProperties } from "react"
 import { FileText, ShieldCheck, ShieldAlert, AlertTriangle, ExternalLink } from "lucide-react"
 import type { LibraryDocumentEntry } from "../services/catalog"
-import { getPreambulo } from "../data/preambulos-normativos"
+import { getOrSynthesizePreambulo, formatDocSubtitle } from "../lib/preambulo-helper"
 
 interface Props {
   doc: LibraryDocumentEntry
@@ -31,8 +31,8 @@ function validityBadge(doc: LibraryDocumentEntry): { label: string; color: strin
 
 export function DocumentCard({ doc, onOpen }: Props) {
   const v = validityBadge(doc)
-  const needsReview = doc.validity === "PENDING_REVIEW" || doc.validity === "UNKNOWN" || doc.verificationStatus != null || doc.versionStatus === "SOURCE_MISMATCH"
-  const preambulo = getPreambulo(doc.id) || (doc.key ? getPreambulo(doc.key) : undefined)
+  const preambulo = getOrSynthesizePreambulo(doc)
+  const subtitle = formatDocSubtitle(doc)
 
   return (
     <div
@@ -48,11 +48,6 @@ export function DocumentCard({ doc, onOpen }: Props) {
         <span style={{ fontSize: "0.72rem", fontWeight: 700, padding: "0.2rem 0.55rem", borderRadius: 999, background: "var(--accent)", color: v.color }}>
           {v.label}
         </span>
-        {needsReview && doc.versionStatus !== "SOURCE_MISMATCH" && (
-          <span style={{ fontSize: "0.72rem", padding: "0.2rem 0.55rem", borderRadius: 999, background: "#fef3c7", color: "#92400e" }}>
-            ⚠ En revisión
-          </span>
-        )}
         {doc.versionStatus === "SOURCE_MISMATCH" && (
           <span style={{ fontSize: "0.72rem", padding: "0.2rem 0.55rem", borderRadius: 999, background: "#fef3c7", color: "#92400e" }}>
             ⚠ En actualización
@@ -61,9 +56,11 @@ export function DocumentCard({ doc, onOpen }: Props) {
       </div>
 
       <div style={{ fontWeight: 600, fontSize: "0.925rem", lineHeight: 1.35 }}>{doc.title}</div>
-      <div style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
-        {doc.organization.join(", ")} · {doc.key ? `Clave ${doc.key}` : doc.type}
-      </div>
+      {subtitle && (
+        <div style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
+          {subtitle}
+        </div>
+      )}
 
       {preambulo && (
         <div
@@ -83,15 +80,23 @@ export function DocumentCard({ doc, onOpen }: Props) {
       )}
 
       {(doc.effectiveFrom || doc.effectiveUntil) && (
-        <div style={{ fontSize: "0.8rem" }}>
-          {doc.effectiveFrom ?? "?"} → {doc.effectiveUntil ?? "?"}
+        <div style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
+          {doc.effectiveFrom ?? "Vigente"} → {doc.effectiveUntil ?? "Indefinido"}
           {doc.lastReformDate ? ` · Reforma ${doc.lastReformDate}` : ""}
         </div>
       )}
 
-      <div style={{ fontSize: "0.8rem", color: "var(--muted)", display: "flex", gap: "0.9rem", flexWrap: "wrap" }}>
-        <span><FileText size={13} style={{ verticalAlign: -2 }} /> {doc.pages ?? "?"} págs</span>
-        <span>{doc.sections} artículos y cláusulas</span>
+      <div style={{ fontSize: "0.8rem", color: "var(--muted)", display: "flex", gap: "0.9rem", flexWrap: "wrap", alignItems: "center" }}>
+        {doc.pages && doc.pages > 0 ? (
+          <span><FileText size={13} style={{ verticalAlign: -2 }} /> {doc.pages} págs</span>
+        ) : (
+          <span><FileText size={13} style={{ verticalAlign: -2 }} /> Documento oficial</span>
+        )}
+        {doc.sections && doc.sections > 0 ? (
+          <span>{doc.sections} artículos y cláusulas</span>
+        ) : (
+          <span>Texto íntegro</span>
+        )}
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.78rem", color: "var(--muted)" }}>
