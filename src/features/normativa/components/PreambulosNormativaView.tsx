@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useMemo, useEffect, type CSSProperties } from "react"
+import { useState, useMemo, useEffect, useRef, type CSSProperties } from "react"
+import { createPortal } from "react-dom"
 import {
   Search,
   Sparkles,
@@ -49,6 +50,43 @@ export function PreambulosNormativaView({ documents, onOpenDoc }: Props) {
     window.addEventListener("resize", checkWidth)
     return () => window.removeEventListener("resize", checkWidth)
   }, [])
+
+  const closedByPopRef = useRef(false)
+
+  // Manejo de historial, scroll lock y gestos para el modal de información pedagógica
+  useEffect(() => {
+    if (!detailModalDoc) return
+
+    closedByPopRef.current = false
+    const origOverflow = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+
+    window.history.pushState({ modal: "normativa-info-modal", docId: detailModalDoc.documentId }, "")
+
+    const handlePopState = () => {
+      closedByPopRef.current = true
+      setDetailModalDoc(null)
+    }
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setDetailModalDoc(null)
+      }
+    }
+
+    window.addEventListener("popstate", handlePopState)
+    window.addEventListener("keydown", handleKeyDown)
+
+    return () => {
+      document.body.style.overflow = origOverflow
+      window.removeEventListener("popstate", handlePopState)
+      window.removeEventListener("keydown", handleKeyDown)
+
+      if (!closedByPopRef.current && window.history.state?.modal === "normativa-info-modal") {
+        window.history.back()
+      }
+    }
+  }, [detailModalDoc])
 
   // Filtrado reactivo
   const filteredPreambulos = useMemo(() => {
@@ -545,39 +583,48 @@ export function PreambulosNormativaView({ documents, onOpenDoc }: Props) {
         </div>
       )}
 
-      {/* MODAL DE INFORMACIÓN PEDAGÓGICA BAJO DEMANDA (NO SATURA LA PÁGINA) */}
-      {detailModalDoc && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0, 0, 0, 0.65)",
-            backdropFilter: "blur(4px)",
-            zIndex: 9999,
-            display: "flex",
-            alignItems: "flex-end",
-            justifyContent: "center",
-          }}
-          onClick={() => setDetailModalDoc(null)}
-        >
-          <div
-            style={{
-              background: "var(--card)",
-              width: "100%",
-              maxWidth: 600,
-              maxHeight: "88vh",
-              borderTopLeftRadius: 16,
-              borderTopRightRadius: 16,
-              overflowY: "auto",
-              padding: "1.25rem 1rem",
-              display: "flex",
-              flexDirection: "column",
-              gap: "0.85rem",
-              boxShadow: "0 -8px 30px rgba(0,0,0,0.3)",
-              animation: "slideUp 0.2s ease",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
+      {/* MODAL DE INFORMACIÓN PEDAGÓGICA BAJO DEMANDA (TELEPORTADO FUERA DEL FRAME AL BODY) */}
+      {detailModalDoc && typeof document !== "undefined" && document.body
+        ? createPortal(
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label={detailModalDoc.tituloComun}
+              style={{
+                position: "fixed",
+                inset: 0,
+                width: "100vw",
+                height: "100dvh",
+                background: "rgba(0, 0, 0, 0.65)",
+                backdropFilter: "blur(4px)",
+                zIndex: 99999,
+                display: "flex",
+                alignItems: isDesktop ? "center" : "flex-end",
+                justifyContent: "center",
+                padding: isDesktop ? "1.5rem" : 0,
+                overflow: "hidden",
+              }}
+              onClick={() => setDetailModalDoc(null)}
+            >
+              <div
+                style={{
+                  background: "var(--card)",
+                  width: "100%",
+                  maxWidth: 600,
+                  maxHeight: isDesktop ? "85vh" : "90dvh",
+                  borderRadius: isDesktop ? 16 : "16px 16px 0 0",
+                  overflowY: "auto",
+                  overscrollBehavior: "contain",
+                  WebkitOverflowScrolling: "touch",
+                  padding: "1.25rem 1rem",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.85rem",
+                  boxShadow: "0 -8px 30px rgba(0,0,0,0.3)",
+                  animation: "slideUp 0.2s ease",
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
             {/* Cabecera del Modal */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "0.75rem" }}>
               <div style={{ display: "flex", flexDirection: "column", gap: "0.2rem" }}>
@@ -752,8 +799,9 @@ export function PreambulosNormativaView({ documents, onOpenDoc }: Props) {
               </button>
             </div>
           </div>
-        </div>
-      )}
+        </div>,
+        document.body
+      ) : null}
     </div>
   )
 }

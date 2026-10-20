@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useMemo, type CSSProperties } from "react"
+import { useEffect, useState, useMemo, useRef, type CSSProperties } from "react"
 import { createPortal } from "react-dom"
 import {
   X,
@@ -109,21 +109,39 @@ export function DocumentDetail({ doc, onClose, initialTab, initialQuery = "" }: 
 
   const vBadge = getValidezBadge(doc.validity)
 
-  // Bloquear scroll de la página al abrir
+  const closedByPopstateRef = useRef(false)
+
+  // Bloquear scroll de la página al abrir y registrar entrada en el historial para soportar el botón/gesto Atrás de Android/iOS
   useEffect(() => {
     const origOverflow = document.body.style.overflow
     document.body.style.overflow = "hidden"
 
+    closedByPopstateRef.current = false
+    window.history.pushState({ modal: "normativa-doc-viewer", docId: doc.id }, "")
+
+    const handlePopState = () => {
+      closedByPopstateRef.current = true
+      onClose()
+    }
+
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose()
     }
+
+    window.addEventListener("popstate", handlePopState)
     window.addEventListener("keydown", onKeyDown)
 
     return () => {
       document.body.style.overflow = origOverflow
+      window.removeEventListener("popstate", handlePopState)
       window.removeEventListener("keydown", onKeyDown)
+
+      // Si se cerró por botón UI (Volver o Cruz) y no por popstate, revertimos la entrada de historial
+      if (!closedByPopstateRef.current && window.history.state?.modal === "normativa-doc-viewer") {
+        window.history.back()
+      }
     }
-  }, [onClose])
+  }, [doc.id, onClose])
 
   // Filtrado de cláusulas CCT
   const filteredCctClauses = useMemo(() => {

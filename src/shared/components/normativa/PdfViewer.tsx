@@ -176,19 +176,22 @@ export function PdfViewer({
         const buf = await res.arrayBuffer()
         if (cancelled) return
 
-        // Detección binaria de formato PDF vs HTML
-        const firstBytes = new Uint8Array(buf.slice(0, 5))
-        const isPdfMagic =
-          firstBytes[0] === 0x25 &&
-          firstBytes[1] === 0x50 &&
-          firstBytes[2] === 0x44 &&
-          firstBytes[3] === 0x46 // %PDF
+        // Detección robusta de PDF: buscar el encabezado %PDF en los primeros 1024 bytes (conforme a ISO 32000-1)
+        const sample = new Uint8Array(buf.slice(0, 1024))
+        let pdfOffset = -1
+        for (let i = 0; i <= sample.length - 4; i++) {
+          if (sample[i] === 0x25 && sample[i + 1] === 0x50 && sample[i + 2] === 0x44 && sample[i + 3] === 0x46) {
+            pdfOffset = i
+            break
+          }
+        }
 
+        const isPdf = pdfOffset !== -1
         const formatHeader = res.headers.get("X-Normativa-Format")
         const contentType = res.headers.get("Content-Type") || ""
-        const isHtml = formatHeader === "html" || contentType.includes("html") || !isPdfMagic
 
-        if (isHtml) {
+        // Solo si NO contiene firma %PDF y expresamente el servidor declara HTML o contiene etiquetas HTML
+        if (!isPdf && (formatHeader === "html" || contentType.includes("text/html"))) {
           const text = new TextDecoder("utf-8").decode(buf)
           setDocType("html")
           setHtmlContent(text)
@@ -197,8 +200,10 @@ export function PdfViewer({
           return
         }
 
+        // Si es PDF, recortamos cualquier byte espurio previo para compatibilidad total con PDF.js
+        const cleanBuf = pdfOffset > 0 ? buf.slice(pdfOffset) : buf
         setDocType("pdf")
-        const loaded = await loadPdfDocument(buf)
+        const loaded = await loadPdfDocument(cleanBuf)
         if (cancelled) {
           void loaded.loadingTask.destroy()
           return
