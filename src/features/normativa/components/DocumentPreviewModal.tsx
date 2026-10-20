@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useMemo, useRef, type CSSProperties } from "react"
+import { useEffect, useState, useMemo, type CSSProperties } from "react"
 import { createPortal } from "react-dom"
 import {
   X,
@@ -13,6 +13,8 @@ import {
 } from "lucide-react"
 import type { LibraryDocumentEntry } from "../services/catalog"
 import { getOrSynthesizePreambulo, formatDocSubtitle } from "../lib/preambulo-helper"
+import { useBackLayer } from "@/shared/navigation/useBackLayer"
+import { Z_INDEX } from "@/shared/constants/z-index"
 
 interface Props {
   doc: LibraryDocumentEntry | null
@@ -42,7 +44,9 @@ function getValidityBadge(val: string): { label: string; color: string; bg: stri
 
 export function DocumentPreviewModal({ doc, isOpen, onClose, onOpenReader }: Props) {
   const [isDesktop, setIsDesktop] = useState(false)
-  const closedByActionRef = useRef(false)
+
+  // Integración canónica con el Back de Android/iOS y web mediante pila LIFO
+  useBackLayer(isOpen && Boolean(doc), onClose, "normativa-doc-preview")
 
   useEffect(() => {
     const checkWidth = () => {
@@ -53,20 +57,12 @@ export function DocumentPreviewModal({ doc, isOpen, onClose, onOpenReader }: Pro
     return () => window.removeEventListener("resize", checkWidth)
   }, [])
 
-  // Sincronización de scroll lock y soporte de gesto/botón Atrás (Android/iOS)
+  // Sincronización de scroll lock y soporte de tecla Escape
   useEffect(() => {
     if (!isOpen || !doc) return
 
-    closedByActionRef.current = false
     const origOverflow = document.body.style.overflow
     document.body.style.overflow = "hidden"
-
-    window.history.pushState({ modal: "normativa-doc-preview", docId: doc.id }, "")
-
-    const handlePopState = () => {
-      closedByActionRef.current = true
-      onClose()
-    }
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -74,17 +70,11 @@ export function DocumentPreviewModal({ doc, isOpen, onClose, onOpenReader }: Pro
       }
     }
 
-    window.addEventListener("popstate", handlePopState)
     window.addEventListener("keydown", handleKeyDown)
 
     return () => {
       document.body.style.overflow = origOverflow
-      window.removeEventListener("popstate", handlePopState)
       window.removeEventListener("keydown", handleKeyDown)
-
-      if (!closedByActionRef.current && window.history.state?.modal === "normativa-doc-preview") {
-        window.history.back()
-      }
     }
   }, [isOpen, doc, onClose])
 
@@ -104,7 +94,6 @@ export function DocumentPreviewModal({ doc, isOpen, onClose, onOpenReader }: Pro
   const vBadge = getValidityBadge(doc.validity)
 
   const handleOpenReader = () => {
-    closedByActionRef.current = true
     onClose()
     onOpenReader(doc)
   }
@@ -355,7 +344,7 @@ export function DocumentPreviewModal({ doc, isOpen, onClose, onOpenReader }: Pro
 const overlayStyle: CSSProperties = {
   position: "fixed",
   inset: 0,
-  zIndex: 99999,
+  zIndex: Z_INDEX.fullscreen,
   background: "rgba(15, 23, 42, 0.75)",
   backdropFilter: "blur(8px)",
   WebkitBackdropFilter: "blur(8px)",
