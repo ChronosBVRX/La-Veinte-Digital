@@ -148,4 +148,31 @@ describe("PdfViewer - Lector Comercial con Búsqueda y Zoom", () => {
     // Debe desplegar el input de número de página
     expect(screen.getByPlaceholderText("1 - 10")).toBeTruthy()
   })
+
+  it("muestra la barra flotante ergonómica para control con una sola mano y permite cambiar páginas", async () => {
+    render(
+      <PdfViewer
+        documentId="CCT-2025-2027"
+        title="Contrato Colectivo 2025-2027"
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTitle("Página siguiente (o desliza hacia la izquierda)")).toBeTruthy()
+    })
+
+    const nextBtn = screen.getByTitle("Página siguiente (o desliza hacia la izquierda)")
+    fireEvent.click(nextBtn)
+
+    await waitFor(() => {
+      expect(screen.getByTitle("Toca para ir a otra página").textContent).toContain("2")
+    })
+
+    const prevBtn = screen.getByTitle("Página anterior (o desliza hacia la derecha)")
+    fireEvent.click(prevBtn)
+
+    await waitFor(() => {
+      expect(screen.getByTitle("Toca para ir a otra página").textContent).toContain("1")
+    })
+  })
 })
