@@ -4,7 +4,7 @@ import { render, screen, fireEvent } from "@testing-library/react"
 import { DocumentPreviewModal } from "../DocumentPreviewModal"
 import type { LibraryDocumentEntry } from "../../services/catalog"
 
-const mockCctDoc: LibraryDocumentEntry = {
+const mockCctDoc = {
   id: "CCT-IMSS-SNTSS-2025-2027",
   title: "Contrato Colectivo de Trabajo 2025-2027",
   type: "collective_agreement",
@@ -13,9 +13,9 @@ const mockCctDoc: LibraryDocumentEntry = {
   category: "cct",
   organization: ["IMSS", "SNTSS"],
   url: "https://www.imss.gob.mx/sites/all/statics/pdf/CCT-2025-2027.pdf",
-}
+} as unknown as LibraryDocumentEntry
 
-const mockProcedureDoc: LibraryDocumentEntry = {
+const mockProcedureDoc = {
   id: "PROC-ENFERMERIA-TRIAGE",
   title: "Procedimiento de atención de enfermería en triage y urgencias",
   type: "procedure",
@@ -23,7 +23,7 @@ const mockProcedureDoc: LibraryDocumentEntry = {
   validity: "CURRENT",
   category: "flujos-clinicos",
   organization: ["IMSS"],
-}
+} as unknown as LibraryDocumentEntry
 
 describe("DocumentPreviewModal - Modal Intermedio Pedagógico", () => {
   it("no se renderiza si isOpen es falso", () => {
