@@ -8,8 +8,9 @@ import {
   ChevronLeft,
   ChevronRight,
   BookOpen,
-  Info,
   X,
+  FileText,
+  Users,
 } from "lucide-react"
 import {
   TEMAS_COTIDIANOS_TRABAJADOR,
@@ -382,6 +383,15 @@ export function PreambulosNormativaView({ documents, onOpenDoc }: Props) {
           return (
             <div
               key={norma.documentId}
+              onClick={() => setDetailModalDoc(norma)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault()
+                  setDetailModalDoc(norma)
+                }
+              }}
               style={{
                 background: "var(--card)",
                 border: "1px solid var(--border)",
@@ -394,6 +404,7 @@ export function PreambulosNormativaView({ documents, onOpenDoc }: Props) {
                 boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
                 boxSizing: "border-box",
                 position: "relative",
+                cursor: "pointer",
               }}
             >
               {/* Parte Superior: Badge y Estado */}
@@ -474,28 +485,27 @@ export function PreambulosNormativaView({ documents, onOpenDoc }: Props) {
                 </p>
               </div>
 
-              {/* Botones de acción alineados al fondo */}
+              {/* Botón de acción al fondo */}
               <div
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.3rem",
                   marginTop: "0.55rem",
                   paddingTop: "0.45rem",
                   borderTop: "1px solid var(--border)",
                 }}
               >
-                {/* Botón principal: Leer */}
                 <button
                   type="button"
-                  onClick={() => handleOpenDocById(norma.documentId)}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setDetailModalDoc(norma)
+                  }}
                   style={{
-                    flex: 1,
+                    width: "100%",
                     display: "inline-flex",
                     alignItems: "center",
                     justifyContent: "center",
                     gap: "0.25rem",
-                    padding: "0.35rem 0.4rem",
+                    padding: "0.38rem 0.5rem",
                     background: "var(--primary)",
                     color: "#fff",
                     borderRadius: 6,
@@ -504,32 +514,10 @@ export function PreambulosNormativaView({ documents, onOpenDoc }: Props) {
                     fontWeight: 700,
                     cursor: "pointer",
                   }}
-                  title="Leer documento oficial completo en la app"
+                  title="Ver qué contiene este documento y para quién aplica"
                 >
                   <BookOpen size={13} />
                   <span>Leer</span>
-                </button>
-
-                {/* Botón secundario: Info pedagógica bajo demanda */}
-                <button
-                  type="button"
-                  onClick={() => setDetailModalDoc(norma)}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    padding: "0.35rem 0.45rem",
-                    background: "var(--accent)",
-                    color: "var(--fg)",
-                    borderRadius: 6,
-                    border: "1px solid var(--border)",
-                    fontSize: "0.74rem",
-                    cursor: "pointer",
-                  }}
-                  title="Ver explicación y temas clave"
-                  aria-label="Ver explicación"
-                >
-                  <Info size={13} />
                 </button>
               </div>
             </div>
@@ -688,25 +676,31 @@ export function PreambulosNormativaView({ documents, onOpenDoc }: Props) {
               {detailModalDoc.enUnaFrase}
             </div>
 
-            {/* Propósito y alcance del documento */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
-              <strong style={{ fontSize: "0.82rem", color: "var(--fg)" }}>
-                Propósito y alcance del documento
-              </strong>
+            {/* ¿Qué contiene este documento? */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                <FileText size={16} color="var(--primary)" />
+                <strong style={{ fontSize: "0.82rem", color: "var(--fg)" }}>
+                  ¿Qué contiene este documento?
+                </strong>
+              </div>
               <div style={{ fontSize: "0.78rem", color: "var(--fg)", lineHeight: 1.45, whiteSpace: "pre-line" }}>
                 {detailModalDoc.preambulo}
               </div>
             </div>
 
-            {/* Personal y áreas comprendidas */}
+            {/* ¿Para quién aplica? */}
             {detailModalDoc.aQuienAplica && detailModalDoc.aQuienAplica.length > 0 && (
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
-                <strong style={{ fontSize: "0.82rem", color: "var(--fg)" }}>
-                  Personal y áreas comprendidas
-                </strong>
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                  <Users size={16} color="var(--primary)" />
+                  <strong style={{ fontSize: "0.82rem", color: "var(--fg)" }}>
+                    ¿Para quién aplica?
+                  </strong>
+                </div>
                 <ul style={{ margin: 0, paddingLeft: "1.2rem", fontSize: "0.76rem", color: "var(--muted)", lineHeight: 1.4 }}>
                   {detailModalDoc.aQuienAplica.map((item, idx) => (
-                    <li key={idx}>{item}</li>
+                    <li key={idx} style={{ marginBottom: "0.15rem" }}>{item}</li>
                   ))}
                 </ul>
               </div>
@@ -795,7 +789,7 @@ export function PreambulosNormativaView({ documents, onOpenDoc }: Props) {
                 }}
               >
                 <BookOpen size={16} />
-                <span>Abrir documento oficial en el visor</span>
+                <span>Abrir documento en el lector</span>
               </button>
             </div>
           </div>
