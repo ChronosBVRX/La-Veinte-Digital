@@ -99,8 +99,15 @@ function findInBotApiPdfs(repoRoot: string, id: string, aliases: string[]): stri
   return null
 }
 
-function isPdfBuffer(buf: Buffer): boolean {
-  return buf.length >= 4 && buf[0] === 0x25 && buf[1] === 0x50 && buf[2] === 0x44 && buf[3] === 0x46 // "%PDF"
+function sanitizePdfBuffer(buf: Buffer): { isPdf: boolean; cleanBuf: Buffer } {
+  if (buf.length < 5) return { isPdf: false, cleanBuf: buf }
+  const maxSearch = Math.min(buf.length, 1024)
+  const magic = Buffer.from("%PDF")
+  const idx = buf.subarray(0, maxSearch).indexOf(magic)
+  if (idx !== -1) {
+    return { isPdf: true, cleanBuf: idx > 0 ? buf.subarray(idx) : buf }
+  }
+  return { isPdf: false, cleanBuf: buf }
 }
 
 export async function GET(req: NextRequest) {
@@ -119,7 +126,7 @@ export async function GET(req: NextRequest) {
   const location = catalog.openOriginalAtPage(id, Number.isFinite(page) && page > 0 ? page : 1)
   if (location && fs.existsSync(location.filePath)) {
     const buf = fs.readFileSync(location.filePath)
-    const isPdf = isPdfBuffer(buf)
+    const { isPdf, cleanBuf } = sanitizePdfBuffer(buf)
     const headers: Record<string, string> = {
       "Content-Type": isPdf ? "application/pdf" : "text/html; charset=utf-8",
       "Content-Disposition": `inline; filename="${id}-original.${isPdf ? "pdf" : "html"}"`,
@@ -128,7 +135,7 @@ export async function GET(req: NextRequest) {
       "X-Normativa-Format": isPdf ? "pdf" : "html",
       "X-Normativa-Source": "copia local utilizada por la Biblioteca Normativa",
     }
-    return new NextResponse(new Uint8Array(buf), { headers })
+    return new NextResponse(new Uint8Array(cleanBuf), { headers })
   }
 
   // 2. Acervo directo en bot-api/pdfs (resolución local instantánea sin latencia)
@@ -143,7 +150,7 @@ export async function GET(req: NextRequest) {
   const botMatch = findInBotApiPdfs(process.cwd(), id, p?.aliasIds ?? [])
   if (botMatch && fs.existsSync(botMatch)) {
     const buf = fs.readFileSync(botMatch)
-    const isPdf = isPdfBuffer(buf)
+    const { isPdf, cleanBuf } = sanitizePdfBuffer(buf)
     const headers: Record<string, string> = {
       "Content-Type": isPdf ? "application/pdf" : "text/html; charset=utf-8",
       "Content-Disposition": `inline; filename="${path.basename(botMatch)}"`,
@@ -151,7 +158,7 @@ export async function GET(req: NextRequest) {
       "X-Normativa-Format": isPdf ? "pdf" : "html",
       "X-Normativa-Source": "bot-api-acervo",
     }
-    return new NextResponse(new Uint8Array(buf), { headers })
+    return new NextResponse(new Uint8Array(cleanBuf), { headers })
   }
 
   // 3. Cache local en tmp/normativa-cache
@@ -160,7 +167,7 @@ export async function GET(req: NextRequest) {
   const cachedFilePath = path.join(cacheDir, `${safeId}.pdf`)
   if (fs.existsSync(cachedFilePath)) {
     const buf = fs.readFileSync(cachedFilePath)
-    const isPdf = isPdfBuffer(buf)
+    const { isPdf, cleanBuf } = sanitizePdfBuffer(buf)
     const headers: Record<string, string> = {
       "Content-Type": isPdf ? "application/pdf" : "text/html; charset=utf-8",
       "Content-Disposition": `inline; filename="${safeId}.${isPdf ? "pdf" : "html"}"`,
@@ -168,7 +175,7 @@ export async function GET(req: NextRequest) {
       "X-Normativa-Format": isPdf ? "pdf" : "html",
       "X-Normativa-Source": "cache-local",
     }
-    return new NextResponse(new Uint8Array(buf), { headers })
+    return new NextResponse(new Uint8Array(cleanBuf), { headers })
   }
 
   // 4. Supabase Storage (bucket público 'normativa')
@@ -202,12 +209,12 @@ export async function GET(req: NextRequest) {
       if (storageRes.ok) {
         const arrayBuf = await storageRes.arrayBuffer()
         const buf = Buffer.from(arrayBuf)
+        const { isPdf, cleanBuf } = sanitizePdfBuffer(buf)
         try {
           if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir, { recursive: true })
-          fs.writeFileSync(cachedFilePath, buf)
+          fs.writeFileSync(cachedFilePath, cleanBuf)
         } catch {}
 
-        const isPdf = isPdfBuffer(buf)
         const headers: Record<string, string> = {
           "Content-Type": isPdf ? "application/pdf" : "text/html; charset=utf-8",
           "Content-Disposition": `inline; filename="${safeId}.${isPdf ? "pdf" : "html"}"`,
@@ -215,7 +222,7 @@ export async function GET(req: NextRequest) {
           "X-Normativa-Format": isPdf ? "pdf" : "html",
           "X-Normativa-Source": "supabase-storage-normativa",
         }
-        return new NextResponse(new Uint8Array(buf), { headers })
+        return new NextResponse(new Uint8Array(cleanBuf), { headers })
       }
     } catch (e) {
       console.warn(`[Visor API] Error comprobando Supabase Storage para ${cand}:`, e)
@@ -259,12 +266,12 @@ export async function GET(req: NextRequest) {
       if (upstream.ok) {
         const arrayBuf = await upstream.arrayBuffer()
         const buf = Buffer.from(arrayBuf)
+        const { isPdf, cleanBuf } = sanitizePdfBuffer(buf)
         try {
           if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir, { recursive: true })
-          fs.writeFileSync(cachedFilePath, buf)
+          fs.writeFileSync(cachedFilePath, cleanBuf)
         } catch {}
 
-        const isPdf = isPdfBuffer(buf)
         const headers: Record<string, string> = {
           "Content-Type": isPdf ? "application/pdf" : "text/html; charset=utf-8",
           "Content-Disposition": `inline; filename="${safeId}.${isPdf ? "pdf" : "html"}"`,
@@ -272,7 +279,7 @@ export async function GET(req: NextRequest) {
           "X-Normativa-Format": isPdf ? "pdf" : "html",
           "X-Normativa-Source": "repositorio-oficial-proxy",
         }
-        return new NextResponse(new Uint8Array(buf), { headers })
+        return new NextResponse(new Uint8Array(cleanBuf), { headers })
       }
     } catch (err) {
       console.warn(`[Visor API] Error haciendo fetch a ${targetUrl}:`, err)
