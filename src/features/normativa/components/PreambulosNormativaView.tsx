@@ -1,16 +1,12 @@
 "use client"
 
-import { useState, useMemo, useEffect, useRef, type CSSProperties } from "react"
-import { createPortal } from "react-dom"
+import { useState, useMemo, useEffect, type CSSProperties } from "react"
 import {
   Search,
   Sparkles,
   ChevronLeft,
   ChevronRight,
   BookOpen,
-  X,
-  FileText,
-  Users,
 } from "lucide-react"
 import {
   TEMAS_COTIDIANOS_TRABAJADOR,
@@ -34,7 +30,6 @@ export function PreambulosNormativaView({ documents, onOpenDoc, onPreviewDoc }: 
   const [currentPage, setCurrentPage] = useState(1)
   const [prevSearch, setPrevSearch] = useState(searchTerm)
   const [prevCat, setPrevCat] = useState(selectedCategoria)
-  const [detailModalDoc, setDetailModalDoc] = useState<PreambuloNormativo | null>(null)
   const [isDesktop, setIsDesktop] = useState(false)
 
   // Ajustar página durante el render si cambiaron los filtros sin necesidad de cascada de efectos
@@ -52,43 +47,6 @@ export function PreambulosNormativaView({ documents, onOpenDoc, onPreviewDoc }: 
     window.addEventListener("resize", checkWidth)
     return () => window.removeEventListener("resize", checkWidth)
   }, [])
-
-  const closedByPopRef = useRef(false)
-
-  // Manejo de historial, scroll lock y gestos para el modal de información pedagógica
-  useEffect(() => {
-    if (!detailModalDoc) return
-
-    closedByPopRef.current = false
-    const origOverflow = document.body.style.overflow
-    document.body.style.overflow = "hidden"
-
-    window.history.pushState({ modal: "normativa-info-modal", docId: detailModalDoc.documentId }, "")
-
-    const handlePopState = () => {
-      closedByPopRef.current = true
-      setDetailModalDoc(null)
-    }
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setDetailModalDoc(null)
-      }
-    }
-
-    window.addEventListener("popstate", handlePopState)
-    window.addEventListener("keydown", handleKeyDown)
-
-    return () => {
-      document.body.style.overflow = origOverflow
-      window.removeEventListener("popstate", handlePopState)
-      window.removeEventListener("keydown", handleKeyDown)
-
-      if (!closedByPopRef.current && window.history.state?.modal === "normativa-info-modal") {
-        window.history.back()
-      }
-    }
-  }, [detailModalDoc])
 
   // Filtrado reactivo
   const filteredPreambulos = useMemo(() => {
@@ -403,23 +361,13 @@ export function PreambulosNormativaView({ documents, onOpenDoc, onPreviewDoc }: 
           return (
             <div
               key={norma.documentId}
-              onClick={() => {
-                if (onPreviewDoc) {
-                  handlePreviewDocById(norma.documentId)
-                } else {
-                  setDetailModalDoc(norma)
-                }
-              }}
+              onClick={() => handlePreviewDocById(norma.documentId)}
               role="button"
               tabIndex={0}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault()
-                  if (onPreviewDoc) {
-                    handlePreviewDocById(norma.documentId)
-                  } else {
-                    setDetailModalDoc(norma)
-                  }
+                  handlePreviewDocById(norma.documentId)
                 }
               }}
               style={{
@@ -527,11 +475,7 @@ export function PreambulosNormativaView({ documents, onOpenDoc, onPreviewDoc }: 
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation()
-                    if (onPreviewDoc) {
-                      handlePreviewDocById(norma.documentId)
-                    } else {
-                      setDetailModalDoc(norma)
-                    }
+                    handlePreviewDocById(norma.documentId)
                   }}
                   style={{
                     width: "100%",
@@ -604,233 +548,6 @@ export function PreambulosNormativaView({ documents, onOpenDoc, onPreviewDoc }: 
           </button>
         </div>
       )}
-
-      {/* MODAL DE INFORMACIÓN PEDAGÓGICA BAJO DEMANDA (TELEPORTADO FUERA DEL FRAME AL BODY) */}
-      {detailModalDoc && typeof document !== "undefined" && document.body
-        ? createPortal(
-            <div
-              role="dialog"
-              aria-modal="true"
-              aria-label={detailModalDoc.tituloComun}
-              style={{
-                position: "fixed",
-                inset: 0,
-                width: "100vw",
-                height: "100dvh",
-                background: "rgba(0, 0, 0, 0.65)",
-                backdropFilter: "blur(4px)",
-                zIndex: 99999,
-                display: "flex",
-                alignItems: isDesktop ? "center" : "flex-end",
-                justifyContent: "center",
-                padding: isDesktop ? "1.5rem" : 0,
-                overflow: "hidden",
-              }}
-              onClick={() => setDetailModalDoc(null)}
-            >
-              <div
-                style={{
-                  background: "var(--card)",
-                  width: "100%",
-                  maxWidth: 600,
-                  maxHeight: isDesktop ? "85vh" : "90dvh",
-                  borderRadius: isDesktop ? 16 : "16px 16px 0 0",
-                  overflowY: "auto",
-                  overscrollBehavior: "contain",
-                  WebkitOverflowScrolling: "touch",
-                  padding: "1.25rem 1rem",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "0.85rem",
-                  boxShadow: "0 -8px 30px rgba(0,0,0,0.3)",
-                  animation: "slideUp 0.2s ease",
-                }}
-                onClick={(e) => e.stopPropagation()}
-              >
-            {/* Cabecera del Modal */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "0.75rem" }}>
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.2rem" }}>
-                <span
-                  style={{
-                    fontSize: "0.7rem",
-                    fontWeight: 700,
-                    color: "var(--primary)",
-                    padding: "0.15rem 0.45rem",
-                    background: "rgba(37, 99, 235, 0.08)",
-                    borderRadius: 4,
-                    width: "fit-content",
-                  }}
-                >
-                  {detailModalDoc.claveOficial || detailModalDoc.organizacion}
-                </span>
-                <h2 style={{ margin: 0, fontSize: "1.05rem", fontWeight: 700, color: "var(--fg)", lineHeight: 1.3 }}>
-                  {detailModalDoc.tituloComun}
-                </h2>
-                {detailModalDoc.vigenciaTexto && (
-                  <span style={{ fontSize: "0.72rem", color: "var(--muted)" }}>
-                    📅 {detailModalDoc.vigenciaTexto}
-                  </span>
-                )}
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setDetailModalDoc(null)}
-                style={{
-                  background: "var(--accent)",
-                  border: "none",
-                  borderRadius: 999,
-                  width: 32,
-                  height: 32,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  cursor: "pointer",
-                  color: "var(--muted)",
-                  flexShrink: 0,
-                }}
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            {/* Resumen normativo */}
-            <div
-              style={{
-                fontSize: "0.82rem",
-                fontWeight: 600,
-                color: "var(--primary)",
-                background: "rgba(37, 99, 235, 0.06)",
-                borderLeft: "3px solid var(--primary)",
-                padding: "0.55rem 0.75rem",
-                borderRadius: "0 6px 6px 0",
-                lineHeight: 1.4,
-              }}
-            >
-              {detailModalDoc.enUnaFrase}
-            </div>
-
-            {/* ¿Qué contiene este documento? */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                <FileText size={16} color="var(--primary)" />
-                <strong style={{ fontSize: "0.82rem", color: "var(--fg)" }}>
-                  ¿Qué contiene este documento?
-                </strong>
-              </div>
-              <div style={{ fontSize: "0.78rem", color: "var(--fg)", lineHeight: 1.45, whiteSpace: "pre-line" }}>
-                {detailModalDoc.preambulo}
-              </div>
-            </div>
-
-            {/* ¿Para quién aplica? */}
-            {detailModalDoc.aQuienAplica && detailModalDoc.aQuienAplica.length > 0 && (
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                  <Users size={16} color="var(--primary)" />
-                  <strong style={{ fontSize: "0.82rem", color: "var(--fg)" }}>
-                    ¿Para quién aplica?
-                  </strong>
-                </div>
-                <ul style={{ margin: 0, paddingLeft: "1.2rem", fontSize: "0.76rem", color: "var(--muted)", lineHeight: 1.4 }}>
-                  {detailModalDoc.aQuienAplica.map((item, idx) => (
-                    <li key={idx} style={{ marginBottom: "0.15rem" }}>{item}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {/* Disposiciones y temas clave */}
-            {detailModalDoc.temasClave && detailModalDoc.temasClave.length > 0 && (
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-                <strong style={{ fontSize: "0.82rem", color: "var(--fg)" }}>
-                  Disposiciones y temas clave
-                </strong>
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-                  {detailModalDoc.temasClave.map((tema, tIdx) => (
-                    <div
-                      key={tIdx}
-                      style={{
-                        padding: "0.45rem 0.6rem",
-                        background: "var(--accent)",
-                        borderRadius: 6,
-                        border: "1px solid var(--border)",
-                        fontSize: "0.75rem",
-                      }}
-                    >
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.15rem" }}>
-                        <span style={{ fontWeight: 700, color: "var(--fg)" }}>{tema.tema}</span>
-                        <span style={{ fontSize: "0.68rem", fontWeight: 700, color: "var(--primary)" }}>{tema.referencia}</span>
-                      </div>
-                      <p style={{ margin: 0, color: "var(--muted)", lineHeight: 1.35 }}>{tema.queEncontraras}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Situaciones de consulta recomendada */}
-            {detailModalDoc.cuandoConsultarlo && detailModalDoc.cuandoConsultarlo.length > 0 && (
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
-                <strong style={{ fontSize: "0.82rem", color: "var(--fg)" }}>
-                  Situaciones de consulta recomendada
-                </strong>
-                <ul style={{ margin: 0, paddingLeft: "1.2rem", fontSize: "0.76rem", color: "var(--muted)", lineHeight: 1.4 }}>
-                  {detailModalDoc.cuandoConsultarlo.map((item, idx) => (
-                    <li key={idx}>{item}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {/* Consideraciones importantes para tus derechos */}
-            {detailModalDoc.ojoConEsto && detailModalDoc.ojoConEsto.length > 0 && (
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
-                <strong style={{ fontSize: "0.82rem", color: "var(--fg)" }}>
-                  Consideraciones importantes para tus derechos
-                </strong>
-                <ul style={{ margin: 0, paddingLeft: "1.2rem", fontSize: "0.76rem", color: "var(--muted)", lineHeight: 1.4 }}>
-                  {detailModalDoc.ojoConEsto.map((item, idx) => (
-                    <li key={idx}>{item}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {/* Botón de acción: Abrir en visor */}
-            <div style={{ marginTop: "0.5rem", paddingTop: "0.5rem", borderTop: "1px solid var(--border)" }}>
-              <button
-                type="button"
-                onClick={() => {
-                  const docId = detailModalDoc.documentId
-                  closedByPopRef.current = true
-                  setDetailModalDoc(null)
-                  handleOpenDocById(docId)
-                }}
-                style={{
-                  width: "100%",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "0.45rem",
-                  padding: "0.65rem",
-                  background: "var(--primary)",
-                  color: "#fff",
-                  borderRadius: "var(--radius)",
-                  border: "none",
-                  fontWeight: 700,
-                  fontSize: "0.85rem",
-                  cursor: "pointer",
-                }}
-              >
-                <BookOpen size={16} />
-                <span>Abrir documento en el lector</span>
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      ) : null}
     </div>
   )
 }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useMemo, useRef, type CSSProperties } from "react"
+import { useEffect, useState, useMemo, type CSSProperties } from "react"
 import { createPortal } from "react-dom"
 import {
   X,
@@ -18,6 +18,8 @@ import { PdfViewer } from "./PdfViewer"
 import cctClausesRaw from "@/shared/data/normativa/cct-clausulas.json"
 import estatutosArticlesRaw from "@/shared/data/normativa/estatutos-articulos.json"
 import type { NormativaClause, NormativaArticle } from "@/shared/lib/normativa-lookup"
+import { useBackLayer } from "@/shared/navigation/useBackLayer"
+import { Z_INDEX } from "@/shared/constants/z-index"
 
 interface Props {
   doc: LibraryDocumentEntry
@@ -109,49 +111,24 @@ export function DocumentDetail({ doc, onClose, initialTab, initialQuery = "" }: 
 
   const vBadge = getValidezBadge(doc.validity)
 
-  const closedByPopstateRef = useRef(false)
+  // Integración canónica con el Back de Android/iOS y web mediante pila LIFO
+  useBackLayer(true, onClose, "normativa-doc-viewer")
 
-  // Bloquear scroll de la página al abrir y registrar entrada en el historial para soportar el botón/gesto Atrás de Android/iOS
+  // Bloquear scroll de la página al abrir y escuchar Escape
   useEffect(() => {
     const origOverflow = document.body.style.overflow
     document.body.style.overflow = "hidden"
 
-    closedByPopstateRef.current = false
-    const currentModal = window.history.state?.modal
-    if (currentModal === "normativa-doc-preview" || currentModal === "normativa-info-modal") {
-      window.history.replaceState({ modal: "normativa-doc-viewer", docId: doc.id }, "")
-    } else {
-      window.history.pushState({ modal: "normativa-doc-viewer", docId: doc.id }, "")
-    }
-
-    const mountTime = Date.now()
-    const handlePopState = () => {
-      // Ignorar popstate residual disparado durante la transición de montaje del lector
-      if (Date.now() - mountTime < 350) {
-        return
-      }
-      closedByPopstateRef.current = true
-      onClose()
-    }
-
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose()
     }
-
-    window.addEventListener("popstate", handlePopState)
     window.addEventListener("keydown", onKeyDown)
 
     return () => {
       document.body.style.overflow = origOverflow
-      window.removeEventListener("popstate", handlePopState)
       window.removeEventListener("keydown", onKeyDown)
-
-      // Si se cerró por botón UI (Volver o Cruz) y no por popstate, revertimos la entrada de historial
-      if (!closedByPopstateRef.current && window.history.state?.modal === "normativa-doc-viewer") {
-        window.history.back()
-      }
     }
-  }, [doc.id, onClose])
+  }, [onClose])
 
   // Filtrado de cláusulas CCT
   const filteredCctClauses = useMemo(() => {
@@ -504,7 +481,7 @@ const fullscreenContainerStyle: CSSProperties = {
   inset: 0,
   width: "100vw",
   height: "100dvh",
-  zIndex: 9999,
+  zIndex: Z_INDEX.fullscreen,
   background: "#0f172a",
   display: "flex",
   flexDirection: "column",

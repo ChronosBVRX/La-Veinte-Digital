@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState, useEffect, type CSSProperties } from "react"
+import { useMemo, useState, useEffect, useCallback, type CSSProperties } from "react"
 import { BookMarked, Search, Library, Database, GitCompareArrows, BookOpen, Sparkles } from "lucide-react"
 import type { LibraryData, LibraryDocumentEntry } from "../services/catalog"
 import { DocumentCard } from "./DocumentCard"
@@ -102,6 +102,27 @@ export function BibliotecaNormativaPage({ data }: Props) {
   const [mode, setMode] = useState<"preambulos" | "biblioteca" | "buscar" | "comparar">("preambulos")
   const [modalOpen, setModalOpen] = useState<boolean>(false)
   const [isDesktop, setIsDesktop] = useState(false)
+
+  const handleClosePreview = useCallback(() => {
+    setPreviewDoc(null)
+  }, [])
+
+  const handleOpenReaderFromPreview = useCallback((doc: LibraryDocumentEntry) => {
+    setPreviewDoc(null)
+    setSelected(doc)
+  }, [])
+
+  const handleCloseSelected = useCallback(() => {
+    setSelected(null)
+  }, [])
+
+  const handleOpenDoc = useCallback((doc: LibraryDocumentEntry) => {
+    setSelected(doc)
+  }, [])
+
+  const handlePreviewDoc = useCallback((doc: LibraryDocumentEntry) => {
+    setPreviewDoc(doc)
+  }, [])
 
   useEffect(() => {
     const checkWidth = () => {
@@ -245,8 +266,8 @@ export function BibliotecaNormativaPage({ data }: Props) {
       {mode === "preambulos" && (
         <PreambulosNormativaView
           documents={data.documents}
-          onOpenDoc={(d) => setSelected(d)}
-          onPreviewDoc={(d) => setPreviewDoc(d)}
+          onOpenDoc={handleOpenDoc}
+          onPreviewDoc={handlePreviewDoc}
         />
       )}
 
@@ -303,7 +324,7 @@ export function BibliotecaNormativaPage({ data }: Props) {
             }}
           >
             {filtered.map((doc) => (
-              <DocumentCard key={doc.id} doc={doc} onOpen={() => setPreviewDoc(doc)} />
+              <DocumentCard key={doc.id} doc={doc} onOpen={() => handlePreviewDoc(doc)} />
             ))}
             {filtered.length === 0 && (
               <p style={{ color: "var(--muted)", gridColumn: "1 / -1", textAlign: "center", padding: "2rem 0" }}>
@@ -321,13 +342,11 @@ export function BibliotecaNormativaPage({ data }: Props) {
       <DocumentPreviewModal
         doc={previewDoc}
         isOpen={Boolean(previewDoc)}
-        onClose={() => setPreviewDoc(null)}
-        onOpenReader={(doc) => {
-          setSelected(doc)
-        }}
+        onClose={handleClosePreview}
+        onOpenReader={handleOpenReaderFromPreview}
       />
 
-      {selected && <DocumentDetail doc={selected} onClose={() => setSelected(null)} />}
+      {selected && <DocumentDetail doc={selected} onClose={handleCloseSelected} />}
       <NormativeReferenceModal isOpen={modalOpen} onClose={() => setModalOpen(false)} />
     </div>
   )
