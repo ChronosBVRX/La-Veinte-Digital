@@ -10,6 +10,7 @@ import { PanelComparador } from "./PanelComparador"
 import { NormativaOfflineDownloadCard } from "./NormativaOfflineDownloadCard"
 import { NormativeReferenceModal } from "@/shared/components/normativa/NormativeReferenceModal"
 import { PreambulosNormativaView } from "./PreambulosNormativaView"
+import { DocumentPreviewModal } from "./DocumentPreviewModal"
 
 interface Props {
   data: LibraryData
@@ -97,6 +98,7 @@ const containerStyle: CSSProperties = {
 export function BibliotecaNormativaPage({ data }: Props) {
   const [tab, setTab] = useState<TabId>("todos")
   const [selected, setSelected] = useState<LibraryDocumentEntry | null>(null)
+  const [previewDoc, setPreviewDoc] = useState<LibraryDocumentEntry | null>(null)
   const [mode, setMode] = useState<"preambulos" | "biblioteca" | "buscar" | "comparar">("preambulos")
   const [modalOpen, setModalOpen] = useState<boolean>(false)
   const [isDesktop, setIsDesktop] = useState(false)
@@ -300,7 +302,7 @@ export function BibliotecaNormativaPage({ data }: Props) {
             }}
           >
             {filtered.map((doc) => (
-              <DocumentCard key={doc.id} doc={doc} onOpen={() => setSelected(doc)} />
+              <DocumentCard key={doc.id} doc={doc} onOpen={() => setPreviewDoc(doc)} />
             ))}
             {filtered.length === 0 && (
               <p style={{ color: "var(--muted)", gridColumn: "1 / -1", textAlign: "center", padding: "2rem 0" }}>
@@ -313,6 +315,16 @@ export function BibliotecaNormativaPage({ data }: Props) {
 
       {mode === "buscar" && <BusquedaNormativa />}
       {mode === "comparar" && <PanelComparador />}
+
+      {/* Modal intermedio: Ficha informativa pedagógica (Qué contiene y Para quién aplica) */}
+      <DocumentPreviewModal
+        doc={previewDoc}
+        isOpen={Boolean(previewDoc)}
+        onClose={() => setPreviewDoc(null)}
+        onOpenReader={(doc) => {
+          setSelected(doc)
+        }}
+      />
 
       {selected && <DocumentDetail doc={selected} onClose={() => setSelected(null)} />}
       <NormativeReferenceModal isOpen={modalOpen} onClose={() => setModalOpen(false)} />
