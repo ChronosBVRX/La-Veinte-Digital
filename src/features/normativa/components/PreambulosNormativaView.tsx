@@ -23,11 +23,12 @@ import type { LibraryDocumentEntry } from "../services/catalog"
 interface Props {
   documents: LibraryDocumentEntry[]
   onOpenDoc: (doc: LibraryDocumentEntry) => void
+  onPreviewDoc?: (doc: LibraryDocumentEntry) => void
 }
 
 const ITEMS_PER_PAGE = 8 // 4 filas de 2 tarjetas en móvil
 
-export function PreambulosNormativaView({ documents, onOpenDoc }: Props) {
+export function PreambulosNormativaView({ documents, onOpenDoc, onPreviewDoc }: Props) {
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCategoria, setSelectedCategoria] = useState<string>("todas")
   const [currentPage, setCurrentPage] = useState(1)
@@ -113,7 +114,7 @@ export function PreambulosNormativaView({ documents, onOpenDoc }: Props) {
     }
   }
 
-  const handleOpenDocById = (docId: string) => {
+  const resolveDocEntry = (docId: string): LibraryDocumentEntry | null => {
     const cleanId = docId.trim().toLowerCase()
     const found = documents.find(
       (d) =>
@@ -122,10 +123,7 @@ export function PreambulosNormativaView({ documents, onOpenDoc }: Props) {
         (d.key && d.key.toLowerCase().includes(cleanId)) ||
         (cleanId.length > 5 && d.id.toLowerCase().includes(cleanId))
     )
-    if (found) {
-      onOpenDoc(found)
-      return
-    }
+    if (found) return found
 
     const p = PREAMBULOS_NORMATIVOS.find(
       (item: PreambuloNormativo) =>
@@ -134,7 +132,7 @@ export function PreambulosNormativaView({ documents, onOpenDoc }: Props) {
         item.aliasIds?.some((a: string) => a.toLowerCase() === cleanId)
     )
     if (p) {
-      const entry: LibraryDocumentEntry = {
+      return {
         id: p.documentId,
         key: p.claveOficial ?? null,
         title: p.tituloComun,
@@ -174,8 +172,6 @@ export function PreambulosNormativaView({ documents, onOpenDoc }: Props) {
         sections: p.temasClave.length,
         versionStatus: "VERIFIED",
       }
-      onOpenDoc(entry)
-      return
     }
 
     // Búsqueda aproximada
@@ -183,7 +179,25 @@ export function PreambulosNormativaView({ documents, onOpenDoc }: Props) {
       cleanId.split(/[-_\s]+/).some((part) => part.length >= 4 && item.tituloComun.toLowerCase().includes(part))
     )
     if (byTitle) {
-      handleOpenDocById(byTitle.documentId)
+      return resolveDocEntry(byTitle.documentId)
+    }
+
+    return null
+  }
+
+  const handleOpenDocById = (docId: string) => {
+    const entry = resolveDocEntry(docId)
+    if (entry) onOpenDoc(entry)
+  }
+
+  const handlePreviewDocById = (docId: string) => {
+    const entry = resolveDocEntry(docId)
+    if (entry) {
+      if (onPreviewDoc) {
+        onPreviewDoc(entry)
+      } else {
+        onOpenDoc(entry)
+      }
     }
   }
 
@@ -284,7 +298,13 @@ export function PreambulosNormativaView({ documents, onOpenDoc }: Props) {
               <button
                 key={item.id}
                 type="button"
-                onClick={() => handleOpenDocById(item.documentoId)}
+                onClick={() => {
+                  if (onPreviewDoc) {
+                    handlePreviewDocById(item.documentoId)
+                  } else {
+                    handleOpenDocById(item.documentoId)
+                  }
+                }}
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
@@ -383,13 +403,23 @@ export function PreambulosNormativaView({ documents, onOpenDoc }: Props) {
           return (
             <div
               key={norma.documentId}
-              onClick={() => setDetailModalDoc(norma)}
+              onClick={() => {
+                if (onPreviewDoc) {
+                  handlePreviewDocById(norma.documentId)
+                } else {
+                  setDetailModalDoc(norma)
+                }
+              }}
               role="button"
               tabIndex={0}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault()
-                  setDetailModalDoc(norma)
+                  if (onPreviewDoc) {
+                    handlePreviewDocById(norma.documentId)
+                  } else {
+                    setDetailModalDoc(norma)
+                  }
                 }
               }}
               style={{
@@ -497,7 +527,11 @@ export function PreambulosNormativaView({ documents, onOpenDoc }: Props) {
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation()
-                    setDetailModalDoc(norma)
+                    if (onPreviewDoc) {
+                      handlePreviewDocById(norma.documentId)
+                    } else {
+                      setDetailModalDoc(norma)
+                    }
                   }}
                   style={{
                     width: "100%",
@@ -769,6 +803,7 @@ export function PreambulosNormativaView({ documents, onOpenDoc }: Props) {
                 type="button"
                 onClick={() => {
                   const docId = detailModalDoc.documentId
+                  closedByPopRef.current = true
                   setDetailModalDoc(null)
                   handleOpenDocById(docId)
                 }}

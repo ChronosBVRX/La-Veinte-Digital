@@ -117,9 +117,19 @@ export function DocumentDetail({ doc, onClose, initialTab, initialQuery = "" }: 
     document.body.style.overflow = "hidden"
 
     closedByPopstateRef.current = false
-    window.history.pushState({ modal: "normativa-doc-viewer", docId: doc.id }, "")
+    const currentModal = window.history.state?.modal
+    if (currentModal === "normativa-doc-preview" || currentModal === "normativa-info-modal") {
+      window.history.replaceState({ modal: "normativa-doc-viewer", docId: doc.id }, "")
+    } else {
+      window.history.pushState({ modal: "normativa-doc-viewer", docId: doc.id }, "")
+    }
 
+    const mountTime = Date.now()
     const handlePopState = () => {
+      // Ignorar popstate residual disparado durante la transición de montaje del lector
+      if (Date.now() - mountTime < 350) {
+        return
+      }
       closedByPopstateRef.current = true
       onClose()
     }

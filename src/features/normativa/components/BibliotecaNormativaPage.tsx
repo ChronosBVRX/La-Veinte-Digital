@@ -246,6 +246,7 @@ export function BibliotecaNormativaPage({ data }: Props) {
         <PreambulosNormativaView
           documents={data.documents}
           onOpenDoc={(d) => setSelected(d)}
+          onPreviewDoc={(d) => setPreviewDoc(d)}
         />
       )}
 
