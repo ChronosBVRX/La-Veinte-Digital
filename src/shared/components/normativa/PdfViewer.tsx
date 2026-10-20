@@ -257,6 +257,8 @@ export function PdfViewer({
         viewportRef.current.scrollLeft = pendingScrollAdjustRef.current.scrollLeft
         viewportRef.current.scrollTop = pendingScrollAdjustRef.current.scrollTop
         pendingScrollAdjustRef.current = null
+      } else if (viewportRef.current) {
+        viewportRef.current.scrollTop = 0
       }
     })
 
@@ -285,8 +287,20 @@ export function PdfViewer({
     let pinchOriginX = 0
     let pinchOriginY = 0
 
+    let isSingleTouch = false
+    let touchStartX = 0
+    let touchStartY = 0
+    let touchStartTime = 0
+
     const onTouchStart = (e: TouchEvent) => {
-      if (e.touches.length === 2) {
+      if (e.touches.length === 1) {
+        isSingleTouch = true
+        isPinching = false
+        touchStartX = e.touches[0].clientX
+        touchStartY = e.touches[0].clientY
+        touchStartTime = Date.now()
+      } else if (e.touches.length === 2) {
+        isSingleTouch = false
         isPinching = true
         const t1 = e.touches[0]
         const t2 = e.touches[1]
@@ -318,10 +332,20 @@ export function PdfViewer({
             canvasWrapperRef.current.style.transform = `scale(${factor})`
           }
         }
+      } else if (isSingleTouch && e.touches.length === 1) {
+        const curX = e.touches[0].clientX
+        const curY = e.touches[0].clientY
+        const diffX = Math.abs(curX - touchStartX)
+        const diffY = Math.abs(curY - touchStartY)
+        // Si el desplazamiento es predominantemente vertical, cancelamos el gesto de página
+        // para permitir scroll vertical de lectura continuo y fluido con el pulgar
+        if (diffY > 25 && diffY > diffX * 1.4) {
+          isSingleTouch = false
+        }
       }
     }
 
-    const onTouchEnd = () => {
+    const onTouchEnd = (e: TouchEvent) => {
       if (isPinching) {
         isPinching = false
         if (canvasWrapperRef.current) {
@@ -337,7 +361,39 @@ export function PdfViewer({
             }
           }
         }
+      } else if (isSingleTouch) {
+        const elapsed = Date.now() - touchStartTime
+        const endTouch = e.changedTouches[0]
+        if (endTouch && elapsed < 650 && elapsed > 45) {
+          const deltaX = endTouch.clientX - touchStartX
+          const deltaY = endTouch.clientY - touchStartY
+          const absX = Math.abs(deltaX)
+          const absY = Math.abs(deltaY)
+
+          // GESTO CON UNA MANO: Deslizar horizontalmente con el pulgar para cambiar de página
+          if (absX > 45 && absX > absY * 1.3) {
+            const viewport = viewportRef.current
+            const isAtLeft = !viewport || viewport.scrollLeft <= 12
+            const isAtRight = !viewport || viewport.scrollLeft + viewport.clientWidth >= viewport.scrollWidth - 12
+
+            if (scale <= 1.25 || (deltaX < 0 && isAtRight) || (deltaX > 0 && isAtLeft)) {
+              if (deltaX < 0) {
+                // Deslizar hacia la izquierda -> Siguiente página
+                setPage((p) => Math.min(numPages, p + 1))
+              } else {
+                // Deslizar hacia la derecha -> Página anterior
+                setPage((p) => Math.max(1, p - 1))
+              }
+            }
+          }
+        }
+        isSingleTouch = false
       }
+    }
+
+    const onTouchCancel = () => {
+      isPinching = false
+      isSingleTouch = false
     }
 
     const onWheel = (e: WheelEvent) => {
@@ -354,17 +410,17 @@ export function PdfViewer({
     el.addEventListener("touchstart", onTouchStart, { passive: true })
     el.addEventListener("touchmove", onTouchMove, { passive: false })
     el.addEventListener("touchend", onTouchEnd, { passive: true })
-    el.addEventListener("touchcancel", onTouchEnd, { passive: true })
+    el.addEventListener("touchcancel", onTouchCancel, { passive: true })
     el.addEventListener("wheel", onWheel, { passive: false })
 
     return () => {
       el.removeEventListener("touchstart", onTouchStart)
       el.removeEventListener("touchmove", onTouchMove)
       el.removeEventListener("touchend", onTouchEnd)
-      el.removeEventListener("touchcancel", onTouchEnd)
+      el.removeEventListener("touchcancel", onTouchCancel)
       el.removeEventListener("wheel", onWheel)
     }
-  }, [zoomTo, scale])
+  }, [zoomTo, scale, numPages])
 
   // GESTO: Doble toque para ampliar/restablecer enfocado en el punto del toque
   const handleContentTap = (e: React.MouseEvent) => {
@@ -554,7 +610,7 @@ export function PdfViewer({
       {/* Sugerencia de gestos táctiles para móvil */}
       {showGestureHint && (
         <div style={gestureHintStyle}>
-          <span>Pellizca con 2 dedos o pulsa dos veces para ampliar</span>
+          <span>Desliza para cambiar de página • Pellizca para ampliar</span>
         </div>
       )}
 
@@ -1061,7 +1117,7 @@ export function PdfViewer({
               flexDirection: "column",
               alignItems: "center",
               justifyContent: "flex-start",
-              padding: "0.75rem 0.5rem",
+              padding: "0.75rem 0.5rem 5.5rem",
               boxSizing: "border-box",
             }}
             onClick={handleContentTap}
@@ -1129,6 +1185,65 @@ export function PdfViewer({
           </div>
         )}
       </div>
+      {/* BARRA FLOTANTE ERGONÓMICA PARA CONTROL CON UNA SOLA MANO (PULGAR) */}
+      {docType === "pdf" && numPages > 1 && (
+        <div style={floatingOneHandBarStyle}>
+          <button
+            type="button"
+            disabled={page <= 1}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            style={{
+              ...oneHandBtnStyle,
+              opacity: page <= 1 ? 0.35 : 1,
+              cursor: page <= 1 ? "not-allowed" : "pointer",
+            }}
+            title="Página anterior (o desliza hacia la derecha)"
+            aria-label="Página anterior"
+          >
+            <ChevronLeft size={20} />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setPageJumpInput(String(page))
+              setPageJumpOpen((v) => !v)
+            }}
+            style={oneHandPageIndicatorStyle}
+            title="Toca para ir a otra página"
+          >
+            <span style={{ fontWeight: 800, color: "#fff", fontSize: "0.82rem" }}>{page}</span>
+            <span style={{ color: "rgba(255, 255, 255, 0.45)", margin: "0 0.2rem", fontSize: "0.78rem" }}>/</span>
+            <span style={{ color: "rgba(255, 255, 255, 0.75)", fontSize: "0.78rem" }}>{numPages}</span>
+          </button>
+
+          <button
+            type="button"
+            disabled={page >= numPages}
+            onClick={() => setPage((p) => Math.min(numPages, p + 1))}
+            style={{
+              ...oneHandBtnStyle,
+              opacity: page >= numPages ? 0.35 : 1,
+              cursor: page >= numPages ? "not-allowed" : "pointer",
+            }}
+            title="Página siguiente (o desliza hacia la izquierda)"
+            aria-label="Página siguiente"
+          >
+            <ChevronRight size={20} />
+          </button>
+
+          {scale !== 1 && (
+            <button
+              type="button"
+              onClick={() => zoomTo(1)}
+              style={oneHandResetZoomStyle}
+              title="Restablecer zoom al 100%"
+            >
+              <span>100%</span>
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -1293,10 +1408,10 @@ const vaultToastStyle: CSSProperties = {
 
 const gestureHintStyle: CSSProperties = {
   position: "absolute",
-  bottom: "1.2rem",
+  bottom: "4.5rem",
   left: "50%",
   transform: "translateX(-50%)",
-  zIndex: 40,
+  zIndex: 45,
   background: "rgba(15, 23, 42, 0.92)",
   border: "1px solid rgba(255, 255, 255, 0.2)",
   color: "#e2e8f0",
@@ -1307,4 +1422,65 @@ const gestureHintStyle: CSSProperties = {
   boxShadow: "0 4px 16px rgba(0, 0, 0, 0.4)",
   pointerEvents: "none",
   whiteSpace: "nowrap",
+}
+
+const floatingOneHandBarStyle: CSSProperties = {
+  position: "absolute",
+  bottom: "calc(env(safe-area-inset-bottom, 0px) + 14px)",
+  left: "50%",
+  transform: "translateX(-50%)",
+  zIndex: 40,
+  display: "flex",
+  alignItems: "center",
+  gap: "0.35rem",
+  padding: "0.3rem 0.55rem",
+  background: "rgba(15, 23, 42, 0.88)",
+  backdropFilter: "blur(16px)",
+  WebkitBackdropFilter: "blur(16px)",
+  border: "1px solid rgba(255, 255, 255, 0.18)",
+  borderRadius: 999,
+  boxShadow: "0 8px 30px rgba(0, 0, 0, 0.5)",
+  userSelect: "none",
+}
+
+const oneHandBtnStyle: CSSProperties = {
+  width: 38,
+  height: 38,
+  borderRadius: "50%",
+  border: "none",
+  background: "rgba(255, 255, 255, 0.1)",
+  color: "#f8fafc",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  cursor: "pointer",
+  transition: "all 0.15s ease",
+  flexShrink: 0,
+}
+
+const oneHandPageIndicatorStyle: CSSProperties = {
+  padding: "0.35rem 0.7rem",
+  borderRadius: 999,
+  border: "1px solid rgba(255, 255, 255, 0.14)",
+  background: "rgba(255, 255, 255, 0.08)",
+  cursor: "pointer",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+}
+
+const oneHandResetZoomStyle: CSSProperties = {
+  height: 32,
+  padding: "0 0.55rem",
+  borderRadius: 999,
+  border: "1px solid rgba(37, 99, 235, 0.45)",
+  background: "rgba(37, 99, 235, 0.28)",
+  color: "#bfdbfe",
+  fontSize: "0.72rem",
+  fontWeight: 700,
+  cursor: "pointer",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  marginLeft: "0.15rem",
 }
