@@ -547,6 +547,28 @@ describe("Category resolver", () => {
     expect(r.resolved).toBe(false)
     expect(r.status).toBe("not_found")
   })
+  it("resuelve Auxiliar de Limpieza e Higiene con o sin jornada 80 o prefijo abreviado", () => {
+    const r1 = resolveCategory("AUX LIMPIEZA E HIGIENE UM Y NO MED", "2026-01-01")
+    expect(r1.resolved).toBe(true)
+    expect(r1.category?.categoryName).toBe("AUX LIMPIEZA E HIGIENE UM Y NO MED 80")
+
+    const r2 = resolveCategory("AUXILIAR DE LIMPIEZA E HIGIENE", "2026-01-01")
+    expect(r2.resolved).toBe(true)
+    expect(r2.category?.categoryName).toBe("AUX LIMPIEZA E HIGIENE UM Y NO MED 80")
+
+    const r3 = resolveCategory("AUX DE LIMPIEZA E HIGIENE", "2026-01-01")
+    expect(r3.resolved).toBe(true)
+    expect(r3.category?.categoryName).toBe("AUX LIMPIEZA E HIGIENE UM Y NO MED 80")
+  })
+  it("resuelve Ayudante de Limpieza e Higiene con variantes contractuales", () => {
+    const r1 = resolveCategory("AYTE LIMPIEZA E HIGIENE UM Y NO MED", "2026-01-01")
+    expect(r1.resolved).toBe(true)
+    expect(r1.category?.categoryName).toBe("AYTE LIMPIEZA E HIGIENE UM Y NO MED 80")
+
+    const r2 = resolveCategory("AYUDANTE DE LIMPIEZA E HIGIENE", "2026-01-01")
+    expect(r2.resolved).toBe(true)
+    expect(r2.category?.categoryName).toBe("AYTE LIMPIEZA E HIGIENE UM Y NO MED 80")
+  })
 })
 
 describe("Totals - no mezclar conceptos", () => {

@@ -48,13 +48,31 @@ const LABEL_SPECS: LabelSpec[] = [
   },
   {
     key: "categoryCode",
-    labels: ["CLAVE CATEGORIA/PUESTO", "CLAVE DE CATEGORIA/PUESTO", "CLAVE CATEGORIA"],
+    labels: [
+      "CLAVE CATEGORIA/PUESTO",
+      "CLAVE DE CATEGORIA/PUESTO",
+      "CLAVE CATEGORIA",
+      "CLAVE DE LA CATEGORIA/PUESTO",
+      "CLAVE DE LA CATEGORIA",
+      "CLAVE DEL PUESTO",
+      "CLAVE PUESTO",
+    ],
     kind: "text",
     critical: true,
   },
   {
     key: "categoryName",
-    labels: ["NOMBRE CATEGORIA/PUESTO", "NOMBRE DE CATEGORIA/PUESTO", "NOMBRE DE CATEGORIA"],
+    labels: [
+      "NOMBRE CATEGORIA/PUESTO",
+      "NOMBRE DE CATEGORIA/PUESTO",
+      "NOMBRE DE CATEGORIA",
+      "NOMBRE DE LA CATEGORIA/PUESTO",
+      "NOMBRE DE LA CATEGORIA",
+      "CATEGORIA/PUESTO",
+      "CATEGORIA / PUESTO",
+      "CATEGORIA",
+      "PUESTO",
+    ],
     kind: "text",
     critical: true,
     maxContinuations: 1,
@@ -71,9 +89,13 @@ const PROFILE_LABELS = LABEL_SPECS.flatMap((spec) => spec.labels).concat([
   "NOMBRE DE ADSCRIPCION",
 ])
 
+const CONTAMINATION_LABELS = PROFILE_LABELS.filter(
+  (l) => l !== "PUESTO" && l !== "CATEGORIA" && l !== "NOMBRE" && l !== "PLAZA"
+)
+
 function containsAnotherLabel(value: string): boolean {
   const normalized = normalizeText(value)
-  return PROFILE_LABELS.some((label) => normalized.includes(normalizeText(label)))
+  return CONTAMINATION_LABELS.some((label) => normalized.includes(normalizeText(label)))
 }
 
 const VALID_WORKDAY_HOURS = [6, 6.5, 8, 12] as const
@@ -137,6 +159,32 @@ function valueOnAnchorLine(line: ReconstructedLine, label: string): string {
   return cleanValue(line.text.slice(rawStart))
 }
 
+function isContinuationBreakLine(line: ReconstructedLine): boolean {
+  const norm = line.norm
+  return (
+    norm.includes("PERIODO") ||
+    norm.includes("MATRICULA") ||
+    norm.includes("CURP") ||
+    norm.includes("RFC") ||
+    norm.includes("DELEGACION") ||
+    norm.includes("ADSCRIPCION") ||
+    norm.includes("JORNADA") ||
+    norm.includes("PERCEPCION") ||
+    norm.includes("DEDUCCION") ||
+    norm.includes("OBSERVACION") ||
+    norm.includes("CONCEPTO") ||
+    norm.includes("IMPORTE") ||
+    norm.includes("TOTAL") ||
+    norm.includes("LIQUIDO") ||
+    norm.includes("NETO") ||
+    norm.includes("FECHA") ||
+    norm.includes("SUELDO") ||
+    norm.includes("PLAZA") ||
+    norm.includes("CATEGORIA") ||
+    norm.includes("PUESTO")
+  )
+}
+
 function readLabelValue(lines: ReconstructedLine[], spec: LabelSpec): RawFieldValue | null {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
@@ -146,6 +194,44 @@ function readLabelValue(lines: ReconstructedLine[], spec: LabelSpec): RawFieldVa
       if (idx < 0 || normalizedLabel !== longestLabelForLine(line, spec.labels)) continue
 
       const after = valueOnAnchorLine(line, label)
+
+      const isCompleteCategory =
+        spec.key === "categoryName" && Boolean(after && /\b(80|65|60|40|20)$/.test(after.trim()))
+
+      if (!isCompleteCategory && spec.maxContinuations && spec.maxContinuations > 0) {
+        const continuation: string[] = []
+        let confidences = line.confidence
+        for (let j = i + 1; j <= i + spec.maxContinuations && j < lines.length; j++) {
+          const next = lines[j]
+          if (
+            next.page !== line.page ||
+            next.y <= line.y ||
+            next.y - line.y > Math.max(28, line.yMax - line.yMin + 16) ||
+            isContinuationBreakLine(next) ||
+            next.xMin > 350
+          ) {
+            break
+          }
+          const text = cleanValue(next.text)
+          if (!text) continue
+          continuation.push(text)
+          confidences += next.confidence
+        }
+        if (continuation.length > 0) {
+          const fullValue = after ? `${after} ${continuation.join(" ")}` : continuation.join(" ")
+          return {
+            value: fullValue,
+            page: line.page,
+            confidence: multilineAdjustment(
+              clampConfidence((confidences + line.confidence) / (continuation.length + 2)),
+              true,
+            ),
+            method: line.method,
+            multiline: true,
+          }
+        }
+      }
+
       if (after) {
         return {
           value: after,
@@ -153,40 +239,6 @@ function readLabelValue(lines: ReconstructedLine[], spec: LabelSpec): RawFieldVa
           confidence: baseFieldConfidence(line.method, line.confidence),
           method: line.method,
           multiline: false,
-        }
-      }
-
-      if (spec.maxContinuations && spec.maxContinuations > 0) {
-        const continuation: string[] = []
-        let confidences = line.confidence
-        for (let j = i + 1; j <= i + spec.maxContinuations && j < lines.length; j++) {
-          const next = lines[j]
-          if (
-            next.norm.includes("PERCEPCIONES") ||
-            next.norm.includes("DEDUCCIONES") ||
-            next.norm.includes("OBSERVACIONES") ||
-            longestLabelForLine(next, spec.labels)
-          ) {
-            break
-          }
-          if (next.page !== line.page || next.y - line.y > Math.max(24, line.yMax - line.yMin + 12)) break
-          if (Math.abs(next.xMin - line.xMin) > 80) break
-          const text = cleanValue(next.text)
-          if (!text) continue
-          continuation.push(text)
-          confidences += next.confidence
-        }
-        if (continuation.length > 0) {
-          return {
-            value: continuation.join(" "),
-            page: line.page,
-            confidence: multilineAdjustment(
-              clampConfidence(confidences / (continuation.length + 1)),
-              true,
-            ),
-            method: line.method,
-            multiline: true,
-          }
         }
       }
 
@@ -274,7 +326,38 @@ export function parseImssProfile(
         method: fields.categoryName?.method ?? method,
         requiresReview: fields.categoryName?.requiresReview ?? false,
       }
+      workdayResolved = true
     }
+  }
+  if (!workdayResolved && employee.categoryCode) {
+    const match = employee.categoryCode.trim().match(/(\d{2})$/)
+    if (match) {
+      const hours = Number(match[1]) / 10
+      if ((VALID_WORKDAY_HOURS as readonly number[]).includes(hours)) {
+        employee.workdayHours = hours
+        fields.workdayHours = {
+          value: hours,
+          rawValue: employee.categoryCode,
+          page: fields.categoryCode?.page ?? 1,
+          confidence: fields.categoryCode?.confidence ?? 0.85,
+          method: fields.categoryCode?.method ?? method,
+          requiresReview: fields.categoryCode?.requiresReview ?? false,
+        }
+        workdayResolved = true
+      }
+    }
+  }
+  if (!workdayResolved && employee.categoryName && /LIMPIEZA|HIGIENE/i.test(employee.categoryName)) {
+    employee.workdayHours = 8
+    fields.workdayHours = {
+      value: 8,
+      rawValue: employee.categoryName,
+      page: fields.categoryName?.page ?? 1,
+      confidence: 0.9,
+      method: fields.categoryName?.method ?? method,
+      requiresReview: false,
+    }
+    workdayResolved = true
   }
 
   const seniorityRaw = readLabelValue(lines, {
