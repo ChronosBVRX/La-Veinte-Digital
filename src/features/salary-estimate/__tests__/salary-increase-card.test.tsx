@@ -712,4 +712,52 @@ describe("SalaryIncreaseCard", () => {
     const card = container.querySelector('[data-testid="salary-estimate-card"]') as HTMLElement | null
     expect(card?.style.maxWidth).toBe("100%")
   })
+
+  it("13. permite alternar el simulador de categorías en la tarjeta calculada", async () => {
+    mockWorkerContext([
+      { conceptCode: "002", lastAmount: 10000 },
+      { conceptCode: "011", lastAmount: 8215 },
+    ])
+    render(<SalaryIncreaseCard />)
+    await screen.findByTestId("salary-estimate-card")
+
+    const toggleBtn = screen.getByTestId("toggle-category-simulator")
+    expect(toggleBtn.textContent).toContain("Simular aumento para otras categorías")
+    expect(screen.queryByTestId("category-salary-simulator")).toBeNull()
+
+    // Abrir simulador
+    act(() => {
+      toggleBtn.click()
+    })
+    expect(screen.getByTestId("category-salary-simulator")).toBeTruthy()
+    expect(toggleBtn.textContent).toContain("Ocultar simulador")
+
+    // Cerrar simulador
+    act(() => {
+      toggleBtn.click()
+    })
+    expect(screen.queryByTestId("category-salary-simulator")).toBeNull()
+  })
+
+  it("14. permite alternar el simulador de categorías en el estado sin tarjetón", async () => {
+    mockWorkerContextWithoutPayslip()
+    render(<SalaryIncreaseCard />)
+    await screen.findByTestId("salary-estimate-empty")
+
+    const toggleBtn = screen.getByTestId("toggle-empty-simulator")
+    expect(toggleBtn.textContent).toContain("Simular aumento por categoría sin tarjetón")
+    expect(screen.queryByTestId("category-salary-simulator")).toBeNull()
+
+    // Abrir simulador
+    act(() => {
+      toggleBtn.click()
+    })
+    expect(screen.getByTestId("category-salary-simulator")).toBeTruthy()
+
+    // Cerrar simulador
+    act(() => {
+      toggleBtn.click()
+    })
+    expect(screen.queryByTestId("category-salary-simulator")).toBeNull()
+  })
 })

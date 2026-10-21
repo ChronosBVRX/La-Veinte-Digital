@@ -1,13 +1,14 @@
 "use client"
 
 import Link from "next/link"
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 import type { CSSProperties, ReactNode } from "react"
-import { TrendUp } from "@phosphor-icons/react"
+import { TrendUp, Calculator } from "@phosphor-icons/react"
 import { useWorkerContextSync } from "@/shared/hooks/useLiveWorkerContext"
 import { formatCurrency } from "@/features/calculators/lib/money"
 import { calculateSalaryIncrease } from "@/features/salary-estimate/lib/calculate-salary-increase"
 import { selectSalaryEstimateInputs } from "@/features/salary-estimate/services/salary-estimate-selector"
+import { CategorySalarySimulator } from "./CategorySalarySimulator"
 
 const IMPORT_HREF = "/profile/mi-informacion-laboral"
 const PROFILE_HREF = "/profile/mi-informacion-laboral"
@@ -40,6 +41,8 @@ const label: CSSProperties = {
  */
 export function SalaryIncreaseCard() {
   const { context, status, error, retry } = useWorkerContextSync(null)
+  const [showSimulator, setShowSimulator] = useState(false)
+  const [showEmptySimulator, setShowEmptySimulator] = useState(false)
 
   const selection = useMemo(() => {
     return selectSalaryEstimateInputs(context)
@@ -104,9 +107,39 @@ export function SalaryIncreaseCard() {
   if (!selection.hasPayslip || result.calculationStatus === "missing-payslip") {
     return (
       <NoticeCapsule testId="salary-estimate-empty">
-        <Link href={IMPORT_HREF} style={{ color: "#1d4ed8", fontWeight: 700, textDecoration: "underline" }}>
-          {IMPORT_MESSAGE}
-        </Link>
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+          <Link href={IMPORT_HREF} style={{ color: "#1d4ed8", fontWeight: 700, textDecoration: "underline" }}>
+            {IMPORT_MESSAGE}
+          </Link>
+          <div>
+            <button
+              type="button"
+              data-testid="toggle-empty-simulator"
+              onClick={() => setShowEmptySimulator((prev) => !prev)}
+              style={{
+                background: "rgba(37, 99, 235, 0.1)",
+                border: "1px solid #bfdbfe",
+                color: "#1d4ed8",
+                borderRadius: "var(--radius-md, 0.375rem)",
+                padding: "0.35rem 0.65rem",
+                fontSize: "var(--text-xs, 0.75rem)",
+                fontWeight: 700,
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.35rem",
+              }}
+            >
+              <Calculator size={14} weight="bold" />
+              <span>{showEmptySimulator ? "Ocultar simulador de categorías" : "Simular aumento por categoría sin tarjetón"}</span>
+            </button>
+          </div>
+          {showEmptySimulator && (
+            <div style={{ marginTop: "0.25rem" }}>
+              <CategorySalarySimulator theme="light" />
+            </div>
+          )}
+        </div>
       </NoticeCapsule>
     )
   }
@@ -341,6 +374,39 @@ export function SalaryIncreaseCard() {
           }}
         >
           <strong>Convenio Salarial 2026:</strong> sueldo base +4.0% y factor Concepto 11 del 86.15% (incremento frente al 82.15% contractual vigente según Cláusula 63 Bis Inciso B del CCT).
+        </div>
+
+        {/* Sección interactiva: Simulador de otras categorías */}
+        <div style={{ marginTop: "0.75rem", paddingTop: "0.65rem", borderTop: "1px solid rgba(255, 255, 255, 0.2)" }}>
+          <button
+            type="button"
+            data-testid="toggle-category-simulator"
+            onClick={() => setShowSimulator((prev) => !prev)}
+            style={{
+              background: "rgba(255, 255, 255, 0.15)",
+              border: "1px solid rgba(255, 255, 255, 0.3)",
+              color: "#ffffff",
+              borderRadius: "var(--radius-md, 0.375rem)",
+              padding: "0.4rem 0.75rem",
+              fontSize: "var(--text-xs, 0.75rem)",
+              fontWeight: 700,
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.4rem",
+              width: "100%",
+              justifyContent: "center",
+              boxSizing: "border-box",
+            }}
+          >
+            <Calculator size={15} weight="bold" />
+            <span>{showSimulator ? "Ocultar simulador de otras categorías" : "Simular aumento para otras categorías"}</span>
+          </button>
+          {showSimulator && (
+            <div style={{ marginTop: "0.75rem" }}>
+              <CategorySalarySimulator theme="dark" />
+            </div>
+          )}
         </div>
         {error && (
           <div
