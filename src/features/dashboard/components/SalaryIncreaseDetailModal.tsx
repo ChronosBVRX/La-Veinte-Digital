@@ -150,6 +150,77 @@ export function SalaryIncreaseDetailModal({
           )}
         </div>
 
+        {/* Comparativa entre negociaciones */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+            gap: "0.625rem",
+          }}
+        >
+          <div
+            style={{
+              padding: "0.75rem 0.85rem",
+              borderRadius: "0.5rem",
+              background: "var(--accent, #f1f5f9)",
+              border: "1px solid var(--border, #e2e8f0)",
+            }}
+          >
+            <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--muted, #64748b)" }}>
+              Propuesta anterior (2.9% + 86.05%)
+            </span>
+            <div
+              style={{
+                fontSize: "1.125rem",
+                fontWeight: 700,
+                color: "var(--muted, #64748b)",
+                textDecoration: "line-through",
+                marginTop: "0.25rem",
+              }}
+            >
+              +{formatCurrency(result.previousProposalIncrease ?? 0)}
+            </div>
+          </div>
+
+          <div
+            style={{
+              padding: "0.75rem 0.85rem",
+              borderRadius: "0.5rem",
+              background: "rgba(34, 197, 94, 0.08)",
+              border: "1px solid rgba(34, 197, 94, 0.3)",
+            }}
+          >
+            <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "#15803d" }}>
+              Nueva negociación (4.0% + 86.15%)
+            </span>
+            <div
+              style={{
+                fontSize: "1.125rem",
+                fontWeight: 800,
+                color: "#16a34a",
+                marginTop: "0.25rem",
+              }}
+            >
+              +{formattedIncrease}
+            </div>
+          </div>
+        </div>
+
+        {(result.differentialGain ?? 0) > 0 && (
+          <div
+            style={{
+              padding: "0.5rem 0.75rem",
+              borderRadius: "0.5rem",
+              background: "rgba(34, 197, 94, 0.12)",
+              color: "#166534",
+              fontSize: "0.8125rem",
+              fontWeight: 700,
+            }}
+          >
+            ▲ Ganancia adicional lograda: +{formatCurrency(result.differentialGain ?? 0)} por quincena
+          </div>
+        )}
+
         {/* Desglose explicativo */}
         <div
           style={{

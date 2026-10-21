@@ -372,7 +372,7 @@ describe("SalaryIncreaseCard", () => {
     setCoherentAuthSession("user-beta-B", "SIGNED_IN")
 
     // 3. El contexto salarial de B ($543.84) se muestra y el de A ($1,144.60) desaparece por completo
-    await screen.findByText("$543.84")
+    await screen.findAllByText("$543.84")
     expect(document.body.textContent).toContain("$543.84")
     expect(document.body.textContent).not.toContain("$1,144.60")
   })
@@ -445,7 +445,7 @@ describe("SalaryIncreaseCard", () => {
     setCoherentAuthSession("user-beta", "SIGNED_IN")
 
     // 3. La consulta de B termina primero y muestra $543.84
-    await screen.findByText("$543.84")
+    await screen.findAllByText("$543.84")
     expect(document.body.textContent).toContain("$543.84")
 
     // 4. Ahora resuelve la promesa tardía de A

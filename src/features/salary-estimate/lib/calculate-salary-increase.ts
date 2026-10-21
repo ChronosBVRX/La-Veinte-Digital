@@ -26,6 +26,10 @@ export const SALARY_ESTIMATE_CONCEPT11_COEFFICIENT = 0.8615
 /** Coeficiente contractual vigente de la Cláusula 63 Bis (82.15%). */
 export const CLAUSULA_63_BIS_COEF_VIGENTE = 0.8215
 
+/** Tasa y coeficiente de la propuesta/negociación previa para comparativa visual. */
+export const PREVIOUS_PROPOSAL_TABULAR_RATE = 0.029
+export const PREVIOUS_PROPOSAL_CONCEPT11_COEFFICIENT = 0.8605
+
 export type SalaryBaseType = "base" | "substitute" | "mixed" | "none"
 export type SubstituteCoverageType = "partial_confirmed" | "unknown"
 
@@ -57,6 +61,8 @@ export interface SalaryEstimateResult {
   estimatedTabular: number
   estimatedConcept11: number
   estimatedFortnightlyIncrease: number
+  previousProposalIncrease?: number
+  differentialGain?: number
   calculationStatus: SalaryEstimateStatus
   salaryType: SalaryBaseType
   isPostCutoff: boolean
@@ -87,6 +93,8 @@ const EMPTY_RESULT = (
   estimatedTabular: 0,
   estimatedConcept11: 0,
   estimatedFortnightlyIncrease: 0,
+  previousProposalIncrease: 0,
+  differentialGain: 0,
   calculationStatus: status,
   salaryType,
   isPostCutoff: false,
@@ -121,6 +129,8 @@ export function calculateSalaryIncrease(input: SalaryEstimateInput): SalaryEstim
       estimatedTabular: base,
       estimatedConcept11: concept11,
       estimatedFortnightlyIncrease: 0,
+  previousProposalIncrease: 0,
+  differentialGain: 0,
       calculationStatus: "new-schedule-unverified",
       salaryType,
       isPostCutoff: true,
@@ -154,6 +164,8 @@ export function calculateSalaryIncrease(input: SalaryEstimateInput): SalaryEstim
       estimatedTabular: roundFinalIncrease(tabular * (1 + SALARY_ESTIMATE_TABULAR_INCREASE_RATE)),
       estimatedConcept11: 0,
       estimatedFortnightlyIncrease: 0,
+  previousProposalIncrease: 0,
+  differentialGain: 0,
       calculationStatus: "unverified-comparable-base",
       salaryType,
       isPostCutoff: false,
@@ -165,6 +177,11 @@ export function calculateSalaryIncrease(input: SalaryEstimateInput): SalaryEstim
 
   const estimatedTabular = tabular * (1 + SALARY_ESTIMATE_TABULAR_INCREASE_RATE)
   const estimatedConcept11 = estimatedTabular * SALARY_ESTIMATE_CONCEPT11_COEFFICIENT
+  const prevTabular = tabular * (1 + PREVIOUS_PROPOSAL_TABULAR_RATE)
+  const prevConcept11 = prevTabular * PREVIOUS_PROPOSAL_CONCEPT11_COEFFICIENT
+  const previousProposalIncrease = roundFinalIncrease(
+    prevTabular + prevConcept11 - tabular - concept11,
+  )
   const estimatedFortnightlyIncrease = roundFinalIncrease(
     estimatedTabular + estimatedConcept11 - tabular - concept11,
   )
@@ -175,6 +192,8 @@ export function calculateSalaryIncrease(input: SalaryEstimateInput): SalaryEstim
     estimatedTabular,
     estimatedConcept11,
     estimatedFortnightlyIncrease,
+    previousProposalIncrease,
+    differentialGain: roundFinalIncrease(estimatedFortnightlyIncrease - previousProposalIncrease),
     calculationStatus: "ok",
     salaryType,
     isPostCutoff: false,

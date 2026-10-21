@@ -10,6 +10,8 @@ describe("calculateSalaryIncrease", () => {
     expect(r.estimatedTabular).toBeCloseTo(10400, 10)
     expect(r.estimatedConcept11).toBeCloseTo(8959.60, 10)
     expect(r.estimatedFortnightlyIncrease).toBe(1144.60)
+    expect(r.previousProposalIncrease).toBe(929.55)
+    expect(r.differentialGain).toBe(215.05)
   })
 
   it("2. se actualiza al importar un tarjetón más reciente", () => {
@@ -42,6 +44,8 @@ describe("calculateSalaryIncrease", () => {
     const r = calculateSalaryIncrease({ tabular: "$10,000.00", concept11: "8,215.00", hasPayslip: true })
     expect(r.calculationStatus).toBe("ok")
     expect(r.estimatedFortnightlyIncrease).toBe(1144.60)
+    expect(r.previousProposalIncrease).toBe(929.55)
+    expect(r.differentialGain).toBe(215.05)
     const spaced = calculateSalaryIncrease({ tabular: "1 000.50", concept11: " 821.50 ", hasPayslip: true })
     expect(spaced.calculationStatus).toBe("ok")
     expect(spaced.currentTabular).toBe(1000.5)
@@ -69,6 +73,8 @@ describe("calculateSalaryIncrease", () => {
     expect(r).not.toHaveProperty("concept157")
     // El resultado equivale exactamente a la fórmula sin ningún sumando extra.
     expect(r.estimatedFortnightlyIncrease).toBe(1144.60)
+    expect(r.previousProposalIncrease).toBe(929.55)
+    expect(r.differentialGain).toBe(215.05)
   })
 
   it("10. caso sintético sustitución: calcula estimación sobre sueldo sustituto 008 para su cobertura quincenal", () => {

@@ -252,11 +252,83 @@ export function SalaryIncreaseCard() {
           </span>{" "}
           más brutos por quincena.
         </p>
+
         <p style={{ margin: "0.5rem 0 0", fontSize: "var(--text-xs)", lineHeight: 1.5, color: "#c7d2fe" }}>
           {result.salaryType === "substitute"
             ? substituteDescription
             : "Estimación calculada sobre tu sueldo tabular (concepto 002) y ayuda de renta (concepto 011) de tu tarjetón más reciente, sujeta al convenio salarial definitivo."}
         </p>
+
+
+        {/* Comparativa de negociaciones: anterior vs definitiva */}
+        <div
+          style={{
+            marginTop: "0.75rem",
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
+            gap: "0.5rem",
+          }}
+        >
+          <div
+            style={{
+              padding: "0.5rem 0.65rem",
+              borderRadius: "var(--radius-sm, 0.375rem)",
+              background: "rgba(255, 255, 255, 0.08)",
+              border: "1px solid rgba(255, 255, 255, 0.16)",
+            }}
+          >
+            <div style={{ color: "#cbd5e1", fontSize: "0.6875rem", fontWeight: 600 }}>
+              Propuesta anterior (2.9% + 86.05%)
+            </div>
+            <div
+              style={{
+                fontSize: "1rem",
+                fontWeight: 700,
+                color: "#94a3b8",
+                textDecoration: "line-through",
+                marginTop: "0.2rem",
+              }}
+            >
+              {formatCurrency(result.previousProposalIncrease ?? 0)}
+            </div>
+          </div>
+          <div
+            style={{
+              padding: "0.5rem 0.65rem",
+              borderRadius: "var(--radius-sm, 0.375rem)",
+              background: "rgba(34, 197, 94, 0.18)",
+              border: "1px solid rgba(74, 222, 128, 0.4)",
+            }}
+          >
+            <div style={{ color: "#86efac", fontSize: "0.6875rem", fontWeight: 700 }}>
+              Nueva negociación (4.0% + 86.15%)
+            </div>
+            <div
+              style={{
+                fontSize: "1.0625rem",
+                fontWeight: 800,
+                color: "#ffffff",
+                marginTop: "0.2rem",
+              }}
+            >
+              {aumentoFormateado}
+            </div>
+          </div>
+        </div>
+        {(result.differentialGain ?? 0) > 0 && (
+          <div
+            style={{
+              marginTop: "0.45rem",
+              fontSize: "var(--text-xs, 0.75rem)",
+              fontWeight: 700,
+              color: "#86efac",
+            }}
+          >
+            ▲ Ganancia adicional lograda: +{formatCurrency(result.differentialGain ?? 0)} quincenales sobre la propuesta anterior
+          </div>
+        )}
+
+
         <div
           style={{
             marginTop: "0.625rem",
