@@ -225,8 +225,8 @@ describe("Regresión: Confirmación exitosa seguida de actualización del aument
     // 3. El selector alimenta calculateSalaryIncrease
     const updatedCalc = calculateSalaryIncrease(updatedInputs)
     expect(updatedCalc.calculationStatus).toBe("ok")
-    // 10000 * 2.9% = 290; 8215 * 86.05% * 2.9% = 639.55; total = 929.55
-    expect(updatedCalc.estimatedFortnightlyIncrease).toBe(929.55)
+    // 10000 * 4% = 400; 10400 * 86.15% = 8959.60; 8959.60 - 8215 = 744.60; total = 1144.60
+    expect(updatedCalc.estimatedFortnightlyIncrease).toBe(1144.60)
   })
 
   it("flujo real del importador: confirmación exitosa vía useTarjetonImporter emite evento, vuelve a consultar /api/worker-context y actualiza SalaryIncreaseCard", async () => {
@@ -352,10 +352,10 @@ describe("Regresión: Confirmación exitosa seguida de actualización del aument
     await screen.findByTestId("done-badge")
 
     // 6. SalaryIncreaseCard detecta el evento de actualización emitido por el importador,
-    // vuelve a consultar /api/worker-context y actualiza el cálculo en vivo a $929.55
+    // vuelve a consultar /api/worker-context y actualiza el cálculo en vivo a $1,144.60
     await waitFor(() => {
       expect(screen.getByTestId("salary-estimate-card")).not.toBeNull()
     })
-    expect(document.body.textContent).toContain("$929.55")
+    expect(document.body.textContent).toContain("$1,144.60")
   })
 })

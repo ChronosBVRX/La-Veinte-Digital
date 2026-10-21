@@ -1,13 +1,13 @@
 import { parseImssMoney } from "@/features/tarjeton/lib/money-parser"
 
 /**
- * Estimación provisional del aumento salarial quincenal (convenio 2026 pendiente).
+ * Estimación del aumento salarial quincenal conforme al Convenio Salarial 2026.
  *
  * Supuestos (NO definitivos, solo estimación):
- * - Sueldo tabular (002) o sueldo sustituto (008): +2.9% (tasa 0.029).
- * - Concepto 11: coeficiente nuevo 86.05% (0.8605) del tabular ya aumentado
- *   como supuesto preliminar documentado (texto vigente Cláusula 63 Bis: 82.15% / 0.8215,
- *   con incremento estimado de +3.9 puntos porcentuales).
+ * - Sueldo tabular (002) o sueldo sustituto (008): +4.0% (tasa 0.04).
+ * - Concepto 11: nuevo coeficiente contractual 86.15% (0.8615) del tabular ya aumentado
+ *   (base contractual Cláusula 63 Bis Inciso B: 82.15% / 0.8215, más 4.0 puntos porcentuales autorizados).
+ *
  * - La Cláusula 157 NO forma parte de este cálculo: no es percepción
  *   quincenal directa. Esta función ni siquiera la recibe como parámetro y se excluye.
  * - No se multiplica el total del tarjetón por 8.55%.
@@ -20,9 +20,9 @@ import { parseImssMoney } from "@/features/tarjeton/lib/money-parser"
  * El único redondeo es el del aumento final a dos decimales.
  */
 
-export const SALARY_ESTIMATE_TABULAR_INCREASE_RATE = 0.029
-/** Hipótesis preliminar de estimación (+3.9 pp sobre el factor contractual vigente). */
-export const SALARY_ESTIMATE_CONCEPT11_COEFFICIENT = 0.8605
+export const SALARY_ESTIMATE_TABULAR_INCREASE_RATE = 0.04
+/** Factor contractual autorizado para el Concepto 11 (+4.0 pp sobre el 82.15% contractual anterior). */
+export const SALARY_ESTIMATE_CONCEPT11_COEFFICIENT = 0.8615
 /** Coeficiente contractual vigente de la Cláusula 63 Bis (82.15%). */
 export const CLAUSULA_63_BIS_COEF_VIGENTE = 0.8215
 

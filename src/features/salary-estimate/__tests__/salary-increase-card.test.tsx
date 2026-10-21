@@ -101,9 +101,9 @@ describe("SalaryIncreaseCard", () => {
     render(<SalaryIncreaseCard />)
     await screen.findByTestId("salary-estimate-card")
     expect(document.body.textContent).toMatch(
-      /Con esta actualización salarial ganarías aproximadamente \$929\.55 más brutos por quincena\./,
+      /Con esta actualización salarial ganarías aproximadamente \$1,144\.60 más brutos por quincena\./,
     )
-    expect(document.body.textContent).toContain("$929.55")
+    expect(document.body.textContent).toContain("$1,144.60")
     expect(document.body.textContent).not.toContain("8.55%")
     expect(document.body.textContent).not.toContain("resultado es definitivo")
     expect(document.body.textContent).not.toContain("pago definitivo")
@@ -187,18 +187,18 @@ describe("SalaryIncreaseCard", () => {
 
     render(<SalaryIncreaseCard />)
     await screen.findByTestId("salary-estimate-card")
-    expect(document.body.textContent).toContain("$929.55")
+    expect(document.body.textContent).toContain("$1,144.60")
 
     // 2. Ocurre una actualización en segundo plano que falla (red caída)
     shouldFail = true
     window.dispatchEvent(new CustomEvent("nomina_payslip_updated"))
 
-    // 3. El cálculo previo ($929.55) se conserva y aparece el aviso sutil con botón de reintento
+    // 3. El cálculo previo ($1,144.60) se conserva y aparece el aviso sutil con botón de reintento
     const statusNotice = await screen.findByRole("status")
     expect(statusNotice.textContent).toContain("Mostrando el último cálculo disponible")
     expect(statusNotice.textContent).toContain("Reintentar")
     expect(screen.getByTestId("salary-estimate-card")).toBeTruthy()
-    expect(document.body.textContent).toContain("$929.55")
+    expect(document.body.textContent).toContain("$1,144.60")
     expect(screen.queryByTestId("salary-estimate-error")).toBeNull()
   })
 
@@ -226,12 +226,12 @@ describe("SalaryIncreaseCard", () => {
     await screen.findByTestId("salary-estimate-card")
 
     // Aumento esperado: $326.25
-    expect(document.body.textContent).toContain("$326.25")
+    expect(document.body.textContent).toContain("$395.07")
     expect(document.body.textContent).toContain("Tu aumento estimado (Sustitución)")
     expect(document.body.textContent).toContain("Al no contar con desglose comprobado de días trabajados")
     expect(document.body.textContent).toContain("el concepto 008 no acredita días futuros ni tipo permanente de contratación")
-    expect(document.body.textContent).toContain("Hipótesis de estimación preliminar")
-    expect(document.body.textContent).toContain("86.05%")
+    expect(document.body.textContent).toContain("Convenio Salarial 2026")
+    expect(document.body.textContent).toContain("86.15%")
     expect(document.body.textContent).toContain("82.15% contractual vigente según Cláusula 63 Bis")
     expect(document.body.textContent).not.toContain("Importa tu tarjetón")
   })
@@ -285,12 +285,12 @@ describe("SalaryIncreaseCard", () => {
     // 2. Clic en Reintentar
     fireEvent.click(retryButton)
 
-    // 3. Recuperación exitosa: muestra tarjeta con aumento calculado ($457.82)
+    // 3. Recuperación exitosa: muestra tarjeta con aumento calculado ($543.84)
     await screen.findByTestId("salary-estimate-card")
-    expect(document.body.textContent).toContain("$457.82")
+    expect(document.body.textContent).toContain("$543.84")
     expect(document.body.textContent).toContain("sujeta al convenio salarial definitivo")
-    expect(document.body.textContent).toContain("Hipótesis de estimación preliminar")
-    expect(document.body.textContent).toContain("86.05%")
+    expect(document.body.textContent).toContain("Convenio Salarial 2026")
+    expect(document.body.textContent).toContain("86.15%")
     expect(document.body.textContent).toContain("82.15% contractual vigente según Cláusula 63 Bis")
     expect(document.body.textContent).not.toContain("Importa tu tarjetón")
   })
@@ -302,9 +302,9 @@ describe("SalaryIncreaseCard", () => {
     ])
     render(<SalaryIncreaseCard />)
     await screen.findByTestId("salary-estimate-card")
-    expect(document.body.textContent).toContain("$374.93")
+    expect(document.body.textContent).toContain("$456.65")
     expect(document.body.textContent).toContain("sujeta al convenio salarial definitivo")
-    expect(document.body.textContent).toContain("86.05%")
+    expect(document.body.textContent).toContain("86.15%")
     expect(document.body.textContent).toContain("82.15% contractual vigente según Cláusula 63 Bis")
   })
 
@@ -363,18 +363,18 @@ describe("SalaryIncreaseCard", () => {
 
     render(<SalaryIncreaseCard />)
 
-    // 1. Sesión inicial del usuario A: aumento calculado $929.55
+    // 1. Sesión inicial del usuario A: aumento calculado $1,144.60
     await screen.findByTestId("salary-estimate-card")
-    expect(document.body.textContent).toContain("$929.55")
+    expect(document.body.textContent).toContain("$1,144.60")
 
     // 2. Cambio de sesión: el usuario se autentica como B (con revisión 1 < 5)
     currentUser = "B"
     setCoherentAuthSession("user-beta-B", "SIGNED_IN")
 
-    // 3. El contexto salarial de B ($457.82) se muestra y el de A ($929.55) desaparece por completo
-    await screen.findByText("$457.82")
-    expect(document.body.textContent).toContain("$457.82")
-    expect(document.body.textContent).not.toContain("$929.55")
+    // 3. El contexto salarial de B ($543.84) se muestra y el de A ($1,144.60) desaparece por completo
+    await screen.findByText("$543.84")
+    expect(document.body.textContent).toContain("$543.84")
+    expect(document.body.textContent).not.toContain("$1,144.60")
   })
 
   it("11c2. concepto 011 igual a cero muestra 'Estimación pendiente de comprobar' y nunca un incremento calculado desde cero", async () => {
@@ -444,17 +444,17 @@ describe("SalaryIncreaseCard", () => {
     // 2. Antes de que A responda, ocurre actualización / cambio a cuenta B
     setCoherentAuthSession("user-beta", "SIGNED_IN")
 
-    // 3. La consulta de B termina primero y muestra $457.82
-    await screen.findByText("$457.82")
-    expect(document.body.textContent).toContain("$457.82")
+    // 3. La consulta de B termina primero y muestra $543.84
+    await screen.findByText("$543.84")
+    expect(document.body.textContent).toContain("$543.84")
 
     // 4. Ahora resuelve la promesa tardía de A
     resolveA!({ ok: true, status: 200, json: async () => contextA } as Response)
 
     // 5. El contexto de B permanece inalterado y el de A nunca se monta
     await new Promise((r) => setTimeout(r, 50))
-    expect(document.body.textContent).toContain("$457.82")
-    expect(document.body.textContent).not.toContain("$929.55")
+    expect(document.body.textContent).toContain("$543.84")
+    expect(document.body.textContent).not.toContain("$1,144.60")
   })
 
   it("11e5. cambio de sesión A→B con error de red en B: nunca conserva el cálculo de A", async () => {
@@ -486,14 +486,14 @@ describe("SalaryIncreaseCard", () => {
 
     render(<SalaryIncreaseCard />)
     await screen.findByTestId("salary-estimate-card")
-    expect(document.body.textContent).toContain("$929.55")
+    expect(document.body.textContent).toContain("$1,144.60")
 
     // Usuario cierra sesión o cambia a B (código 401 o cambio de cuenta)
     currentUser = "B"
     setCoherentAuthSession("user-B", "SIGNED_IN")
 
     await screen.findByTestId("salary-estimate-error")
-    expect(document.body.textContent).not.toContain("$929.55")
+    expect(document.body.textContent).not.toContain("$1,144.60")
     expect(document.body.textContent).toContain("Tu sesión ha expirado")
   })
 
@@ -532,7 +532,7 @@ describe("SalaryIncreaseCard", () => {
 
     render(<SalaryIncreaseCard />)
     await screen.findByTestId("salary-estimate-card")
-    expect(document.body.textContent).toContain("$929.55")
+    expect(document.body.textContent).toContain("$1,144.60")
 
     // Cambia a cuenta B (misma matrícula, pero cuenta distinta sin tarjetón)
     currentUser = "B"
@@ -540,7 +540,7 @@ describe("SalaryIncreaseCard", () => {
 
     const invite = await screen.findByTestId("salary-estimate-empty")
     expect(invite.textContent).toContain("Importa tu tarjetón más reciente")
-    expect(document.body.textContent).not.toContain("$929.55")
+    expect(document.body.textContent).not.toContain("$1,144.60")
   })
 
   it("11e7. petición iniciada para B que recibe por error datos de A: rechaza el contexto, purga el cálculo y no clasifica la cuenta como confirmada", async () => {
@@ -577,7 +577,7 @@ describe("SalaryIncreaseCard", () => {
     // exponer jamás el aumento salarial de A.
     await screen.findByTestId("salary-estimate-error")
     expect(screen.queryByTestId("salary-estimate-card")).toBeNull()
-    expect(document.body.textContent).not.toContain("$929.55")
+    expect(document.body.textContent).not.toContain("$1,144.60")
     expect(document.body.textContent).not.toContain("Importa tu tarjetón")
   })
 
@@ -621,7 +621,7 @@ describe("SalaryIncreaseCard", () => {
 
     // 3. La tarjeta se recupera de inmediato, confirma el contexto retenido y muestra el cálculo
     await screen.findByTestId("salary-estimate-card")
-    expect(document.body.textContent).toContain("$929.55")
+    expect(document.body.textContent).toContain("$1,144.60")
     expect(screen.queryByTestId("salary-estimate-error")).toBeNull()
   })
 

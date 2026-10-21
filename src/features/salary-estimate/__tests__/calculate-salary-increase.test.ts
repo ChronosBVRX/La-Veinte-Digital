@@ -2,14 +2,14 @@ import { describe, it, expect } from "vitest"
 import { calculateSalaryIncrease } from "../lib/calculate-salary-increase"
 
 describe("calculateSalaryIncrease", () => {
-  it("1. tarjetón válido: ejemplo de control 10000 + 8215 → 929.55", () => {
+  it("1. tarjetón válido: ejemplo de control 10000 + 8215 → 1144.60", () => {
     const r = calculateSalaryIncrease({ tabular: 10000, concept11: 8215, hasPayslip: true })
     expect(r.calculationStatus).toBe("ok")
     expect(r.currentTabular).toBe(10000)
     expect(r.currentConcept11).toBe(8215)
-    expect(r.estimatedTabular).toBeCloseTo(10290, 10)
-    expect(r.estimatedConcept11).toBeCloseTo(8854.545, 10)
-    expect(r.estimatedFortnightlyIncrease).toBe(929.55)
+    expect(r.estimatedTabular).toBeCloseTo(10400, 10)
+    expect(r.estimatedConcept11).toBeCloseTo(8959.60, 10)
+    expect(r.estimatedFortnightlyIncrease).toBe(1144.60)
   })
 
   it("2. se actualiza al importar un tarjetón más reciente", () => {
@@ -41,7 +41,7 @@ describe("calculateSalaryIncrease", () => {
   it("6. importes con $, comas y espacios se normalizan", () => {
     const r = calculateSalaryIncrease({ tabular: "$10,000.00", concept11: "8,215.00", hasPayslip: true })
     expect(r.calculationStatus).toBe("ok")
-    expect(r.estimatedFortnightlyIncrease).toBe(929.55)
+    expect(r.estimatedFortnightlyIncrease).toBe(1144.60)
     const spaced = calculateSalaryIncrease({ tabular: "1 000.50", concept11: " 821.50 ", hasPayslip: true })
     expect(spaced.calculationStatus).toBe("ok")
     expect(spaced.currentTabular).toBe(1000.5)
@@ -59,7 +59,7 @@ describe("calculateSalaryIncrease", () => {
   it("8. redondeo a dos decimales solo en el resultado final", () => {
     const r = calculateSalaryIncrease({ tabular: 100, concept11: 10, hasPayslip: true })
     // 102.9 + 88.54545 - 100 - 10 = 81.44545 → 81.45
-    expect(r.estimatedFortnightlyIncrease).toBe(81.45)
+    expect(r.estimatedFortnightlyIncrease).toBe(83.60)
     expect(Number.isInteger(r.estimatedFortnightlyIncrease * 100)).toBe(true)
   })
 
@@ -68,12 +68,12 @@ describe("calculateSalaryIncrease", () => {
     expect(r).not.toHaveProperty("clausula157")
     expect(r).not.toHaveProperty("concept157")
     // El resultado equivale exactamente a la fórmula sin ningún sumando extra.
-    expect(r.estimatedFortnightlyIncrease).toBe(929.55)
+    expect(r.estimatedFortnightlyIncrease).toBe(1144.60)
   })
 
   it("10. caso sintético sustitución: calcula estimación sobre sueldo sustituto 008 para su cobertura quincenal", () => {
     // 3,200.00 * 1.029 = 3292.8
-    // 3292.8 * 0.8605 = 2833.4544
+    // 3328.00 * 0.8615 = 2867.072
     // 3292.8 + 2833.4544 - 3200.00 - 2600.00 = 326.2544 → 326.25
     const r = calculateSalaryIncrease({
       substituteSalary: 3200,
@@ -86,14 +86,14 @@ describe("calculateSalaryIncrease", () => {
     expect(r.salaryType).toBe("substitute")
     expect(r.currentTabular).toBe(3200)
     expect(r.currentConcept11).toBe(2600)
-    expect(r.estimatedFortnightlyIncrease).toBe(326.25)
+    expect(r.estimatedFortnightlyIncrease).toBe(395.07)
     expect(r.isPartialCoverage).toBe(true)
     expect(r.substituteCoverage).toBe("unknown")
   })
 
   it("11. caso sintético ordinario: calcula estimación ordinaria sobre 002 y 011", () => {
     // 4000.00 * 1.029 = 4116.00
-    // 4116.00 * 0.8605 = 3541.818
+    // 4160.00 * 0.8615 = 3583.84
     // 4116.00 + 3541.818 - 4000.00 - 3200.00 = 457.818 → 457.82
     const r = calculateSalaryIncrease({
       tabular: 4000,
@@ -105,13 +105,13 @@ describe("calculateSalaryIncrease", () => {
     expect(r.salaryType).toBe("base")
     expect(r.currentTabular).toBe(4000)
     expect(r.currentConcept11).toBe(3200)
-    expect(r.estimatedFortnightlyIncrease).toBe(457.82)
+    expect(r.estimatedFortnightlyIncrease).toBe(543.84)
     expect(r.isPartialCoverage).toBe(false)
   })
 
   it("11b. caso sintético de control: cálculo ordinario preciso con importes de referencia", () => {
     // 3800.00 * 1.029 = 3910.2
-    // 3910.2 * 0.8605 = 3364.7271
+    // 3952.00 * 0.8615 = 3404.648
     // 3910.2 + 3364.7271 - 3800.00 - 3100.00 = 374.9271 → 374.93
     const r = calculateSalaryIncrease({
       tabular: 3800,
@@ -123,7 +123,7 @@ describe("calculateSalaryIncrease", () => {
     expect(r.salaryType).toBe("base")
     expect(r.currentTabular).toBe(3800)
     expect(r.currentConcept11).toBe(3100)
-    expect(r.estimatedFortnightlyIncrease).toBe(374.93)
+    expect(r.estimatedFortnightlyIncrease).toBe(456.65)
     expect(r.isPartialCoverage).toBe(false)
   })
 

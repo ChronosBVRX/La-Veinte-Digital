@@ -268,7 +268,7 @@ export function SalaryIncreaseCard() {
             color: "#e0e7ff",
           }}
         >
-          <strong>Hipótesis de estimación preliminar:</strong> sueldo base +2.9% y factor Concepto 11 del 86.05% (hipótesis de cálculo frente al 82.15% contractual vigente según Cláusula 63 Bis, hasta contar con el documento oficial definitivo del Convenio Salarial 2026).
+          <strong>Convenio Salarial 2026:</strong> sueldo base +4.0% y factor Concepto 11 del 86.15% (incremento frente al 82.15% contractual vigente según Cláusula 63 Bis Inciso B del CCT).
         </div>
         {error && (
           <div
