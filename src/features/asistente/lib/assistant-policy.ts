@@ -30,6 +30,9 @@ export const ASSISTANT_POLICY = {
   /** Cuota diaria de consultas por usuario. */
   dailyQuotaPerUser: 100,
 
+  /** Cuota diaria reducida de cortesía para cuentas sin matrícula registrada (mitigación de bots/pentesting). */
+  guestDailyQuotaPerUser: 5,
+
   /** Timeout para generar embeddings (ms). */
   embeddingTimeoutMs: 15_000,
 
