@@ -195,8 +195,24 @@ function readLabelValue(lines: ReconstructedLine[], spec: LabelSpec): RawFieldVa
 
       const after = valueOnAnchorLine(line, label)
 
+      // Si buscamos categoryName, un valor puramente numérico (ej. "80", "65", "60", "20570080")
+      // o sin caracteres alfabéticos NO es el nombre de la categoría (suele ser código de jornada o clave de puesto).
+      if (spec.key === "categoryName" && after) {
+        const cleanBase = after.replace(/[\s:;.\-_/()]+/g, "").trim()
+        if (cleanBase.length > 0 && !/[A-Za-z]/.test(cleanBase)) {
+          continue
+        }
+      }
+
+      const categoryBase = after ? after.replace(/\b(80|65|60|40|20)$/, "").trim() : ""
       const isCompleteCategory =
-        spec.key === "categoryName" && Boolean(after && /\b(80|65|60|40|20)$/.test(after.trim()))
+        spec.key === "categoryName" &&
+        Boolean(
+          after &&
+          /\b(80|65|60|40|20)$/.test(after.trim()) &&
+          categoryBase.length >= 2 &&
+          /[A-Za-z]/.test(categoryBase)
+        )
 
       if (!isCompleteCategory && spec.maxContinuations && spec.maxContinuations > 0) {
         const continuation: string[] = []
@@ -219,6 +235,12 @@ function readLabelValue(lines: ReconstructedLine[], spec: LabelSpec): RawFieldVa
         }
         if (continuation.length > 0) {
           const fullValue = after ? `${after} ${continuation.join(" ")}` : continuation.join(" ")
+          if (spec.key === "categoryName") {
+            const cleanBase = fullValue.replace(/[\s:;.\-_/()]+/g, "").trim()
+            if (cleanBase.length > 0 && !/[A-Za-z]/.test(cleanBase)) {
+              continue
+            }
+          }
           return {
             value: fullValue,
             page: line.page,
@@ -276,6 +298,14 @@ export function parseImssProfile(
       continue
     }
 
+    if (spec.key === "categoryName" && typeof value === "string") {
+      const cleanAlpha = value.replace(/[^A-Za-z]/g, "")
+      if (cleanAlpha.length < 1) {
+        warnings.push(`No se pudo interpretar ${spec.key}.`)
+        continue
+      }
+    }
+
     const contaminated = containsAnotherLabel(raw.value)
     const confidence = contaminated ? clampConfidence(raw.confidence - 0.4) : raw.confidence
     if (contaminated) warnings.push(`Revisa el dato detectado para ${spec.key}.`)
@@ -300,7 +330,10 @@ export function parseImssProfile(
   })
   let workdayResolved = false
   if (jornadaRaw?.value !== null && jornadaRaw?.value !== undefined) {
-    const hours = parseImssMoney(jornadaRaw.value)
+    let hours = parseImssMoney(jornadaRaw.value)
+    if (hours !== undefined && [80, 65, 60, 40, 20].includes(hours)) {
+      hours = hours / 10
+    }
     if (hours !== undefined && (VALID_WORKDAY_HOURS as readonly number[]).includes(hours)) {
       employee.workdayHours = hours
       workdayResolved = true
@@ -358,6 +391,30 @@ export function parseImssProfile(
       requiresReview: false,
     }
     workdayResolved = true
+  }
+  if (!workdayResolved) {
+    for (const line of lines) {
+      if (line.norm.includes("CATEGORIA")) {
+        const val = valueOnAnchorLine(line, "CATEGORIA")
+        const num = Number(val.trim())
+        if ([80, 65, 60, 40, 20].includes(num)) {
+          const hours = num / 10
+          if ((VALID_WORKDAY_HOURS as readonly number[]).includes(hours)) {
+            employee.workdayHours = hours
+            fields.workdayHours = {
+              value: hours,
+              rawValue: val,
+              page: line.page,
+              confidence: line.confidence,
+              method: line.method,
+              requiresReview: false,
+            }
+            workdayResolved = true
+            break
+          }
+        }
+      }
+    }
   }
 
   const seniorityRaw = readLabelValue(lines, {

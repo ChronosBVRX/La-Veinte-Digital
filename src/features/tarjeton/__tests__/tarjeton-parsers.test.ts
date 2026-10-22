@@ -594,6 +594,59 @@ describe("mapeo Unicode de etiquetas", () => {
     expect(outcome.parsed.employee.categoryCode).toBe("21310080")
     expect(outcome.parsed.employee.workdayHours).toBe(8)
   })
+
+  it("no detecta '80' como categoría cuando CATEGORIA tiene código de jornada y PUESTO tiene la descripción", async () => {
+    const outcome = await parseImssTarjeton({
+      items: [
+        positionedItem(10, 10, "INSTITUTO MEXICANO DEL SEGURO SOCIAL"),
+        positionedItem(10, 30, "RECIBO DE PAGO DE NOMINA"),
+        positionedItem(10, 50, "RECEPTOR"),
+        positionedItem(10, 70, "PERIODO DE PAGO 1A-ENE-2026"),
+        positionedItem(10, 90, "MATRICULA 123456"),
+        positionedItem(10, 110, "NOMBRE JUAN PEREZ LOPEZ"),
+        positionedItem(10, 125, "CATEGORIA: 80"),
+        positionedItem(10, 140, "PUESTO: AUXILIAR DE LIMPIEZA E HIGIENE"),
+        positionedItem(200, 160, "PERCEPCIONES"),
+        positionedItem(200, 180, "002 SUELDO BASE 3,937.64"),
+        positionedItem(200, 200, "TOTAL PERCEPCIONES 3,937.64"),
+        positionedItem(400, 160, "DEDUCCIONES"),
+        positionedItem(400, 180, "212 ISR -234.56"),
+        positionedItem(400, 200, "TOTAL DEDUCCIONES 234.56"),
+        positionedItem(400, 220, "LIQUIDO 3,703.08"),
+      ],
+      pageCount: 1,
+    })
+    expect(outcome.ok).toBe(true)
+    if (!outcome.ok) return
+    expect(outcome.parsed.employee.categoryName).toBe("AUXILIAR DE LIMPIEZA E HIGIENE")
+    expect(outcome.parsed.employee.workdayHours).toBe(8)
+  })
+
+  it("ignora valor puramente numérico tras CATEGORIA y nunca guarda '80' como categoryName", async () => {
+    const outcome = await parseImssTarjeton({
+      items: [
+        positionedItem(10, 10, "INSTITUTO MEXICANO DEL SEGURO SOCIAL"),
+        positionedItem(10, 30, "RECIBO DE PAGO DE NOMINA"),
+        positionedItem(10, 50, "RECEPTOR"),
+        positionedItem(10, 70, "PERIODO DE PAGO 1A-ENE-2026"),
+        positionedItem(10, 90, "MATRICULA 123456"),
+        positionedItem(10, 110, "NOMBRE JUAN PEREZ LOPEZ"),
+        positionedItem(10, 130, "CATEGORIA: 80"),
+        positionedItem(200, 150, "PERCEPCIONES"),
+        positionedItem(200, 170, "002 SUELDO BASE 3,937.64"),
+        positionedItem(200, 190, "TOTAL PERCEPCIONES 3,937.64"),
+        positionedItem(400, 150, "DEDUCCIONES"),
+        positionedItem(400, 170, "212 ISR -234.56"),
+        positionedItem(400, 190, "TOTAL DEDUCCIONES 234.56"),
+        positionedItem(400, 210, "LIQUIDO 3,703.08"),
+      ],
+      pageCount: 1,
+    })
+    expect(outcome.ok).toBe(true)
+    if (!outcome.ok) return
+    expect(outcome.parsed.employee.categoryName).toBeUndefined()
+    expect(outcome.parsed.employee.workdayHours).toBe(8)
+  })
 })
 
 describe("aceptación de tarjetón", () => {
