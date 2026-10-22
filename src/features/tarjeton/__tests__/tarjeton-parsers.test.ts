@@ -514,6 +514,139 @@ describe("mapeo Unicode de etiquetas", () => {
     if (!outcome.ok) return
     expect(outcome.parsed.employee.categoryName).toBe("ENFERMERA GENERAL 80")
   })
+
+  it("detecta categoría multilínea para Auxiliar de Limpieza e Higiene", async () => {
+    const outcome = await parseImssTarjeton({
+      items: [
+        positionedItem(10, 10, "INSTITUTO MEXICANO DEL SEGURO SOCIAL"),
+        positionedItem(10, 30, "RECIBO DE PAGO DE NOMINA"),
+        positionedItem(10, 50, "RECEPTOR"),
+        positionedItem(10, 70, "PERIODO DE PAGO 1A-ENE-2026"),
+        positionedItem(10, 90, "MATRICULA 123456"),
+        positionedItem(10, 110, "NOMBRE JUAN PEREZ LOPEZ"),
+        positionedItem(10, 130, "CATEGORIA/PUESTO: AUX LIMPIEZA E HIGIENE"),
+        positionedItem(10, 142, "UM Y NO MED 80"),
+        positionedItem(200, 150, "PERCEPCIONES"),
+        positionedItem(200, 170, "002 SUELDO BASE 3,937.64"),
+        positionedItem(200, 190, "TOTAL PERCEPCIONES 3,937.64"),
+        positionedItem(400, 150, "DEDUCCIONES"),
+        positionedItem(400, 170, "212 ISR -234.56"),
+        positionedItem(400, 190, "TOTAL DEDUCCIONES 234.56"),
+        positionedItem(400, 210, "LIQUIDO 3,703.08"),
+      ],
+      pageCount: 1,
+    })
+    expect(outcome.ok).toBe(true)
+    if (!outcome.ok) return
+    expect(outcome.parsed.employee.categoryName).toBe("AUX LIMPIEZA E HIGIENE UM Y NO MED 80")
+    expect(outcome.parsed.employee.workdayHours).toBe(8)
+  })
+
+  it("detecta categoría con etiqueta corta CATEGORIA y deriva jornada 8 para Higiene y Limpieza", async () => {
+    const outcome = await parseImssTarjeton({
+      items: [
+        positionedItem(10, 10, "INSTITUTO MEXICANO DEL SEGURO SOCIAL"),
+        positionedItem(10, 30, "RECIBO DE PAGO DE NOMINA"),
+        positionedItem(10, 50, "RECEPTOR"),
+        positionedItem(10, 70, "PERIODO DE PAGO 1A-ENE-2026"),
+        positionedItem(10, 90, "MATRICULA 123456"),
+        positionedItem(10, 110, "NOMBRE JUAN PEREZ LOPEZ"),
+        positionedItem(10, 130, "CATEGORIA: AUXILIAR DE LIMPIEZA E HIGIENE"),
+        positionedItem(200, 150, "PERCEPCIONES"),
+        positionedItem(200, 170, "002 SUELDO BASE 3,937.64"),
+        positionedItem(200, 190, "TOTAL PERCEPCIONES 3,937.64"),
+        positionedItem(400, 150, "DEDUCCIONES"),
+        positionedItem(400, 170, "212 ISR -234.56"),
+        positionedItem(400, 190, "TOTAL DEDUCCIONES 234.56"),
+        positionedItem(400, 210, "LIQUIDO 3,703.08"),
+      ],
+      pageCount: 1,
+    })
+    expect(outcome.ok).toBe(true)
+    if (!outcome.ok) return
+    expect(outcome.parsed.employee.categoryName).toBe("AUXILIAR DE LIMPIEZA E HIGIENE")
+    expect(outcome.parsed.employee.workdayHours).toBe(8)
+  })
+
+  it("deriva jornada 8 a partir de CLAVE DE CATEGORIA cuando categoryName no tiene sufijo", async () => {
+    const outcome = await parseImssTarjeton({
+      items: [
+        positionedItem(10, 10, "INSTITUTO MEXICANO DEL SEGURO SOCIAL"),
+        positionedItem(10, 30, "RECIBO DE PAGO DE NOMINA"),
+        positionedItem(10, 50, "RECEPTOR"),
+        positionedItem(10, 70, "PERIODO DE PAGO 1A-ENE-2026"),
+        positionedItem(10, 90, "MATRICULA 123456"),
+        positionedItem(10, 110, "CLAVE CATEGORIA: 21310080"),
+        positionedItem(10, 125, "NOMBRE MARIA LOPEZ"),
+        positionedItem(10, 140, "CATEGORIA: AUX LIMPIEZA E HIGIENE UM Y NO MED"),
+        positionedItem(200, 160, "PERCEPCIONES"),
+        positionedItem(200, 180, "002 SUELDO BASE 3,937.64"),
+        positionedItem(200, 200, "TOTAL PERCEPCIONES 3,937.64"),
+        positionedItem(400, 160, "DEDUCCIONES"),
+        positionedItem(400, 180, "212 ISR -234.56"),
+        positionedItem(400, 200, "TOTAL DEDUCCIONES 234.56"),
+        positionedItem(400, 220, "LIQUIDO 3,703.08"),
+      ],
+      pageCount: 1,
+    })
+    expect(outcome.ok).toBe(true)
+    if (!outcome.ok) return
+    expect(outcome.parsed.employee.categoryCode).toBe("21310080")
+    expect(outcome.parsed.employee.workdayHours).toBe(8)
+  })
+
+  it("no detecta '80' como categoría cuando CATEGORIA tiene código de jornada y PUESTO tiene la descripción", async () => {
+    const outcome = await parseImssTarjeton({
+      items: [
+        positionedItem(10, 10, "INSTITUTO MEXICANO DEL SEGURO SOCIAL"),
+        positionedItem(10, 30, "RECIBO DE PAGO DE NOMINA"),
+        positionedItem(10, 50, "RECEPTOR"),
+        positionedItem(10, 70, "PERIODO DE PAGO 1A-ENE-2026"),
+        positionedItem(10, 90, "MATRICULA 123456"),
+        positionedItem(10, 110, "NOMBRE JUAN PEREZ LOPEZ"),
+        positionedItem(10, 125, "CATEGORIA: 80"),
+        positionedItem(10, 140, "PUESTO: AUXILIAR DE LIMPIEZA E HIGIENE"),
+        positionedItem(200, 160, "PERCEPCIONES"),
+        positionedItem(200, 180, "002 SUELDO BASE 3,937.64"),
+        positionedItem(200, 200, "TOTAL PERCEPCIONES 3,937.64"),
+        positionedItem(400, 160, "DEDUCCIONES"),
+        positionedItem(400, 180, "212 ISR -234.56"),
+        positionedItem(400, 200, "TOTAL DEDUCCIONES 234.56"),
+        positionedItem(400, 220, "LIQUIDO 3,703.08"),
+      ],
+      pageCount: 1,
+    })
+    expect(outcome.ok).toBe(true)
+    if (!outcome.ok) return
+    expect(outcome.parsed.employee.categoryName).toBe("AUXILIAR DE LIMPIEZA E HIGIENE")
+    expect(outcome.parsed.employee.workdayHours).toBe(8)
+  })
+
+  it("ignora valor puramente numérico tras CATEGORIA y nunca guarda '80' como categoryName", async () => {
+    const outcome = await parseImssTarjeton({
+      items: [
+        positionedItem(10, 10, "INSTITUTO MEXICANO DEL SEGURO SOCIAL"),
+        positionedItem(10, 30, "RECIBO DE PAGO DE NOMINA"),
+        positionedItem(10, 50, "RECEPTOR"),
+        positionedItem(10, 70, "PERIODO DE PAGO 1A-ENE-2026"),
+        positionedItem(10, 90, "MATRICULA 123456"),
+        positionedItem(10, 110, "NOMBRE JUAN PEREZ LOPEZ"),
+        positionedItem(10, 130, "CATEGORIA: 80"),
+        positionedItem(200, 150, "PERCEPCIONES"),
+        positionedItem(200, 170, "002 SUELDO BASE 3,937.64"),
+        positionedItem(200, 190, "TOTAL PERCEPCIONES 3,937.64"),
+        positionedItem(400, 150, "DEDUCCIONES"),
+        positionedItem(400, 170, "212 ISR -234.56"),
+        positionedItem(400, 190, "TOTAL DEDUCCIONES 234.56"),
+        positionedItem(400, 210, "LIQUIDO 3,703.08"),
+      ],
+      pageCount: 1,
+    })
+    expect(outcome.ok).toBe(true)
+    if (!outcome.ok) return
+    expect(outcome.parsed.employee.categoryName).toBeUndefined()
+    expect(outcome.parsed.employee.workdayHours).toBe(8)
+  })
 })
 
 describe("aceptación de tarjetón", () => {

@@ -1,13 +1,13 @@
 import { parseImssMoney } from "@/features/tarjeton/lib/money-parser"
 
 /**
- * Estimación provisional del aumento salarial quincenal (convenio 2026 pendiente).
+ * Estimación del aumento salarial quincenal conforme al Convenio Salarial 2026.
  *
  * Supuestos (NO definitivos, solo estimación):
- * - Sueldo tabular (002) o sueldo sustituto (008): +2.9% (tasa 0.029).
- * - Concepto 11: coeficiente nuevo 86.05% (0.8605) del tabular ya aumentado
- *   como supuesto preliminar documentado (texto vigente Cláusula 63 Bis: 82.15% / 0.8215,
- *   con incremento estimado de +3.9 puntos porcentuales).
+ * - Sueldo tabular (002) o sueldo sustituto (008): +4.0% (tasa 0.04).
+ * - Concepto 11: nuevo coeficiente contractual 86.15% (0.8615) del tabular ya aumentado
+ *   (base contractual Cláusula 63 Bis Inciso B: 82.15% / 0.8215, más 4.0 puntos porcentuales autorizados).
+ *
  * - La Cláusula 157 NO forma parte de este cálculo: no es percepción
  *   quincenal directa. Esta función ni siquiera la recibe como parámetro y se excluye.
  * - No se multiplica el total del tarjetón por 8.55%.
@@ -20,11 +20,15 @@ import { parseImssMoney } from "@/features/tarjeton/lib/money-parser"
  * El único redondeo es el del aumento final a dos decimales.
  */
 
-export const SALARY_ESTIMATE_TABULAR_INCREASE_RATE = 0.029
-/** Hipótesis preliminar de estimación (+3.9 pp sobre el factor contractual vigente). */
-export const SALARY_ESTIMATE_CONCEPT11_COEFFICIENT = 0.8605
+export const SALARY_ESTIMATE_TABULAR_INCREASE_RATE = 0.04
+/** Factor contractual autorizado para el Concepto 11 (+4.0 pp sobre el 82.15% contractual anterior). */
+export const SALARY_ESTIMATE_CONCEPT11_COEFFICIENT = 0.8615
 /** Coeficiente contractual vigente de la Cláusula 63 Bis (82.15%). */
 export const CLAUSULA_63_BIS_COEF_VIGENTE = 0.8215
+
+/** Tasa y coeficiente de la propuesta/negociación previa para comparativa visual. */
+export const PREVIOUS_PROPOSAL_TABULAR_RATE = 0.029
+export const PREVIOUS_PROPOSAL_CONCEPT11_COEFFICIENT = 0.8605
 
 export type SalaryBaseType = "base" | "substitute" | "mixed" | "none"
 export type SubstituteCoverageType = "partial_confirmed" | "unknown"
@@ -57,6 +61,8 @@ export interface SalaryEstimateResult {
   estimatedTabular: number
   estimatedConcept11: number
   estimatedFortnightlyIncrease: number
+  previousProposalIncrease?: number
+  differentialGain?: number
   calculationStatus: SalaryEstimateStatus
   salaryType: SalaryBaseType
   isPostCutoff: boolean
@@ -87,6 +93,8 @@ const EMPTY_RESULT = (
   estimatedTabular: 0,
   estimatedConcept11: 0,
   estimatedFortnightlyIncrease: 0,
+  previousProposalIncrease: 0,
+  differentialGain: 0,
   calculationStatus: status,
   salaryType,
   isPostCutoff: false,
@@ -121,6 +129,8 @@ export function calculateSalaryIncrease(input: SalaryEstimateInput): SalaryEstim
       estimatedTabular: base,
       estimatedConcept11: concept11,
       estimatedFortnightlyIncrease: 0,
+  previousProposalIncrease: 0,
+  differentialGain: 0,
       calculationStatus: "new-schedule-unverified",
       salaryType,
       isPostCutoff: true,
@@ -154,6 +164,8 @@ export function calculateSalaryIncrease(input: SalaryEstimateInput): SalaryEstim
       estimatedTabular: roundFinalIncrease(tabular * (1 + SALARY_ESTIMATE_TABULAR_INCREASE_RATE)),
       estimatedConcept11: 0,
       estimatedFortnightlyIncrease: 0,
+  previousProposalIncrease: 0,
+  differentialGain: 0,
       calculationStatus: "unverified-comparable-base",
       salaryType,
       isPostCutoff: false,
@@ -165,6 +177,11 @@ export function calculateSalaryIncrease(input: SalaryEstimateInput): SalaryEstim
 
   const estimatedTabular = tabular * (1 + SALARY_ESTIMATE_TABULAR_INCREASE_RATE)
   const estimatedConcept11 = estimatedTabular * SALARY_ESTIMATE_CONCEPT11_COEFFICIENT
+  const prevTabular = tabular * (1 + PREVIOUS_PROPOSAL_TABULAR_RATE)
+  const prevConcept11 = prevTabular * PREVIOUS_PROPOSAL_CONCEPT11_COEFFICIENT
+  const previousProposalIncrease = roundFinalIncrease(
+    prevTabular + prevConcept11 - tabular - concept11,
+  )
   const estimatedFortnightlyIncrease = roundFinalIncrease(
     estimatedTabular + estimatedConcept11 - tabular - concept11,
   )
@@ -175,6 +192,8 @@ export function calculateSalaryIncrease(input: SalaryEstimateInput): SalaryEstim
     estimatedTabular,
     estimatedConcept11,
     estimatedFortnightlyIncrease,
+    previousProposalIncrease,
+    differentialGain: roundFinalIncrease(estimatedFortnightlyIncrease - previousProposalIncrease),
     calculationStatus: "ok",
     salaryType,
     isPostCutoff: false,

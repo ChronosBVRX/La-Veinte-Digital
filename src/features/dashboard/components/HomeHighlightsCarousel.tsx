@@ -57,8 +57,47 @@ export function HomeHighlightsCarousel({ initialAnnouncements = [] }: HomeHighli
     return calculateSalaryIncrease(salarySelection)
   }, [salarySelection])
 
-  const [detailModalOpen, setDetailModalOpen] = useState(false)
+  const [detailModalOpen, setDetailModalOpen] = useState(() => {
+    if (typeof window === "undefined") return false
+    try {
+      const searchParams = new URLSearchParams(window.location.search)
+      const modalParam = searchParams.get("modal")
+      const hasAumentoQuery = modalParam === "aumento" || modalParam === "aumento-salarial" || searchParams.has("aumento")
+      const hasAumentoHash = window.location.hash === "#aumento" || window.location.hash === "#aumento-salarial"
+      return Boolean(hasAumentoQuery || hasAumentoHash)
+    } catch {
+      return false
+    }
+  })
   const [transferModalOpen, setTransferModalOpen] = useState(false)
+
+  const handleCloseDetailModal = useCallback(() => {
+    setDetailModalOpen(false)
+    if (typeof window !== "undefined") {
+      try {
+        const url = new URL(window.location.href)
+        let changed = false
+        if (url.searchParams.get("modal") === "aumento" || url.searchParams.get("modal") === "aumento-salarial") {
+          url.searchParams.delete("modal")
+          changed = true
+        }
+        if (url.searchParams.has("aumento")) {
+          url.searchParams.delete("aumento")
+          changed = true
+        }
+        if (url.hash === "#aumento" || url.hash === "#aumento-salarial") {
+          url.hash = ""
+          changed = true
+        }
+        if (changed) {
+          const newUrl = url.pathname + (url.searchParams.toString() ? '?' + url.searchParams.toString() : "") + url.hash
+          window.history.replaceState({}, "", newUrl)
+        }
+      } catch {
+        // Fallback defensivo
+      }
+    }
+  }, [])
 
   // ── 2. Avisos remotos (Supabase announcements con show_in_home_hero) ────────
   const [remoteAnnouncements, setRemoteAnnouncements] = useState<Announcement[]>(initialAnnouncements)
@@ -621,7 +660,7 @@ export function HomeHighlightsCarousel({ initialAnnouncements = [] }: HomeHighli
       {/* Modales correspondientes */}
       <SalaryIncreaseDetailModal
         open={detailModalOpen}
-        onClose={() => setDetailModalOpen(false)}
+        onClose={handleCloseDetailModal}
         result={salaryResult}
         activePeriod={salarySelection.activePeriod}
       />

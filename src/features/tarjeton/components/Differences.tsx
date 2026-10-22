@@ -27,7 +27,12 @@ export function buildDifferences(
   if (profile.matricula && emp.employeeNumber && profile.matricula.trim() !== emp.employeeNumber.trim()) {
     differences.push({ key: "matricula", label: "Matrícula", current: profile.matricula, detected: emp.employeeNumber })
   }
-  if (profile.categoria !== undefined && emp.categoryName && (profile.categoria ?? "").trim().toUpperCase() !== emp.categoryName.trim().toUpperCase()) {
+  if (
+    profile.categoria !== undefined &&
+    emp.categoryName &&
+    /[A-Za-z]/.test(emp.categoryName) &&
+    (profile.categoria ?? "").trim().toUpperCase() !== emp.categoryName.trim().toUpperCase()
+  ) {
     differences.push({ key: "categoria", label: "Categoría", current: profile.categoria ?? null, detected: emp.categoryName })
   }
   if (profile.antiguedad !== undefined && emp.seniority?.raw && (profile.antiguedad ?? "").trim().toUpperCase() !== emp.seniority.raw.trim().toUpperCase()) {
@@ -125,7 +130,7 @@ export function Differences({ parsed, profile, updates, onToggle, onSetUpdates }
           </span>
         </div>
         <div style={{ fontSize: "0.8125rem", color: "var(--muted)", lineHeight: 1.5 }}>
-          Se configurará tu perfil de trabajador con la matrícula <strong>{emp.employeeNumber}</strong>, nombre <strong>{emp.fullName ?? "detectado"}</strong>{emp.categoryName ? `, categoría <strong>${emp.categoryName}</strong>` : ""} y antigüedad para activar las calculadoras y tu calendario de vacaciones.
+          Se configurará tu perfil de trabajador con la matrícula <strong>{emp.employeeNumber}</strong>, nombre <strong>{emp.fullName ?? "detectado"}</strong>{emp.categoryName && /[A-Za-z]/.test(emp.categoryName) ? `, categoría <strong>${emp.categoryName}</strong>` : ""} y antigüedad para activar las calculadoras y tu calendario de vacaciones.
         </div>
       </Card>
     )
