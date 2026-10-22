@@ -22,6 +22,31 @@ describe("CategorySalarySimulator", () => {
     expect(select.options[0].text).toContain("ENFERMERA GENERAL 80")
   })
 
+  it("permite filtrar con sinónimos inteligentes (ej. 'medico especialista' o 'enfermero')", () => {
+    render(<CategorySalarySimulator theme="dark" />)
+    const searchInput = screen.getByTestId("category-search-input")
+    
+    // Buscar "enfermero" debe encontrar categorías de enfermera
+    fireEvent.change(searchInput, { target: { value: "enfermero" } })
+    const select = screen.getByTestId("category-dropdown-select") as HTMLSelectElement
+    expect(select.options.length).toBeGreaterThan(0)
+    expect(Array.from(select.options).some((o) => o.text.includes("ENFERMERA"))).toBe(true)
+
+    // Buscar "medico especialista" debe encontrar MEDICO NO FAMILIAR
+    fireEvent.change(searchInput, { target: { value: "medico especialista" } })
+    expect(Array.from(select.options).some((o) => o.text.includes("MEDICO NO FAMILIAR"))).toBe(true)
+  })
+
+  it("permite filtrar usando los botones rápidos por rama laboral", () => {
+    render(<CategorySalarySimulator theme="dark" />)
+    const enfermeriaBtn = screen.getByText("💉 Enfermería")
+    fireEvent.click(enfermeriaBtn)
+
+    const select = screen.getByTestId("category-dropdown-select") as HTMLSelectElement
+    expect(select.options.length).toBeGreaterThan(0)
+    expect(Array.from(select.options).every((o) => o.text.includes("ENF") || o.text.includes("ENFERMERA"))).toBe(true)
+  })
+
   it("calcula correctamente el incremento contractual para la categoría seleccionada", () => {
     render(<CategorySalarySimulator theme="dark" initialCategoryName="ENFERMERA GENERAL 80" />)
     
