@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { TarjetonImporterWrapper } from "@/features/tarjeton/components/TarjetonImporterWrapper"
 import { completePayslipOnboardingAction } from "@/features/profile/actions/worker-profile-actions"
@@ -23,6 +23,25 @@ export function TarjetonUploaderSection({ profileSnapshot, userId }: TarjetonUpl
   const [lastMeta, setLastMeta] = useState<TarjetonImportSuccessMeta | null>(null)
   const [retryingSync, setRetryingSync] = useState(false)
   const router = useRouter()
+
+  // Deep link: si viene con ?portal=tu-perfil o ?action=tu-perfil, invocar portal nativo en la app
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    try {
+      const searchParams = new URLSearchParams(window.location.search)
+      if (
+        searchParams.get("portal") === "tu-perfil" ||
+        searchParams.get("action") === "tu-perfil" ||
+        searchParams.has("tu-perfil")
+      ) {
+        if (window.LaVeinteApp?.openOfficialPayslips) {
+          window.LaVeinteApp.openOfficialPayslips()
+        }
+      }
+    } catch {
+      // Ignorar errores defensivamente
+    }
+  }, [])
 
   const handleSuccess = useCallback(async (_meta: TarjetonImportSuccessMeta) => {
     setSyncError(null)

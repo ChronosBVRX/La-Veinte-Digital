@@ -44,6 +44,8 @@ const STEP_NUM: React.CSSProperties = {
 export function ReceivePanel() {
   const { session, files, status, error, start, close } = useTransferSession()
   const [busyFile, setBusyFile] = useState<string | null>(null)
+  const [busyAction, setBusyAction] = useState<"download" | "open" | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
 
   useEffect(() => {
     start()
@@ -63,13 +65,20 @@ export function ReceivePanel() {
     async (file: TransferFileMeta) => {
       if (!session) return
       setBusyFile(file.id)
+      setBusyAction("open")
+      setActionError(null)
       try {
         const full = await getTransferFile(session.ownerToken, file.id)
         openTransferFile(full)
-      } catch {
-        /* ignore */
+      } catch (err) {
+        setActionError(
+          err instanceof Error
+            ? `No se pudo abrir el archivo: ${err.message}`
+            : "No se pudo abrir el archivo. Intenta descargarlo directamente.",
+        )
       } finally {
         setBusyFile(null)
+        setBusyAction(null)
       }
     },
     [session],
@@ -79,13 +88,20 @@ export function ReceivePanel() {
     async (file: TransferFileMeta) => {
       if (!session) return
       setBusyFile(file.id)
+      setBusyAction("download")
+      setActionError(null)
       try {
         const full = await getTransferFile(session.ownerToken, file.id)
         downloadTransferFile(full)
-      } catch {
-        /* ignore */
+      } catch (err) {
+        setActionError(
+          err instanceof Error
+            ? `No se pudo descargar el archivo: ${err.message}`
+            : "No se pudo descargar el archivo. Inténtalo de nuevo.",
+        )
       } finally {
         setBusyFile(null)
+        setBusyAction(null)
       }
     },
     [session],
@@ -128,7 +144,7 @@ export function ReceivePanel() {
         <div style={STEP_STYLE}>
           <span style={STEP_NUM}>2</span>
           <span style={{ fontSize: "0.875rem", lineHeight: 1.5 }}>
-            En ese dispositivo, elige el documento (foto o PDF).
+            En ese dispositivo, elige el archivo que deseas enviar.
           </span>
         </div>
         <div style={STEP_STYLE}>
@@ -159,6 +175,24 @@ export function ReceivePanel() {
             <ArrowsClockwise size={14} /> Nuevo código
           </Button>
         </div>
+
+        {actionError && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+              color: "var(--error)",
+              fontSize: "0.8125rem",
+              background: "var(--state-error-bg)",
+              padding: "0.625rem 0.875rem",
+              borderRadius: "var(--radius-sm)",
+            }}
+          >
+            <WarningCircle size={16} style={{ flexShrink: 0 }} />
+            <span>{actionError}</span>
+          </div>
+        )}
 
         {files.length === 0 ? (
           <p
@@ -207,20 +241,21 @@ export function ReceivePanel() {
                 </div>
                 <Button
                   size="sm"
+                  variant="primary"
+                  loading={busyFile === file.id && busyAction === "download"}
+                  disabled={busyFile === file.id}
+                  onClick={() => handleDownload(file)}
+                >
+                  <ArrowDown size={14} /> Descargar
+                </Button>
+                <Button
+                  size="sm"
                   variant="outline"
+                  loading={busyFile === file.id && busyAction === "open"}
                   disabled={busyFile === file.id}
                   onClick={() => handleOpen(file)}
                 >
                   <Eye size={14} /> Abrir
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={busyFile === file.id}
-                  onClick={() => handleDownload(file)}
-                  aria-label="Descargar"
-                >
-                  <ArrowDown size={14} />
                 </Button>
               </li>
             ))}

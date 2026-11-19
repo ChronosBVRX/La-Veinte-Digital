@@ -193,17 +193,27 @@ export class NormativeCatalog {
       }
 
       const files = fs.readdirSync(dir);
+
+      // Pase 1: Coincidencia exacta de nombre de archivo con los candidatos
       for (const cand of candidates) {
         if (!cand || cand.length < 3) continue;
         const cleanCand = cand.replace(/^IMSS-/i, "").toLowerCase();
         const match = files.find((f) => {
           const fLow = f.toLowerCase();
-          return (
-            fLow === `${cand}.pdf` ||
-            fLow === `${cleanCand}.pdf` ||
-            fLow.includes(cand) ||
-            fLow.includes(cleanCand)
-          );
+          return fLow === `${cand}.pdf` || fLow === `${cleanCand}.pdf` || fLow === `${cand}.html` || fLow === `${cleanCand}.html`;
+        });
+        if (match) {
+          return { filePath: path.join(dir, match), page: pdfPage };
+        }
+      }
+
+      // Pase 2: Coincidencia por prefijo o inclusión segura
+      for (const cand of candidates) {
+        if (!cand || cand.length < 4) continue;
+        const cleanCand = cand.replace(/^IMSS-/i, "").toLowerCase();
+        const match = files.find((f) => {
+          const fLow = f.toLowerCase();
+          return fLow.includes(cand) || fLow.includes(cleanCand);
         });
         if (match) {
           return { filePath: path.join(dir, match), page: pdfPage };
@@ -337,6 +347,8 @@ export class NormativeCatalog {
         );
         if (p?.urlOficial) {
           d.url = p.urlOficial;
+        } else if (d.landingPage) {
+          d.url = d.landingPage;
         }
       }
     }

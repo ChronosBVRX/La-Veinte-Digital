@@ -6,7 +6,7 @@ import {
   X, ShareNetwork, Printer, PencilSimple,
   UploadSimple, FileText, Clock, PencilLine,
   MagnifyingGlassPlus, MagnifyingGlassMinus, ArrowsIn,
-  DownloadSimple, Trash,
+  DownloadSimple, Trash, Sparkle,
 } from "@phosphor-icons/react"
 import { FullscreenPortal } from "@/shared/components/ui/FullscreenPortal"
 import { Button } from "@/shared/components/ui/Button"
@@ -667,6 +667,23 @@ function DocumentViewerModalContent({
             >
               <PencilSimple size={16} weight="bold" />
               <span className="doc-viewer-btn-label">Editar</span>
+            </Link>
+          )}
+
+          {/* Explicar tarjetón */}
+          {normalizedType === "tarjeton" && rawDoc && (
+            <Link
+              href={`/guia/mi-quincena?id=${(rawDoc as { id: string }).id}`}
+              title="Explicar lo que me pagaron en este tarjetón"
+              aria-label="Explicar tarjetón"
+              className="doc-viewer-action-btn"
+              style={{
+                color: "#16a34a",
+                textDecoration: "none",
+              }}
+            >
+              <Sparkle size={16} weight="bold" />
+              <span className="doc-viewer-btn-label">Explicar pago</span>
             </Link>
           )}
 

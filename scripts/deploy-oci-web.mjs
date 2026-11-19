@@ -49,15 +49,21 @@ function scpUpload(localPath, remotePath, maxRetries = 3) {
   console.log(`[scp] ${localPath} -> ${remotePath}`);
   const scpArgs = [
     "-i", SSH_KEY,
+    "-O",
+    "-C",
     "-o", "BatchMode=yes",
     "-o", "StrictHostKeyChecking=accept-new",
-    "-o", "ConnectTimeout=30",
+    "-o", "ConnectTimeout=60",
     "-o", "ServerAliveInterval=15",
+    "-o", "ServerAliveCountMax=20",
     localPath,
     `${VPS_USER}@${VPS_IP}:${remotePath}`,
   ];
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      runRemote(`rm -f ${remotePath}`);
+    } catch {}
     const res = spawnSync("scp", scpArgs, { stdio: "inherit" });
     if (res.status === 0) {
       return;
@@ -174,6 +180,13 @@ async function main() {
     fs.cpSync(botPdfsDir, path.join(stagingDir, "bot-api", "pdfs"), { recursive: true });
   }
 
+  // Copiar data/normativa/originales (procedimientos institucionales y manuales)
+  const normOriginalesDir = path.join(process.cwd(), "data", "normativa", "originales");
+  if (fs.existsSync(normOriginalesDir)) {
+    console.log("Copiando data/normativa/originales...");
+    fs.cpSync(normOriginalesDir, path.join(stagingDir, "data", "normativa", "originales"), { recursive: true });
+  }
+
   // Copiar Dockerfile.web
   fs.copyFileSync(
     path.join(process.cwd(), "Dockerfile.web"),
@@ -260,7 +273,7 @@ async function main() {
   // 5. Transferir a VPS
   console.log("\n[5/6] Transfiriendo bundle y configuración al VPS...");
   runRemote(`sudo mkdir -p ${REMOTE_DIR} && sudo chown -R ${VPS_USER}:${VPS_USER} ${REMOTE_DIR}`);
-  scpUpload(tarballPath, `${REMOTE_DIR}/deploy-web.tar.gz`);
+  scpUpload(tarballPath, "/tmp/deploy-web.tar.gz");
   scpUpload(tempEnvPath, `${REMOTE_DIR}/.env`);
 
   // Limpiar archivo temporal local
@@ -272,8 +285,8 @@ async function main() {
     set -e
     cd ${REMOTE_DIR}
     rm -rf .next server.js node_modules public Dockerfile docker-compose.yml
-    tar --overwrite -xzf deploy-web.tar.gz
-    rm -f deploy-web.tar.gz
+    tar --overwrite -xzf /tmp/deploy-web.tar.gz
+    rm -f /tmp/deploy-web.tar.gz
     chmod 600 .env
     
     echo "Construyendo imagen Docker laveinte-web..."

@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Desktop app bundle / subproyecto independiente
+    "desktop-app/**",
     // Vendor assets descargados (workers de PDF.js/Tesseract).
     "public/vendor/**",
     "apps/print-agent/dist/**",
@@ -29,6 +31,10 @@ const eslintConfig = defineConfig([
     "tools/**",
     "**/.venv*/**",
     "data/tts/venv/**",
+    // Temporales de desarrollo y cobertura de tests
+    "tmp/**",
+    "scratch/**",
+    "coverage/**",
   ]),
 ]);
 

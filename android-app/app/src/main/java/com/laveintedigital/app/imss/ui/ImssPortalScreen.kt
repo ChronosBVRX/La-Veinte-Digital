@@ -25,6 +25,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.laveintedigital.app.BuildConfig
 import com.laveintedigital.app.imss.credentials.ImssPortal
 import com.laveintedigital.app.imss.portal.*
+import com.laveintedigital.app.imss.register.TuPerfilRegisterController
 import com.laveintedigital.app.imss.tarjeton.*
 import com.laveintedigital.app.ui.lvd.LvdColors
 import com.laveintedigital.app.ui.lvd.LvdShapes
@@ -65,6 +66,11 @@ fun ImssPortalScreen(
     val flowState by (flowController?.state?.collectAsState() ?: remember { mutableStateOf(null as TuPerfilFlowState?) })
     var tuPerfilConsultationJob by remember { mutableStateOf<Job?>(null) }
 
+    // Flow controller for assisted Tu Perfil registration
+    val registerController = remember(portal) {
+        if (portal == ImssPortal.TU_PERFIL) TuPerfilRegisterController(scope, context) else null
+    }
+
     // For Tarjetón Digital, use its dedicated flow controller
     val tarjetonController = remember {
         if (portal == ImssPortal.TARJETON_DIGITAL) TarjetonDigitalFlowController(scope, context) else null
@@ -86,6 +92,7 @@ fun ImssPortalScreen(
 
     // Login dialog state
     var showLoginDialog by remember { mutableStateOf(false) }
+    var showRegisterDialog by remember { mutableStateOf(false) }
     var showManualFallback by remember { mutableStateOf(false) }
 
     // Tarjetón Digital UI state
@@ -142,7 +149,10 @@ fun ImssPortalScreen(
                 ImssPdfCaptureCoordinator.pollPdfCandidates(wv, context, portal, scope) { event ->
                     when (event) {
                         is ImssPdfCaptureCoordinator.PdfCaptureEvent.PdfDetected -> {
-                            if (event.sequence == 1) flowController?.markSaving()
+                            if (event.sequence == 1) {
+                                flowController?.markSaving()
+                                if (portal == ImssPortal.TARJETON_DIGITAL) tarjetonController?.markSaving()
+                            }
                         }
                         is ImssPdfCaptureCoordinator.PdfCaptureEvent.TarjetonSaved -> {
                             val s = ImssPdfCaptureCoordinator.activeSession
@@ -154,6 +164,14 @@ fun ImssPortalScreen(
                                     ooadLabel = s.ooadLabel,
                                     periodLabel = s.periodLabel,
                                 ))
+                                if (portal == ImssPortal.TARJETON_DIGITAL) {
+                                    tarjetonController?.markTarjetonSaved(TarjetonDigitalFlowController.TarjetonSavedInfo(
+                                        documentId = event.documentId,
+                                        localPath = event.localPath,
+                                        wasDuplicate = event.wasDuplicate,
+                                        periodLabel = s.periodLabel,
+                                    ))
+                                }
                                 if (event.localPath.isNotBlank()) {
                                     if (com.laveintedigital.app.BuildConfig.DEBUG) {
                                         Log.i("PayslipViewer", "LOCAL_PDF_VIEWER_OPEN docId=${event.documentId}")
@@ -163,7 +181,10 @@ fun ImssPortalScreen(
                             }
                         }
                         is ImssPdfCaptureCoordinator.PdfCaptureEvent.ConceptsSaved -> {}
-                        is ImssPdfCaptureCoordinator.PdfCaptureEvent.CaptureError -> flowController?.markCaptureFailed()
+                        is ImssPdfCaptureCoordinator.PdfCaptureEvent.CaptureError -> {
+                            flowController?.markCaptureFailed()
+                            if (portal == ImssPortal.TARJETON_DIGITAL) tarjetonController?.markCaptureFailed()
+                        }
                     }
                 }
             } catch (_: Exception) {}
@@ -232,40 +253,74 @@ fun ImssPortalScreen(
 
                         setDownloadListener(ImssPdfCaptureCoordinator.createDownloadListener(ctx, portal, scope))
 
-                        if (portal == ImssPortal.TARJETON_DIGITAL) {
-                            addJavascriptInterface(
-                                TarjetonDigitalBridge { reportUrl ->
-                                    scope.launch(Dispatchers.Main) {
-                                        val ctrl = tarjetonController ?: return@launch
-                                        val deleg = ctrl.lastDelegacion ?: return@launch
-                                        val period = ctrl.selectedPeriod ?: return@launch
-                                        ctrl.markSaving()
-                                        ImssPdfCaptureCoordinator.captureTarjetonDigitalReport(
-                                            context, portal, reportUrl,
-                                            deleg.value, deleg.label, period.code, period.displayLabel,
-                                            scope,
-                                        ) { event ->
-                                            when (event) {
-                                                is ImssPdfCaptureCoordinator.PdfCaptureEvent.TarjetonSaved -> {
-                                                    ctrl.markTarjetonSaved(TarjetonDigitalFlowController.TarjetonSavedInfo(
-                                                        event.documentId, event.localPath,
-                                                        event.wasDuplicate, period.displayLabel))
-                                                    if (event.localPath.isNotBlank()) {
-                                                        if (com.laveintedigital.app.BuildConfig.DEBUG) {
-                                                            Log.i("PayslipViewer", "LOCAL_PDF_VIEWER_OPEN docId=${event.documentId}")
-                                                        }
-                                                        localPdfPath = event.localPath
-                                                    }
+                        fun handleTarjetonReport(reportUrl: String) {
+                            scope.launch(Dispatchers.Main) {
+                                val ctrl = tarjetonController ?: return@launch
+                                val deleg = ctrl.lastDelegacion
+                                    ?: ctrl.delegaciones.firstOrNull()
+                                    ?: TarjetonDigitalDelegaciones.Delegacion("00", "General")
+                                val period = ctrl.selectedPeriod ?: return@launch
+                                ctrl.markSaving()
+                                ImssPdfCaptureCoordinator.captureTarjetonDigitalReport(
+                                    context, portal, reportUrl,
+                                    deleg.value, deleg.label, period.code, period.displayLabel,
+                                    scope,
+                                ) { event ->
+                                    when (event) {
+                                        is ImssPdfCaptureCoordinator.PdfCaptureEvent.TarjetonSaved -> {
+                                            ctrl.markTarjetonSaved(TarjetonDigitalFlowController.TarjetonSavedInfo(
+                                                event.documentId, event.localPath,
+                                                event.wasDuplicate, period.displayLabel))
+                                            if (event.localPath.isNotBlank()) {
+                                                if (com.laveintedigital.app.BuildConfig.DEBUG) {
+                                                    Log.i("PayslipViewer", "LOCAL_PDF_VIEWER_OPEN docId=${event.documentId}")
                                                 }
-                                                is ImssPdfCaptureCoordinator.PdfCaptureEvent.CaptureError -> ctrl.markCaptureFailed()
-                                                else -> {}
+                                                localPdfPath = event.localPath
                                             }
                                         }
+                                        is ImssPdfCaptureCoordinator.PdfCaptureEvent.CaptureError -> ctrl.markCaptureFailed()
+                                        else -> {}
                                     }
-                                },
+                                }
+                            }
+                        }
+
+                        if (portal == ImssPortal.TARJETON_DIGITAL) {
+                            settings.setSupportMultipleWindows(true)
+                            settings.javaScriptCanOpenWindowsAutomatically = true
+                            addJavascriptInterface(
+                                TarjetonDigitalBridge { reportUrl -> handleTarjetonReport(reportUrl) },
                                 TarjetonDigitalBridge.NAME,
                             )
                             webChromeClient = object : WebChromeClient() {
+                                override fun onCreateWindow(
+                                    view: WebView?,
+                                    isDialog: Boolean,
+                                    isUserGesture: Boolean,
+                                    resultMsg: android.os.Message?
+                                ): Boolean {
+                                    val tempWv = WebView(ctx)
+                                    tempWv.settings.configureForLaVeinte(BuildConfig.VERSION_NAME)
+                                    tempWv.webViewClient = object : WebViewClient() {
+                                        override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                                            val u = request?.url?.toString()
+                                            if (u != null && (u.contains("wfrReporteTarjeton", ignoreCase = true) || u.contains("Reporte", ignoreCase = true))) {
+                                                handleTarjetonReport(u)
+                                                return true
+                                            }
+                                            return false
+                                        }
+                                        override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                                            if (url != null && (url.contains("wfrReporteTarjeton", ignoreCase = true) || url.contains("Reporte", ignoreCase = true))) {
+                                                handleTarjetonReport(url)
+                                            }
+                                        }
+                                    }
+                                    val transport = resultMsg?.obj as? WebView.WebViewTransport
+                                    transport?.webView = tempWv
+                                    resultMsg?.sendToTarget()
+                                    return true
+                                }
                                 override fun onJsAlert(view: WebView?, url: String?, message: String?, result: JsResult?): Boolean {
                                     if (message != null) tarjetonController?.onPortalAlert(message)
                                     result?.confirm()
@@ -301,6 +356,14 @@ fun ImssPortalScreen(
                             }
 
                             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                                val reqUrl = request?.url?.toString()
+                                if (portal == ImssPortal.TARJETON_DIGITAL && reqUrl != null &&
+                                    (reqUrl.contains("wfrReporteTarjeton", ignoreCase = true) || reqUrl.contains("Reporte", ignoreCase = true)) &&
+                                    reqUrl.contains("rh.imss.gob.mx")
+                                ) {
+                                    handleTarjetonReport(reqUrl)
+                                    return true
+                                }
                                 return false
                             }
                         }
@@ -309,6 +372,7 @@ fun ImssPortalScreen(
                         webView = wv
                         flowController?.attachWebView(wv)
                         tarjetonController?.attachWebView(wv)
+                        registerController?.attachWebView(wv)
                     }
                 },
                 modifier = Modifier.fillMaxSize(),
@@ -668,7 +732,33 @@ fun ImssPortalScreen(
                     switch(ImssPortal.TARJETON_DIGITAL)
                 }
             },
+            onOpenRegister = if (registerController != null) {
+                {
+                    showLoginDialog = false
+                    showRegisterDialog = true
+                }
+            } else null,
             onDismiss = { showLoginDialog = false },
+        )
+    }
+
+    // Native registration dialog for Tu Perfil IMSS
+    if (showRegisterDialog && registerController != null) {
+        TuPerfilRegisterDialog(
+            controller = registerController,
+            onDismiss = {
+                showRegisterDialog = false
+                registerController.reset()
+            },
+            onSuccess = {
+                showRegisterDialog = false
+                flowController?.retryLogin()
+            },
+            onSwitchToLogin = {
+                showRegisterDialog = false
+                registerController.reset()
+                showLoginDialog = true
+            },
         )
     }
 

@@ -412,12 +412,12 @@ export function HomeQuickActions({ heading = "¿Qué necesitas hoy?" }: HomeQuic
     }
     let cancelled = false
     window.LaVeinteApp.listNativeDocuments()
-      .then((docs) => {
+      .then((docs: NativeDocumentMeta[]) => {
         if (cancelled || !docs) return
-        const checadas = docs.filter((d) => d.source.includes("BIOMETRIC"))
+        const checadas = docs.filter((d: NativeDocumentMeta) => d.source.includes("BIOMETRIC"))
         if (checadas.length === 0) return
         // Más reciente por downloadedAt
-        checadas.sort((a, b) => b.downloadedAt - a.downloadedAt)
+        checadas.sort((a: NativeDocumentMeta, b: NativeDocumentMeta) => b.downloadedAt - a.downloadedAt)
         const latest = checadas[0]
         setChecadaStatus(`Última: ${formatChecadaTime(latest.downloadedAt)}`)
         setChecadaHasData(true)
@@ -435,6 +435,26 @@ export function HomeQuickActions({ heading = "¿Qué necesitas hoy?" }: HomeQuic
     }
     router.push("/profile/mi-informacion-laboral")
   }, [router])
+
+  // Deep link: si viene con ?action=tarjeton o ?portal=tu-perfil, abrir directamente el flujo de consultar tarjetón oficial
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    try {
+      const searchParams = new URLSearchParams(window.location.search)
+      if (
+        searchParams.get("action") === "tarjeton" ||
+        searchParams.get("portal") === "tu-perfil" ||
+        searchParams.get("portal") === "imss" ||
+        searchParams.has("tarjeton") ||
+        window.location.hash === "#tarjeton" ||
+        window.location.hash === "#tu-perfil"
+      ) {
+        handleTarjetonClick()
+      }
+    } catch {
+      // Ignorar defensivamente
+    }
+  }, [handleTarjetonClick])
 
   const handleChecadasClick = useCallback(() => {
     if (typeof window !== "undefined" && window.LaVeinteApp?.openBiometrics) {

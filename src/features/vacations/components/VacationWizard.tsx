@@ -32,7 +32,10 @@ import type {
   VacationRole,
   VacationEntitlement,
   VacationAlternativeEvaluation,
+  WorkScheduleType,
+  WorkerProfile,
 } from "../domain/types"
+import { ACCUMULATED_NIGHT_VELADAS } from "../domain/schedules"
 import {
   evaluateVacationRoleEligibility,
   formatCivilMexicanDate,
@@ -83,6 +86,50 @@ const MONTH_NAMES = [
 ] as const
 
 const WEEKDAY_SHORT = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"] as const
+
+const SCHEDULE_OPTIONS: { type: WorkScheduleType; label: string; icon: string; desc: string }[] = [
+  {
+    type: "ORDINARY",
+    label: "Ordinario",
+    icon: "☀️",
+    desc: "Matutino o vespertino regular (jornada diaria)",
+  },
+  {
+    type: "ACCUMULATED_NIGHT",
+    label: "Nocturno (Veladas)",
+    icon: "🌙",
+    desc: "Guardias nocturnas / veladas acumuladas",
+  },
+  {
+    type: "ACCUMULATED_WEEKEND_DAY",
+    label: "Acumulada Diurna",
+    icon: "🗓️",
+    desc: "Jornada de fin de semana (sábado y domingo)",
+  },
+  {
+    type: "ROTATING",
+    label: "Rotativo / Especial",
+    icon: "🔄",
+    desc: "Turnos rotativos o guardias especiales",
+  },
+]
+
+const REST_PRESETS: { label: string; days: number[] }[] = [
+  { label: "Sábado y Domingo", days: [5, 6] },
+  { label: "Domingo y Lunes", days: [6, 0] },
+  { label: "Viernes y Sábado", days: [4, 5] },
+  { label: "Solo Domingo (1 día)", days: [6] },
+]
+
+function formatRestDaysSummary(days: number[]): string {
+  if (!days || days.length === 0) return "Todos laborables (sin descansos)"
+  if (days.length === 2 && days.includes(5) && days.includes(6)) return "Sábado y Domingo"
+  if (days.length === 2 && days.includes(6) && days.includes(0)) return "Domingo y Lunes"
+  if (days.length === 2 && days.includes(4) && days.includes(5)) return "Viernes y Sábado"
+  if (days.length === 1 && days[0] === 6) return "Solo Domingo"
+  const shortNames = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
+  return days.map((d) => shortNames[d] ?? "").filter(Boolean).join(", ")
+}
 
 function getMonthIndexFromIsoDate(isoDate: string): number {
   const monthPart = Number(isoDate.slice(5, 7))
@@ -335,6 +382,25 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
 
   const smi = effectiveSmi
 
+  // Configuración de Turno y Descansos Semanales
+  const initialScheduleType: WorkScheduleType = prefilled.profile?.workScheduleType ?? "ORDINARY"
+  const initialRestDays: number[] = (prefilled.profile?.weeklyRestDays && prefilled.profile.weeklyRestDays.length > 0)
+    ? prefilled.profile.weeklyRestDays
+    : [5, 6]
+
+  const [customScheduleType, setCustomScheduleType] = useState<WorkScheduleType | null>(null)
+  const [customRestDays, setCustomRestDays] = useState<number[] | null>(null)
+  const [isCustomizingSchedule, setIsCustomizingSchedule] = useState<boolean>(false)
+
+  const effectiveScheduleType: WorkScheduleType = customScheduleType ?? initialScheduleType
+  const effectiveWeeklyRestDays: number[] = customRestDays ?? initialRestDays
+
+  const effectiveWorkerProfile: WorkerProfile = useMemo(() => ({
+    ...prefilled.profile,
+    workScheduleType: effectiveScheduleType,
+    weeklyRestDays: effectiveWeeklyRestDays,
+  }), [prefilled.profile, effectiveScheduleType, effectiveWeeklyRestDays])
+
   // Detección de derecho V20
   const twentyYearsOrMoreDays = liveContext?.vacations?.twentyYearsOrMoreDays ?? 0
   const hasConfirmedV20 = twentyYearsOrMoreDays > 0
@@ -349,7 +415,7 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
   }, [liveContext?.vacations?.entitlements, prefilled.entitlements])
 
   const planInput: VacationPlanInput = useMemo(() => ({
-    workerProfile: prefilled.profile,
+    workerProfile: effectiveWorkerProfile,
     regime,
     initialContinuity,
     entitlements,
@@ -357,7 +423,7 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
     integratedMonthlySalary: smi,
     sourcePayslipPeriod,
     isReconstructedSmi,
-  }), [prefilled.profile, regime, initialContinuity, entitlements, calendar, smi, sourcePayslipPeriod, isReconstructedSmi])
+  }), [effectiveWorkerProfile, regime, initialContinuity, entitlements, calendar, smi, sourcePayslipPeriod, isReconstructedSmi])
 
   // Plan actual calculado
   const planResult = useMemo(() => {
@@ -640,6 +706,155 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
               <p style={{ fontSize: "0.85rem", color: "var(--fg)", marginTop: "0.5rem", lineHeight: 1.5 }}>
                 {salarySourceLabel}. Para mayor exactitud con tus conceptos individuales, puedes importar tu último tarjetón o personalizar este sueldo al programar tus fechas.
               </p>
+            </div>
+          )}
+        </Card>
+
+        {/* Turno y Descansos Semanales */}
+        <Card padding="1.25rem" style={{ marginBottom: "1rem" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem", marginBottom: "0.5rem" }}>
+            <div style={{ fontSize: "0.8rem", color: "var(--muted)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              Turno y descansos semanales
+            </div>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => setIsCustomizingSchedule((prev) => !prev)}
+            >
+              {isCustomizingSchedule ? "Cerrar ajustes" : "Personalizar turno o descansos ⚙️"}
+            </Button>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap", marginBottom: "0.5rem" }}>
+            <span style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.35rem",
+              padding: "0.3rem 0.65rem",
+              borderRadius: "9999px",
+              background: effectiveScheduleType === "ACCUMULATED_NIGHT" ? "#1e1b4b" : "var(--accent)",
+              color: effectiveScheduleType === "ACCUMULATED_NIGHT" ? "#c7d2fe" : "var(--fg)",
+              fontSize: "0.85rem",
+              fontWeight: 700,
+            }}>
+              {SCHEDULE_OPTIONS.find((s) => s.type === effectiveScheduleType)?.icon}{" "}
+              {SCHEDULE_OPTIONS.find((s) => s.type === effectiveScheduleType)?.label}
+            </span>
+
+            <span style={{ fontSize: "0.85rem", color: "var(--fg)" }}>
+              Descansos: <strong>{formatRestDaysSummary(effectiveWeeklyRestDays)}</strong>
+            </span>
+          </div>
+
+          {effectiveScheduleType === "ACCUMULATED_NIGHT" && (
+            <div style={{ marginTop: "0.5rem", padding: "0.6rem 0.75rem", background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.25)", borderRadius: "var(--radius-sm)", fontSize: "0.8rem", color: "var(--fg)", lineHeight: 1.45 }}>
+              🌙 <strong>Modalidad Nocturna (Veladas):</strong> Conforme a la Cláusula 47 del CCT y el Procedimiento 1A74-003-025, tus días de vacaciones se convierten en <strong>veladas efectivas de ausencia</strong>. Tu prima vacacional 029 y ayuda 048 se pagan completas sobre tus días contractuales.
+            </div>
+          )}
+
+          {isCustomizingSchedule && (
+            <div style={{ marginTop: "1rem", paddingTop: "1rem", borderTop: "1px solid var(--border)" }}>
+              {/* Selector de Tipo de Turno */}
+              <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "var(--fg)", marginBottom: "0.5rem" }}>
+                1. Selecciona tu tipo de turno o jornada:
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "0.5rem", marginBottom: "1rem" }}>
+                {SCHEDULE_OPTIONS.map((opt) => {
+                  const isSelected = effectiveScheduleType === opt.type
+                  return (
+                    <div
+                      key={opt.type}
+                      onClick={() => setCustomScheduleType(opt.type)}
+                      style={{
+                        padding: "0.65rem 0.75rem",
+                        borderRadius: "var(--radius-sm)",
+                        border: `1.5px solid ${isSelected ? "var(--primary)" : "var(--border)"}`,
+                        background: isSelected ? "rgba(37,99,235,0.08)" : "var(--card)",
+                        cursor: "pointer",
+                        transition: "all 0.15s ease",
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontWeight: 700, fontSize: "0.85rem", color: isSelected ? "var(--primary)" : "var(--fg)" }}>
+                        <span>{opt.icon}</span>
+                        <span>{opt.label}</span>
+                      </div>
+                      <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.2rem", lineHeight: 1.35 }}>
+                        {opt.desc}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Selector de Días de Descanso */}
+              <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "var(--fg)", marginBottom: "0.5rem" }}>
+                2. Días de descanso semanal o días sin guardia:
+              </div>
+              <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap", marginBottom: "0.65rem" }}>
+                {REST_PRESETS.map((preset) => {
+                  const isPresetActive = preset.days.length === effectiveWeeklyRestDays.length &&
+                    preset.days.every((d) => effectiveWeeklyRestDays.includes(d))
+                  return (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() => setCustomRestDays(preset.days)}
+                      style={{
+                        padding: "0.35rem 0.65rem",
+                        borderRadius: "9999px",
+                        border: `1px solid ${isPresetActive ? "var(--primary)" : "var(--border)"}`,
+                        background: isPresetActive ? "var(--primary)" : "var(--accent)",
+                        color: isPresetActive ? "var(--primary-fg)" : "var(--fg)",
+                        fontSize: "0.75rem",
+                        fontWeight: isPresetActive ? 700 : 500,
+                        cursor: "pointer",
+                      }}
+                    >
+                      {preset.label}
+                    </button>
+                  )
+                })}
+              </div>
+
+              {/* Checkboxes individuales Lunes a Domingo */}
+              <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginBottom: "0.35rem" }}>
+                O marca tus días de descanso individuales (no consumen días de vacaciones):
+              </div>
+              <div style={{ display: "flex", gap: "0.35rem", flexWrap: "wrap" }}>
+                {["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"].map((dName, dayIdx) => {
+                  const isDayRest = effectiveWeeklyRestDays.includes(dayIdx)
+                  return (
+                    <button
+                      key={dName}
+                      type="button"
+                      onClick={() => {
+                        if (isDayRest) {
+                          setCustomRestDays(effectiveWeeklyRestDays.filter((d) => d !== dayIdx))
+                        } else {
+                          setCustomRestDays([...effectiveWeeklyRestDays, dayIdx].sort((a, b) => a - b))
+                        }
+                      }}
+                      style={{
+                        width: "42px",
+                        height: "36px",
+                        borderRadius: "var(--radius-sm)",
+                        border: `1.5px solid ${isDayRest ? "#166534" : "var(--border)"}`,
+                        background: isDayRest ? "#dcfce7" : "var(--card)",
+                        color: isDayRest ? "#166534" : "var(--fg)",
+                        fontSize: "0.8rem",
+                        fontWeight: isDayRest ? 700 : 500,
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                      title={isDayRest ? `${dName}: Día de descanso` : `${dName}: Día laborable`}
+                    >
+                      {dName}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
           )}
         </Card>
@@ -1060,7 +1275,14 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
                     <div style={{ fontWeight: 700, marginBottom: "0.3rem" }}>Pago estimado:</div>
                     {markPayment.confidence !== "INCOMPLETE" && markPayment.grossVacationExtra !== null ? (
                       <div style={{ paddingLeft: "0.5rem", display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                        <div>Días de descanso: <strong>{activePeriodUnits} días</strong></div>
+                        <div>
+                          Días de descanso: <strong>{activePeriodUnits} días</strong>
+                          {effectiveScheduleType === "ACCUMULATED_NIGHT" && (
+                            <span style={{ color: "var(--primary)", fontWeight: 700, marginLeft: "0.35rem" }}>
+                              ({activePeriod?.entitlementBreakdown?.journeyEquivalent ?? ACCUMULATED_NIGHT_VELADAS[activePeriodUnits]} veladas de guardia)
+                            </span>
+                          )}
+                        </div>
                         <div>Prima vacacional 029: <strong>{formatMexicanCurrency(markPayment.premium029)}</strong></div>
                         <div>Ayuda cultural 048: <strong>{markPayment.culturalHelp048 !== null && markPayment.culturalHelp048 > 0 ? formatMexicanCurrency(markPayment.culturalHelp048) : "$0.00 (No aplica en esta modalidad)"}</strong></div>
                         <div style={{ marginTop: "0.25rem", color: "var(--primary)", fontWeight: 700 }}>
@@ -3044,7 +3266,7 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
                   <strong>Rol:</strong> {p.selectedRole?.label || `Rol #${p.selectedRole?.roleNumber || "—"}`}
                 </div>
                 <div>
-                  <strong>Días / Unidades:</strong> {p.units || "—"} días
+                  <strong>Días / Unidades:</strong> {p.units || "—"} días{effectiveScheduleType === "ACCUMULATED_NIGHT" && p.entitlementBreakdown ? ` (${p.entitlementBreakdown.journeyEquivalent} veladas)` : ""}
                 </div>
                 <div>
                   <strong>Inicio:</strong> {p.startDate ? formatMexicanDate(p.startDate) : "Por definir"}
@@ -3070,7 +3292,7 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
                     }}
                   >
                     <span>
-                      🏢 <strong>Te presentas a laborar:</strong> {p.returnDayName ? `${p.returnDayName} ` : ""}{formatMexicanDate(p.returnDate)}
+                      🏢 <strong>{effectiveScheduleType === "ACCUMULATED_NIGHT" ? "Tu guardia de reanudación:" : "Te presentas a laborar:"}</strong> {p.returnDayName ? `${p.returnDayName} ` : ""}{formatMexicanDate(p.returnDate)}
                     </span>
                     <span style={{ fontSize: "0.75rem", color: "#15803d" }}>(descansos y festivos aplicados)</span>
                   </div>

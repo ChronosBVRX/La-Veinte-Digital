@@ -1,12 +1,14 @@
 "use client"
 
 import { useEffect, useRef } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/shared/components/ui/Button"
 import { Sparkle, PaperPlaneRight } from "@phosphor-icons/react"
 import { useChat } from "../hooks/useChat"
 import { ChatMessage } from "./ChatMessage"
 import { ChatSuggestions } from "./ChatSuggestions"
 import { TypingIndicator } from "./TypingIndicator"
+import { PLATFORM_TOOLS } from "../lib/platform-tools"
 import Link from "next/link"
 
 const INITIAL_MESSAGE = `¡Hola! 👋 Soy tu **asistente laboral**. Pregúntame sobre el **CCT**, **Estatutos**, vacaciones, aguinaldo o cualquier duda laboral.`
@@ -18,10 +20,81 @@ interface ChatAssistantProps {
 }
 
 export function ChatAssistant({ showHeader = true }: ChatAssistantProps = {}) {
+  const router = useRouter()
   const { messages, input, setInput, loading, send, inputRef } = useChat([{ role: "assistant", content: INITIAL_MESSAGE }])
   const bottomRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const prevLenRef = useRef(messages.length)
+
+  const handleChip = (t: string) => {
+    // Si el chip coincide con alguna herramienta nativa de la plataforma
+    const matchedTool = Object.values(PLATFORM_TOOLS).find(
+      (tool) => tool.chipLabel === t || t.includes(tool.titulo) || t.includes(tool.id)
+    )
+    if (matchedTool) {
+      router.push(matchedTool.ruta)
+      return
+    }
+
+    // Si el chip es una acción hacia una herramienta nativa de la plataforma
+    if (t.includes("Redactar") || t.includes("escrito") || t.includes("Escrito")) {
+      router.push("/escritos")
+      return
+    }
+    if (t.includes("Horas Extra") || t.includes("Tiempo Extra")) {
+      router.push("/calculadoras/tiempo-extra")
+      return
+    }
+    if (t.includes("Aguinaldo")) {
+      router.push("/calculadoras/aguinaldo")
+      return
+    }
+    if (t.includes("Cláusula 97") || t.includes("Clausula 97")) {
+      router.push("/calculadoras/clausula-97")
+      return
+    }
+    if (t.includes("Préstamos") || t.includes("Prestamos")) {
+      router.push("/calculadoras/prestamos")
+      return
+    }
+    if (t.includes("Vacaciones") || t.includes("vacaciones")) {
+      if (t.includes("Regreso")) {
+        router.push("/calculadoras/regreso-vacaciones")
+      } else {
+        router.push("/vacaciones")
+      }
+      return
+    }
+    if (t.includes("Calendario") || t.includes("Descansos")) {
+      router.push("/calendario")
+      return
+    }
+    if (t.includes("Quincena")) {
+      router.push("/guia/mi-quincena")
+      return
+    }
+    if (t.includes("Conceptos")) {
+      router.push("/guia/conceptos")
+      return
+    }
+    if (t.includes("Bitácora") || t.includes("Bitacora")) {
+      router.push("/bitacora")
+      return
+    }
+    if (t.includes("Tarjetón") || t.includes("Tarjeton")) {
+      router.push("/profile/mi-informacion-laboral")
+      return
+    }
+    if (t.includes("Biblioteca")) {
+      router.push("/biblioteca-normativa")
+      return
+    }
+    if (t.includes("Calculadoras")) {
+      router.push("/calculadoras")
+      return
+    }
+    send(t)
+  }
 
   useEffect(() => {
     // Autoscroll solo si ya estaba cerca del final (no interfiere si lee histórico)
@@ -79,7 +152,7 @@ export function ChatAssistant({ showHeader = true }: ChatAssistantProps = {}) {
           display: "flex", flexDirection: "column", gap: "0.625rem",
         } as React.CSSProperties}>
         {messages.map((msg, i) => (
-          <ChatMessage key={i} message={msg} onChip={(t) => send(t)} />
+          <ChatMessage key={i} message={msg} onChip={handleChip} />
         ))}
         {loading && <TypingIndicator />}
         <div ref={bottomRef} />

@@ -10,6 +10,7 @@ import { ResponsiveDialog } from "@/shared/components/ui"
 import {
   createEmptyEscritoDraftV2,
   type EscritoDraftV2,
+  type TipoEscritoKey,
 } from "@/shared/contracts/escrito-draft"
 import {
   getEscritosGuardados,
@@ -53,7 +54,30 @@ export function EscritosGenerator() {
   }>({})
 
   const [stage, setStage] = useState<"form" | "editor" | "preview">("form")
-  const [draft, setDraft] = useState<EscritoDraftV2>(() => createEmptyEscritoDraftV2("anonymous"))
+  const [draft, setDraft] = useState<EscritoDraftV2>(() => {
+    const initial = createEmptyEscritoDraftV2("anonymous")
+    const paramTipo = searchParams.get("tipo")
+    const paramAsunto = searchParams.get("asunto") || searchParams.get("motivo")
+    const paramHechos = searchParams.get("hechos")
+    const paramPeticion = searchParams.get("peticion")
+    const paramDestino = searchParams.get("destino") || searchParams.get("destinoCargo")
+    const paramNombre = searchParams.get("nombreDestino") || searchParams.get("destinoNombre")
+
+    const validTipos = ["solicitud", "aclaracion", "queja", "seguimiento", "libre"]
+    if (paramTipo && validTipos.includes(paramTipo.toLowerCase())) {
+      initial.tipo = paramTipo.toLowerCase() as TipoEscritoKey
+    }
+    if (paramAsunto) initial.asunto = paramAsunto
+    if (paramHechos) initial.hechos = paramHechos
+    if (paramPeticion) initial.peticion = paramPeticion
+    if (paramDestino || paramNombre) {
+      initial.destino = {
+        cargo: paramDestino || initial.destino?.cargo || "",
+        nombre: paramNombre || initial.destino?.nombre || "",
+      }
+    }
+    return initial
+  })
   const [lastSavedSnapshot, setLastSavedSnapshot] = useState<string | null>(null)
   const [savedList, setSavedList] = useState<EscritoDraftV2[]>([])
   const [isGenerating, setIsGenerating] = useState(false)
@@ -150,6 +174,41 @@ export function EscritosGenerator() {
       })
     }
   }, [urlId, userId])
+
+  // 3b. Prellenar borrador nuevo con contexto proveniente del Asistente o enlaces externos (?tipo=...&asunto=...)
+  useEffect(() => {
+    if (urlId) return
+    const paramTipo = searchParams.get("tipo")
+    const paramAsunto = searchParams.get("asunto") || searchParams.get("motivo")
+    const paramHechos = searchParams.get("hechos")
+    const paramPeticion = searchParams.get("peticion")
+    const paramDestino = searchParams.get("destino") || searchParams.get("destinoCargo")
+    const paramNombre = searchParams.get("nombreDestino") || searchParams.get("destinoNombre")
+
+    if (paramTipo || paramAsunto || paramHechos || paramPeticion || paramDestino || paramNombre) {
+      queueMicrotask(() => {
+        setDraft((prev) => {
+          const validTipos = ["solicitud", "aclaracion", "queja", "seguimiento", "libre"]
+          const tipoFinal =
+            paramTipo && validTipos.includes(paramTipo.toLowerCase())
+              ? (paramTipo.toLowerCase() as TipoEscritoKey)
+              : prev.tipo
+
+          return {
+            ...prev,
+            tipo: tipoFinal,
+            asunto: paramAsunto || prev.asunto,
+            hechos: paramHechos || prev.hechos,
+            peticion: paramPeticion || prev.peticion,
+            destino: {
+              cargo: paramDestino || prev.destino?.cargo || "",
+              nombre: paramNombre || prev.destino?.nombre || "",
+            },
+          }
+        })
+      })
+    }
+  }, [searchParams, urlId])
 
   // Detección canónica de cambios sin guardar
   const currentSnapshot = useMemo(() => serializePersistableDraft(draft), [draft])

@@ -17,7 +17,8 @@ import { formatBytes } from "@/features/transferir/lib/transfer"
 import type { NativeDocumentMeta, TransferFileMeta } from "@/features/transferir/lib/transfer"
 import { TransferShell } from "./TransferShell"
 
-const FILE_INPUT_ACCEPT = "image/*,application/pdf"
+// Sin restricción de tipos de archivo para el experimento temporal (permite cualquier archivo)
+const FILE_INPUT_ACCEPT: string | undefined = undefined
 
 function nativeSourceLabel(source: string): string {
   if (source.includes("BIOMETRIC")) return "Checadas · Tu Perfil IMSS"
@@ -40,8 +41,8 @@ export function TransferPhonePage({ token }: { token: string }) {
     if (!isNative) return
     let cancelled = false
     window.LaVeinteApp!.listNativeDocuments()
-      .then((docs) => {
-        if (!cancelled) setNativeDocs(docs.filter((d) => d.fileSize > 0))
+      .then((docs: NativeDocumentMeta[]) => {
+        if (!cancelled) setNativeDocs(docs.filter((d: NativeDocumentMeta) => d.fileSize > 0))
       })
       .catch(() => {
         if (!cancelled) setNativeDocs([])

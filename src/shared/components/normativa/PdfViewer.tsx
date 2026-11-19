@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState, useCallback, type CSSProperties } from "react"
+import { useEffect, useRef, useState, useCallback, useMemo, type CSSProperties } from "react"
 import {
   ChevronLeft,
   ChevronRight,
@@ -81,6 +81,23 @@ export function PdfViewer({
 
   // Sugerencia sutil de gestos táctiles (desaparece a los 4 seg)
   const [showGestureHint, setShowGestureHint] = useState(false)
+
+  const htmlSourceLabel = useMemo(() => {
+    const combined = `${category || ""} ${title || ""} ${officialUrl || ""} ${documentId || ""}`.toLowerCase()
+    if (combined.includes("diputados") || combined.includes("cámara") || combined.includes("camara") || combined.includes("leyesbiblio")) {
+      return "Cámara de Diputados · Portal Oficial"
+    }
+    if (combined.includes("sntss")) {
+      return "SNTSS · Documento Oficial"
+    }
+    if (combined.includes("imss")) {
+      return "IMSS · Portal Oficial"
+    }
+    if (combined.includes("dof") || combined.includes("diario oficial") || combined.includes("nom-") || combined.includes("normasoficiales")) {
+      return "Diario Oficial de la Federación (DOF)"
+    }
+    return "Publicación Oficial"
+  }, [category, title, officialUrl, documentId])
 
   const pdfRef = useRef<Awaited<ReturnType<typeof loadPdfDocument>> | null>(null)
   const searchCacheRef = useRef<Map<number, PageSearchData>>(new Map())
@@ -192,7 +209,16 @@ export function PdfViewer({
 
         // Solo si NO contiene firma %PDF y expresamente el servidor declara HTML o contiene etiquetas HTML
         if (!isPdf && (formatHeader === "html" || contentType.includes("text/html"))) {
-          const text = new TextDecoder("utf-8").decode(buf)
+          let text = new TextDecoder("utf-8").decode(buf)
+          if (text.includes("\uFFFD")) {
+            try {
+              const winText = new TextDecoder("windows-1252").decode(buf)
+              if (!winText.includes("\uFFFD")) text = winText
+            } catch {}
+          }
+          if (officialUrl && !/<base\s/i.test(text) && /<head[^>]*>/i.test(text)) {
+            text = text.replace(/(<head[^>]*>)/i, `$1\n<base href="${officialUrl}">`)
+          }
           setDocType("html")
           setHtmlContent(text)
           setLoading(false)
@@ -232,7 +258,7 @@ export function PdfViewer({
       void pdfRef.current?.loadingTask.destroy()
       pdfRef.current = null
     }
-  }, [url, retryCount])
+  }, [url, retryCount, officialUrl])
 
   // Renderizado de página en el Canvas de alta resolución
   useEffect(() => {
@@ -664,7 +690,7 @@ export function PdfViewer({
           </div>
         ) : (
           <span style={{ fontSize: "0.75rem", color: "#94a3b8", fontWeight: 600 }}>
-            {loading ? "Cargando..." : docType === "html" ? "Documento Oficial DOF" : "Visor Oficial"}
+            {loading ? "Cargando..." : docType === "html" ? htmlSourceLabel : "Visor Oficial"}
           </span>
         )}
 
@@ -1092,20 +1118,81 @@ export function PdfViewer({
           </div>
         </div>
       ) : docType === "html" ? (
-          <div style={{ width: "100%", height: "100%", background: "#fff", flex: 1, display: "flex", flexDirection: "column" }}>
-            <iframe
-              ref={iframeRef}
-              srcDoc={htmlContent}
-              sandbox="allow-same-origin"
-              title="Documento Oficial DOF"
+          <div
+            style={{
+              minHeight: "100%",
+              width: "100%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "3rem 1.25rem",
+              boxSizing: "border-box",
+            }}
+          >
+            <div
               style={{
+                maxWidth: 480,
                 width: "100%",
-                height: "100%",
-                border: "none",
-                display: "block",
-                flex: 1,
+                background: "rgba(15, 23, 42, 0.85)",
+                border: "1px solid rgba(255, 255, 255, 0.15)",
+                borderRadius: 16,
+                padding: "2.25rem 1.5rem",
+                textAlign: "center",
+                color: "#f8fafc",
+                boxShadow: "0 10px 40px rgba(0, 0, 0, 0.5)",
               }}
-            />
+            >
+              <div
+                style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: "50%",
+                  background: "rgba(37, 99, 235, 0.2)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  margin: "0 auto 1.25rem",
+                  border: "1px solid rgba(59, 130, 246, 0.35)",
+                }}
+              >
+                <ExternalLink size={26} color="#60a5fa" />
+              </div>
+              <h3 style={{ margin: "0 0 0.5rem", fontSize: "1.2rem", fontWeight: 700, color: "#f8fafc" }}>
+                {title || htmlSourceLabel}
+              </h3>
+              <p style={{ margin: "0 0 1.5rem", fontSize: "0.88rem", color: "#cbd5e1", lineHeight: 1.5 }}>
+                Este documento es un compendio y portal web oficial interactivo ({htmlSourceLabel}). Para una experiencia rápida, fluida y con acceso a todos sus índices y formatos oficiales, se visualiza a través del navegador oficial integrado.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  const target = officialUrl || url
+                  if (typeof window !== "undefined" && window.LaVeinteApp?.openExternal) {
+                    window.LaVeinteApp.openExternal(target)
+                  } else if (typeof window !== "undefined") {
+                    window.open(target, "_blank", "noopener,noreferrer")
+                  }
+                }}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "0.5rem",
+                  width: "100%",
+                  padding: "0.8rem 1.25rem",
+                  background: "var(--primary)",
+                  color: "#ffffff",
+                  border: "none",
+                  borderRadius: "var(--radius)",
+                  fontSize: "0.92rem",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                <ExternalLink size={17} />
+                <span>Abrir portal oficial interactivo</span>
+              </button>
+            </div>
           </div>
         ) : (
           <div

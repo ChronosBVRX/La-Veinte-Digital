@@ -55,7 +55,7 @@ function setupWorkerWithSalary(amount002 = 10000, amount011 = 8215) {
   }
 }
 
-function setupWorkerWithoutPayslip() {
+function _setupWorkerWithoutPayslip() {
   mockWorkerStatus = "ready"
   mockWorkerError = null
   mockWorkerContext = {
@@ -160,6 +160,19 @@ describe("HomeHighlightsCarousel", () => {
     expect(screen.getByTestId("highlight-guia-tarjeton")).toBeDefined()
     const cta = screen.getByRole("link", { name: /Entender mi tarjetón/i })
     expect(cta.getAttribute("href")).toBe("/guia")
+  })
+
+  it("7b. La Veinte Radio aparece como slide con recomendación de episodio y enlace a /radio", () => {
+    render(<HomeHighlightsCarousel />)
+    const tab = screen.getByRole("tab", { name: /¿Cuántos Pacientes Me Tocan\?/i })
+    expect(tab).toBeDefined()
+
+    fireEvent.click(tab)
+    expect(screen.getByTestId("highlight-radio-podcast")).toBeDefined()
+    expect(screen.getByText("LA VEINTE RADIO · PODCAST")).toBeDefined()
+    expect(screen.getByText("Escuchar capítulo")).toBeDefined()
+    const cta = screen.getByRole("link", { name: /Escuchar capítulo/i })
+    expect(cta.getAttribute("href")).toBe("/radio")
   })
 
   it("8. regla de exclusión funcional: las 6 funciones de HomeQuickActions NO se duplican por ID, título ni ruta", () => {

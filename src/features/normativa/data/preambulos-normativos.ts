@@ -534,7 +534,7 @@ Aquí puedes encontrar los límites en kilogramos según edad y género, las con
   },
   {
     documentId: "LEY-SILLA-2025",
-    urlOficial: "https://www.dof.gob.mx/nota_detalle.php?codigo=5763187&fecha=17/07/2025",
+    urlOficial: "https://dof.gob.mx/nota_detalle.php?codigo=5763187&fecha=17%2F07%2F2025",
     aliasIds: ["ley-silla", "bipedestacion"],
     tituloComun: "Disposiciones de Bipedestación ('Ley Silla')",
     claveOficial: "Reforma LFT DOF 17-07-2025",
@@ -570,7 +570,7 @@ Aquí puedes encontrar la obligación del Instituto de proveer asientos o sillas
   },
   {
     documentId: "IMSS-CODIGO-CONDUCTA",
-    urlOficial: "https://www.imss.gob.mx/sites/all/statics/pdf/codigo-conducta.pdf",
+    urlOficial: "https://dof.gob.mx/nota_detalle.php?codigo=5744158&fecha=06%2F11%2F2024",
     aliasIds: ["codigo-de-conducta"],
     tituloComun: "Código de Conducta y Prevención de Conflictos de Interés",
     claveOficial: "Código de Conducta IMSS",
@@ -2965,6 +2965,224 @@ Seguridad Radiológica y Derechos del Trabajador (POE):
       "El formaldehído es una sustancia clasificada como cancerígena; está estrictamente prohibido trabajar con recipientes abiertos fuera de campana de extracción.",
     ],
   },
+];
+
+export const PREAMBULOS_COMPENDIOS: PreambuloNormativo[] = [
+  {
+    documentId: "CAMARA-LEYES",
+    urlOficial: "https://www.diputados.gob.mx/LeyesBiblio/index.htm",
+    aliasIds: ["leyes-federales", "camara-diputados", "leyes-biblio", "diputados-leyes", "compendio-leyes"],
+    tituloComun: "Compendio de Leyes Federales Vigentes (Cámara de Diputados)",
+    claveOficial: "Congreso de la Unión / Leyes Federales",
+    organizacion: "Cámara de Diputados del H. Congreso de la Unión",
+    categoria: "leyes",
+    enUnaFrase: "Buscador y acervo oficial con el texto íntegro y actualizado de todas las leyes federales, códigos y reformas constitucionales de México.",
+    preambulo: "Portal oficial de la Cámara de Diputados del H. Congreso de la Unión. Compila el texto legal completo y actualizado de todas las leyes federales vigentes en la República Mexicana, publicadas en el Diario Oficial de la Federación, incluyendo la Ley Federal del Trabajo, Ley del Seguro Social, Ley General de Salud y ordenamientos conexos.",
+    aQuienAplica: [
+      "Trabajadores y servidores públicos",
+      "Organizaciones sindicales e instituciones",
+      "Población en general",
+    ],
+    aquiPuedesEncontrar: [
+      "Texto completo y reformas recientes de la Ley Federal del Trabajo (LFT).",
+      "Leyes federales en materia de seguridad social, salud, vivienda (INFONAVIT) y retiro (SAR).",
+      "Códigos nacionales y disposiciones constitucionales aplicables al ámbito laboral.",
+    ],
+    temasClave: [
+      {
+        tema: "Leyes Federales de México",
+        referencia: "Cámara de Diputados",
+        queEncontraras: "Buscador temático y cronológico de leyes y códigos federales vigentes",
+        relevancia: "destacada",
+      },
+    ],
+    cuandoConsultarlo: [
+      "Para verificar reformas de ley publicadas recientemente en el Diario Oficial de la Federación.",
+      "Al fundamentar demandas laborales, amparos o recursos legales de fondo.",
+      "Para consultar cualquier ley federal mexicana citada en el CCT o reglamentos institucionales.",
+    ],
+    ojoConEsto: [
+      "Las leyes federales son de rango superior a reglamentos internos o circulares institucionales. Ninguna disposición administrativa del IMSS puede contravenir la legislación federal ni los derechos mínimos reconocidos a la base trabajadora.",
+    ],
+  },
+  {
+    documentId: "SNTSS-DOCUMENTOS",
+    urlOficial: "https://sntss.org.mx/documentos/",
+    aliasIds: ["sntss-docs", "documentos-sntss", "portal-sntss"],
+    tituloComun: "Portal de Documentos Oficiales del SNTSS",
+    claveOficial: "SNTSS / Repositorio Oficial",
+    organizacion: "Comité Ejecutivo Nacional del SNTSS",
+    categoria: "sntss",
+    enUnaFrase: "Repositorio oficial del SNTSS con convocatorias, reglamentos bilaterales, formatos de trámite y comunicados sindicales.",
+    preambulo: "Plataforma oficial del Sindicato Nacional de Trabajadores del Seguro Social donde se publican documentos de interés general para la base trabajadora agremiada, incluyendo convocatorias a congresos, circulares de comisiones mixtas y formatos de trámite.",
+    aQuienAplica: [
+      "Trabajadores sindicalizados del IMSS e IMSS-Bienestar",
+      "Secciones sindicales de todo el país",
+    ],
+    aquiPuedesEncontrar: [
+      "Reglamentos bilaterales CCT para consulta y descarga oficial.",
+      "Convocatorias a congresos, asambleas y comicios seccionales.",
+      "Formatos de préstamos, becas y trámites ante comisiones mixtas.",
+    ],
+    temasClave: [
+      {
+        tema: "Documentos Sindicales Oficiales",
+        referencia: "SNTSS Nacional",
+        queEncontraras: "Formatos, circulares y reglamentos bilaterales",
+        relevancia: "alta",
+      },
+    ],
+    cuandoConsultarlo: [
+      "Al requerir formatos originales emitidos por el Comité Ejecutivo Nacional.",
+      "Para corroborar la autenticidad de comunicados o circulares sindicales.",
+    ],
+    ojoConEsto: [
+      "Verifica siempre que los comunicados y documentos sindicales cuenten con sello y firma digital o autógrafa de la representación seccional o nacional acreditada.",
+    ],
+  },
+  {
+    documentId: "SNTSS-LEYES-REGLAMENTOS",
+    urlOficial: "https://sntss.org.mx/leyes-reglamentos",
+    aliasIds: ["sntss-reglamentos", "reglamentos-sntss", "leyes-sntss"],
+    tituloComun: "Compendio de Leyes y Reglamentos de Trabajo del SNTSS",
+    claveOficial: "SNTSS / Reglamentación Laboral",
+    organizacion: "SNTSS / Secretaría de Asuntos Jurídicos",
+    categoria: "sntss",
+    enUnaFrase: "Compendio digital de los reglamentos que rigen la relación bilateral IMSS-SNTSS y los derechos de la base agremiada.",
+    preambulo: "Concentra el marco reglamentario derivado del Contrato Colectivo de Trabajo, incluyendo bolsa de trabajo, escalafón, capacitación, becas y comisiones mixtas paritarias, constituyendo la base de los derechos laborales de la base trabajadora.",
+    aQuienAplica: [
+      "Trabajadores de base sindicalizados",
+      "Integrantes de comisiones mixtas",
+      "Delegados y representantes sindicales",
+    ],
+    aquiPuedesEncontrar: [
+      "Todos los reglamentos anexos al CCT vigentes.",
+      "Estatutos del SNTSS y normas de disciplina interna.",
+      "Bases de funcionamiento de comisiones mixtas contractuales.",
+    ],
+    temasClave: [
+      {
+        tema: "Reglamentación Bilateral",
+        referencia: "CCT / Anexos",
+        queEncontraras: "Reglamentos de escalafón, bolsa, becas y capacitación",
+        relevancia: "destacada",
+      },
+    ],
+    cuandoConsultarlo: [
+      "Para verificar las reglas de ascensos, cambios de rama, bolsa y escalafón.",
+      "Al exigir derechos relativos a capacitación, uniformes o seguridad e higiene.",
+    ],
+    ojoConEsto: [
+      "Los reglamentos bilaterales tienen fuerza contractual idéntica al Contrato Colectivo de Trabajo; ninguna autoridad patronal puede modificarlos unilateralmente.",
+    ],
+  },
+  {
+    documentId: "IMSS-MARCO-NORMATIVO",
+    urlOficial: "https://www.imss.gob.mx/conoce-al-imss/marco-normativo",
+    aliasIds: ["marco-normativo-imss", "normas-imss", "normateca-imss"],
+    tituloComun: "Marco Normativo Institucional del IMSS (Normateca)",
+    claveOficial: "IMSS / Normateca Institucional",
+    organizacion: "Instituto Mexicano del Seguro Social / Dirección Jurídica",
+    categoria: "reglamentos",
+    enUnaFrase: "Repositorio institucional con reglamentos interiores, estatutos orgánicos, manuales de organización y acuerdos normativos del IMSS.",
+    preambulo: "Portal oficial donde el Instituto compila la totalidad de sus disposiciones normativas, estructuras orgánicas, atribuciones de direcciones normativas y delegaciones de facultades en los Órganos de Operación Administrativa Desconcentrada.",
+    aQuienAplica: [
+      "Personal de confianza y de base del IMSS",
+      "Órganos de operación administrativa desconcentrada (OOAD)",
+      "Jefaturas y direcciones médicas",
+    ],
+    aquiPuedesEncontrar: [
+      "Reglamento Interior del IMSS (RIIMSS).",
+      "Manuales de Organización Institucional.",
+      "Atribuciones legales y facultades delegadas de mandos y coordinaciones.",
+    ],
+    temasClave: [
+      {
+        tema: "Normativa Institucional IMSS",
+        referencia: "Dirección Jurídica IMSS",
+        queEncontraras: "Estatutos, reglamentos internos y facultades de mandos",
+        relevancia: "alta",
+      },
+    ],
+    cuandoConsultarlo: [
+      "Para corroborar si una jefatura tiene facultades reglamentarias expresas para emitir una orden o instrucción.",
+      "Al revisar la estructura de mando y deslinde de responsabilidades operativas.",
+    ],
+    ojoConEsto: [
+      "Cualquier instrucción operativa emanada de un manual institucional debe sujetarse estrictamente a las funciones descritas en el profesiograma contractual de tu categoría.",
+    ],
+  },
+  {
+    documentId: "IMSS-CONSEJO-TECNICO",
+    urlOficial: "https://acuerdospublicos.imss.gob.mx/",
+    aliasIds: ["acuerdos-consejo-tecnico", "h-consejo-tecnico", "consejo-tecnico-imss"],
+    tituloComun: "Acuerdos Públicos del H. Consejo Técnico del IMSS",
+    claveOficial: "IMSS / H. Consejo Técnico",
+    organizacion: "H. Consejo Técnico del Instituto Mexicano del Seguro Social",
+    categoria: "procedimientos",
+    enUnaFrase: "Buscador oficial de resoluciones, acuerdos y criterios normativos aprobados por el máximo órgano de gobierno del IMSS.",
+    preambulo: "El H. Consejo Técnico es el órgano de gobierno, representante legal y administrador del IMSS, con integración tripartita (obrero, patronal y gubernamental). En este repositorio se publican los acuerdos formales que definen políticas de operación, criterios de afiliación, prestaciones y lineamientos laborales.",
+    aQuienAplica: [
+      "Derechohabientes y patrones",
+      "Trabajadores del Instituto",
+      "Órganos desconcentrados y unidades hospitalarias",
+    ],
+    aquiPuedesEncontrar: [
+      "Criterios de interpretación en materia de seguridad social.",
+      "Acuerdos de ampliación de beneficios, programas preventivos e infraestructura.",
+      "Resoluciones de carácter general sobre operación de prestaciones médicas y económicas.",
+    ],
+    temasClave: [
+      {
+        tema: "Acuerdos del Consejo Técnico",
+        referencia: "Órgano Tripartito IMSS",
+        queEncontraras: "Resoluciones de observancia obligatoria y criterios de gobierno",
+        relevancia: "alta",
+      },
+    ],
+    cuandoConsultarlo: [
+      "Para verificar si una prestación o criterio institucional ha sido ratificado o modificado por el Consejo Técnico.",
+      "Al respaldar peticiones formales con acuerdos aprobados por el órgano de gobierno del Instituto.",
+    ],
+    ojoConEsto: [
+      "Los acuerdos del Consejo Técnico que beneficien a los asegurados o trabajadores son de cumplimiento obligatorio para todas las representaciones y dependencias del IMSS.",
+    ],
+  },
+  {
+    documentId: "IMSS-INDEX-LEGAL",
+    urlOficial: "https://www.imss.gob.mx/sites/all/statics/guiando/ordenamientos-juridicos-vigentes.pdf",
+    aliasIds: ["ordenamientos-juridicos-vigentes", "index-legal-imss", "legislacion-servidores-publicos"],
+    tituloComun: "Compilación de Ordenamientos Jurídicos Vigentes del Servidor Público en el IMSS",
+    claveOficial: "IMSS / Órgano Interno de Control",
+    organizacion: "IMSS / Unidad de Responsabilidades",
+    categoria: "integridad",
+    enUnaFrase: "Guía oficial de las leyes, reglamentos y códigos de ética que rigen la actuación legal y deslinde de responsabilidades del personal institucional.",
+    preambulo: "Compilación elaborada para orientar al personal en el ejercicio de sus funciones, detallando el catálogo de leyes federales, códigos de conducta y normas de integridad que aplican a las personas servidoras públicas del Instituto Mexicano del Seguro Social.",
+    aQuienAplica: [
+      "Personal directivo, médico, administrativo y operativo del IMSS",
+      "Trabajadores de base y de confianza",
+    ],
+    aquiPuedesEncontrar: [
+      "Marco general de la Ley General de Responsabilidades Administrativas.",
+      "Directrices de conducta ética y prevención de conflictos de interés.",
+      "Fundamentos de actuación para no incurrir en faltas administrativas ni responsabilidad legal.",
+    ],
+    temasClave: [
+      {
+        tema: "Responsabilidades del Servidor Público",
+        referencia: "LGRA / Ética IMSS",
+        queEncontraras: "Catálogo de obligaciones y marco preventivo",
+        relevancia: "alta",
+      },
+    ],
+    cuandoConsultarlo: [
+      "Al recibir requerimientos del Órgano Interno de Control o de la Unidad de Responsabilidades.",
+      "Para conocer con exactitud tus obligaciones éticas y legales en el desempeño de tu cargo.",
+    ],
+    ojoConEsto: [
+      "Tu apego al profesiograma de tu categoría y a los procedimientos oficiales aprobados es tu principal defensa jurídica ante cualquier queja o procedimiento del OIC.",
+    ],
+  },
 ]
 
 export const TEMAS_COTIDIANOS_TRABAJADOR: Array<{
@@ -3245,7 +3463,8 @@ export const TEMAS_COTIDIANOS_TRABAJADOR: Array<{
 export function getPreambulo(docIdOrAlias: string): PreambuloNormativo | undefined {
   if (!docIdOrAlias) return undefined
   const clean = docIdOrAlias.trim().toLowerCase()
-  return PREAMBULOS_NORMATIVOS.find(
+  const pool = [...PREAMBULOS_NORMATIVOS, ...PREAMBULOS_COMPENDIOS];
+  return pool.find(
     (p) =>
       p.documentId.toLowerCase() === clean ||
       (p.claveOficial && p.claveOficial.toLowerCase() === clean) ||
@@ -3270,7 +3489,8 @@ export function searchPreambulosEnLenguajeNatural(query: string): PreambuloNorma
   const words = q.split(/\s+/).filter((w) => w.length >= 2)
   if (words.length === 0) return PREAMBULOS_NORMATIVOS
 
-  return PREAMBULOS_NORMATIVOS.filter((p) => {
+  const all = [...PREAMBULOS_NORMATIVOS, ...PREAMBULOS_COMPENDIOS];
+  return all.filter((p) => {
     const haystack = [
       p.tituloComun,
       p.claveOficial ?? "",

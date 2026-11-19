@@ -260,4 +260,39 @@ describe("Renderizador de PDF Vectorial Carta (escrito-pdf-renderer)", () => {
     expect(pdfFile.type).toBe("application/pdf")
     expect(pdfFile.size).toBeGreaterThan(1000)
   })
+
+  it("buildJsPdfDocument gestiona escritos de varias páginas con encabezado de continuidad y numeración", async () => {
+    const userId = "usr_multipage"
+    const longParagraph =
+      "El presente documento expone una detallada relación de hechos y antecedentes ocurridos durante la jornada laboral en la unidad médica correspondiente. " +
+      "Se ha observado de manera reiterada la necesidad de ajustar los roles de servicio y garantizar el cumplimiento cabal de los acuerdos contractuales. " +
+      "Asimismo, los trabajadores han manifestado diversas inconformidades respecto a la distribución de turnos extraordinarios sin previo aviso. " +
+      "Por lo anterior, se requiere una revisión exhaustiva de las incidencias registradas en el sistema de control de asistencia del personal sindicalizado. "
+
+    const draft = createEmptyEscritoDraftV2(userId, "solicitud", {
+      id: "doc_multi",
+      asunto: "Solicitud detallada de revisión de jornada y turnos",
+      destino: { cargo: "Director de la Unidad", nombre: "Dr. Roberto Martínez" },
+      ciudad: "Morelia, Michoacán",
+      fecha: "2026-09-01",
+      cuerpo: [longParagraph, longParagraph, longParagraph, longParagraph, longParagraph].join("\n\n"),
+      copias: [
+        { id: "cp1", cargo: "Secretario de Trabajo", nombre: "Representación Sindical" },
+        { id: "cp2", cargo: "Jefe de Personal", nombre: "Recursos Humanos" },
+      ],
+    })
+
+    const jsDoc = await buildJsPdfDocument(draft, userId, {
+      nombreTrabajador: "Mario Hernández Silva",
+      matricula: "99123456",
+      categoria: "ENFERMERO GENERAL",
+    })
+
+    // Debe generar al menos 2 páginas debido a la longitud del cuerpo
+    expect(jsDoc.getNumberOfPages()).toBeGreaterThanOrEqual(2)
+
+    const pdfFile = await renderStoredEscritoToPdfFile(draft, userId)
+    expect(pdfFile).toBeInstanceOf(File)
+    expect(pdfFile.size).toBeGreaterThan(2000)
+  })
 })

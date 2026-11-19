@@ -28,6 +28,7 @@ deploy-web.tar.gz
 # misc
 .DS_Store
 *.pem
+*.exe
 
 # debug
 npm-debug.log*
@@ -101,6 +102,13 @@ __pycache__/
 # Local temp & scratch
 /tmp/
 /output/
+/scratch/
+/e2e-screenshots/
+
+# Desktop app artifacts y perfil de usuario local
+/desktop-app/dist/
+/desktop-app/dist-package/
+/desktop-app/Datos/
 
 # Representación sindical: trabajo local con PII (nunca versionar)
 .local-private/

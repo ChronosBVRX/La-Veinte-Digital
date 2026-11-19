@@ -6,6 +6,7 @@
  * o de revisión. No evaluable se reserva a datos ausentes.
  */
 import type { GuidePayslip, GuideOccurrence } from "@/features/tarjeton-guia/lib/types"
+import { normalizeCode } from "@/features/tarjeton-guia/lib/normalize"
 
 export type GuideReviewState = "normal" | "info" | "review" | "no-evaluable"
 
@@ -83,8 +84,52 @@ export const guideReviewRules: GuideReviewRule[] = [
   {
     id: "sueldo-base",
     code: "002",
-    label: "Sueldo base",
-    when: (p) => (hasCode(p.earnings, "002") ? "present" : "absent"),
+    label: "Sueldo base o suplencia",
+    evaluate: (p) => {
+      const line008 = p.earnings.find((l) => normalizeCode(l.code) === "008")
+      const line002 = p.earnings.find((l) => normalizeCode(l.code) === "002")
+      const line001 = p.earnings.find((l) => normalizeCode(l.code) === "001")
+      const line003 = p.earnings.find((l) => normalizeCode(l.code) === "003")
+      const line009 = p.earnings.find((l) => normalizeCode(l.code) === "009")
+
+      if (line008) {
+        return {
+          state: "normal",
+          message: "Sueldo de suplencia encontrado (Concepto 008 · Sueldo sustitutos)",
+          caveat: "Como trabajador sustituto de Bolsa de Trabajo, tus coberturas se remuneran a través del concepto 008 en lugar del 002.",
+        }
+      }
+      if (line002) {
+        return {
+          state: "normal",
+          message: "Sueldo base tabular encontrado (Concepto 002)",
+        }
+      }
+      if (line001) {
+        return {
+          state: "normal",
+          message: "Sueldo base de confianza encontrado (Concepto 001)",
+        }
+      }
+      if (line003) {
+        return {
+          state: "normal",
+          message: "Sueldo temporal encontrado (Concepto 003)",
+        }
+      }
+      if (line009) {
+        return {
+          state: "normal",
+          message: "Sueldo de médico residente encontrado (Concepto 009)",
+        }
+      }
+
+      return {
+        state: "review",
+        message: "No se identificó concepto de sueldo (002 de base o 008 de suplencia)",
+        caveat: "Si eres trabajador titular debes contar con el concepto 002; si eres sustituto de Bolsa de Trabajo tu sueldo por guardias o jornadas cubiertas se paga en el concepto 008.",
+      }
+    },
     presentState: "normal",
     absentState: "review",
     presentMessage: "Sueldo base encontrado",

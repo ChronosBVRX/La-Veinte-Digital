@@ -1186,6 +1186,11 @@ export const guideConcepts: GuideConcept[] = [
     "requiresCurrentValidation": false,
     "searchTerms": [
       "008",
+      "08",
+      "suplencias",
+      "suplente",
+      "suplentes",
+      "bolsa de trabajo",
       "sueldo sustitutos"
     ]
   },
@@ -1602,6 +1607,26 @@ export const guideConcepts: GuideConcept[] = [
     "searchTerms": [
       "033",
       "estímulo por puntualidad"
+    ]
+  },
+  {
+    "code": "035",
+    "name": "GUARDIAS",
+    "kind": "perception",
+    "catalog": {
+      "listed": true,
+      "detail": [
+        {
+          "text": "Concepto 035 Guardias. Cláusulas 32, 33, 43 y 46 del CCT. Retribuye guardias y jornadas extraordinarias laboradas en días de descanso obligatorio, festivos oficiales o jornadas especiales autorizadas, con desglose de fechas en Observaciones."
+        }
+      ]
+    },
+    "status": "reference-only",
+    "requiresCurrentValidation": true,
+    "searchTerms": [
+      "035",
+      "guardias",
+      "guardia"
     ]
   },
   {

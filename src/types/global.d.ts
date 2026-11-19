@@ -55,6 +55,8 @@ declare global {
     saveBlobToDownloads?(base64Data: string, filename?: string, mimeType?: string): boolean
     sendPdfShareMessage?(msg: string | Record<string, unknown>): boolean
     openAppSettings(): void
+    /** Sincroniza recordatorios locales de agenda laboral con el AlarmManager nativo */
+    syncAgendaReminders?(remindersJson: string): Promise<{ ok: boolean; scheduled?: number; cancelled?: number }>
   }
 
   interface NativeDocumentMeta {

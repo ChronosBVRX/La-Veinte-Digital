@@ -88,6 +88,19 @@ describe("buildReviewChecklist", () => {
     }
   })
 
+  it("valida que un suplente con Concepto 008 tenga estado normal en la regla de sueldo", () => {
+    const suplentePayslip = payslip({
+      earnings: [
+        { code: "008", description: "SUELDO SUSTITUTOS", amount: 4500, kind: "earning" },
+      ],
+    })
+    const items = buildReviewChecklist(suplentePayslip)
+    const sueldoItem = items.find((i) => i.rule.id === "sueldo-base")
+    expect(sueldoItem).toBeDefined()
+    expect(sueldoItem?.state).toBe("normal")
+    expect(sueldoItem?.message).toContain("Sueldo de suplencia encontrado (Concepto 008")
+  })
+
   it("detecta coherencia de régimen RJP (152 y 107 concurrentes para <2005)", () => {
     // Caso correcto pre-2005: 152 + 107
     const okPre2005 = buildReviewChecklist(

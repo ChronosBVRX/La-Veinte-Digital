@@ -185,15 +185,30 @@ export async function deliver(tokens: string[], payload: PushPayload) {
   // Dividir en lotes de como máximo 500 (límite oficial de Firebase sendEachForMulticast)
   for (let i = 0; i < uniqueTokens.length; i += MAX_FCM_BATCH_SIZE) {
     const chunk = uniqueTokens.slice(i, i + MAX_FCM_BATCH_SIZE)
+    const channelId = normalized.type === "AGENDA" ? "la_veinte_agenda_v2" : "la_veinte_avisos_v2"
     const message = {
       tokens: chunk,
-      android: { priority: "HIGH" as const, ttl: 60 * 60 * 4 },
+      notification: {
+        title: normalized.title,
+        body: normalized.body,
+      },
+      android: {
+        priority: "HIGH" as const,
+        ttl: 60 * 60 * 4,
+        notification: {
+          channelId,
+          icon: "ic_notification_laveinte",
+          color: "#2563EB",
+          defaultSound: true,
+        },
+      },
       data: {
         type: normalized.type,
         title: normalized.title,
         body: normalized.body,
         destination: normalized.destination ?? "",
         silent: "false",
+        channel: channelId,
         ...(payload.notificationId ? { id: String(payload.notificationId) } : {}),
       },
     }

@@ -75,9 +75,15 @@ export async function syncLatestSavedPayslip(
     // 4. Calcular huella digital SHA-256
     const documentHash = await computeFileSha256(bytes.buffer as ArrayBuffer)
 
-    // 5. Verificar idempotencia: si ya fue analizado con esta versión del parser y está listo, reutilizar
+    // 5. Verificar idempotencia: si ya fue analizado con esta versión del parser, tiene observaciones listas y está preparado, reutilizar
     const cached = getPayslipAnalysisByHash(userId, documentHash, CURRENT_PARSER_VERSION)
-    if (cached && cached.status === "ready" && cached.concepts.length > 0 && !options.force) {
+    if (
+      cached &&
+      cached.status === "ready" &&
+      cached.concepts.length > 0 &&
+      cached.observations !== undefined &&
+      !options.force
+    ) {
       return cached
     }
 
@@ -207,6 +213,7 @@ export async function syncLatestSavedPayslip(
         deductionsTotal,
         netAmount,
         concepts,
+        observations: safeParsed.payroll.observations,
         status: "ready",
         analyzedAt: new Date().toISOString(),
         errorCode: null,
@@ -257,6 +264,7 @@ export async function syncLatestSavedPayslip(
         earnings: earningsLines,
         deductions: deductionsLines,
         perceptions: earningsLines,
+        observations: safeParsed.payroll.observations,
         totalEarnings: perceptionsTotal,
         totalDeductions: deductionsTotal,
         netPay: netAmount,

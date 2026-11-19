@@ -118,4 +118,33 @@ describe("DocumentPreviewModal - Modal Intermedio Pedagógico", () => {
 
     expect(handleClose).toHaveBeenCalledTimes(2)
   })
-})
+  it("muestra el botón 'Abrir portal oficial interactivo' para portales o compendios web", () => {
+    const handleClose = vi.fn()
+    const mockPortalDoc = {
+      id: "CAMARA-LEYES",
+      title: "Compendio de Leyes Federales Vigentes (Cámara de Diputados)",
+      type: "portal",
+      key: "Congreso de la Unión",
+      validity: "CURRENT",
+      category: "leyes",
+      organization: ["Cámara de Diputados"],
+      url: "https://www.diputados.gob.mx/LeyesBiblio/index.htm",
+    } as unknown as LibraryDocumentEntry
+
+    render(
+      <DocumentPreviewModal
+        doc={mockPortalDoc}
+        isOpen={true}
+        onClose={handleClose}
+        onOpenReader={vi.fn()}
+      />
+    )
+
+    const portalBtn = screen.getByTitle("Abrir portal oficial interactivo en navegador integrado")
+    expect(portalBtn).toBeTruthy()
+    expect(screen.getByText("Abrir portal oficial interactivo")).toBeTruthy()
+
+    fireEvent.click(portalBtn)
+    expect(handleClose).toHaveBeenCalledTimes(1)
+  })
+});

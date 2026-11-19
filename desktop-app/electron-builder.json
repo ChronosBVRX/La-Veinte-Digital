@@ -1,0 +1,23 @@
+{
+  "appId": "com.laveintedigital.desktop",
+  "productName": "La 20 Digital",
+  "directories": {
+    "output": "dist-package"
+  },
+  "files": [
+    "dist/**/*",
+    "package.json"
+  ],
+  "win": {
+    "target": [
+      {
+        "target": "portable",
+        "arch": ["x64"]
+      }
+    ]
+  },
+  "portable": {
+    "artifactName": "La 20 Digital Portable.${ext}",
+    "useZip": false
+  }
+}

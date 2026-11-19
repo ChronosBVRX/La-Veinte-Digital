@@ -47,6 +47,7 @@ describe("API route policy", () => {
       "/api/normativa/visor": "authenticated",
       "/api/push/register": "authenticated",
       "/api/push/send": "authenticated",
+      "/api/radio/episodes": "authenticated",
       "/api/tarjeton/confirm": "authenticated",
       "/api/tarjeton/delete": "authenticated",
       "/api/tarjeton/select": "authenticated",

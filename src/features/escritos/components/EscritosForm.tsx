@@ -15,6 +15,7 @@ import {
 import { saveBlobResource, deleteBlobResource } from "../services/escritos-indexeddb"
 import { DestinatarioResumen } from "./DestinatarioResumen"
 import { DestinatarioSelectorModal } from "./DestinatarioSelectorModal"
+import { EscritosGuidedWizard } from "./EscritosGuidedWizard"
 
 export interface EscritosFormProps {
   userId: string
@@ -50,6 +51,28 @@ export function EscritosForm({
   const [selectorInitialTab, setSelectorInitialTab] = useState<"directorio" | "manual">("directorio")
   const [anexoUploading, setAnexoUploading] = useState(false)
   const [validationError, setValidationError] = useState<string | null>(null)
+  const [formMode, setFormMode] = useState<"normal" | "guiado">(() => {
+    try {
+      if (typeof window !== "undefined") {
+        const saved = localStorage.getItem("escritos_form_mode")
+        if (saved === "guiado") return "guiado"
+      }
+    } catch {
+      // noop
+    }
+    return "normal"
+  })
+
+  const handleModeChange = (mode: "normal" | "guiado") => {
+    setFormMode(mode)
+    try {
+      if (typeof window !== "undefined") {
+        localStorage.setItem("escritos_form_mode", mode)
+      }
+    } catch {
+      // noop
+    }
+  }
 
   const currentTipoDef = TIPOS_ESCRITO[draft.tipo] || TIPOS_ESCRITO.solicitud
 
@@ -245,8 +268,99 @@ export function EscritosForm({
   }
 
   return (
-    <form onSubmit={handleAiSubmit} style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-      {/* Banner de perfil del trabajador */}
+    <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", width: "100%", maxWidth: "100%", boxSizing: "border-box" }}>
+      {/* Selector de Modo al principio */}
+      <div
+        style={{
+          background: "var(--card)",
+          border: "1px solid var(--border)",
+          borderRadius: "0.75rem",
+          padding: "0.5rem",
+          display: "flex",
+          flexDirection: "column",
+          gap: "0.375rem",
+          width: "100%",
+          boxSizing: "border-box",
+        }}
+      >
+        <div style={{ fontSize: "0.8125rem", fontWeight: 700, color: "var(--fg)", padding: "0.125rem 0.25rem" }}>
+          Modo de redacción:
+        </div>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 200px), 1fr))",
+            gap: "0.5rem",
+            width: "100%",
+            boxSizing: "border-box",
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => handleModeChange("normal")}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.625rem",
+              padding: "0.625rem 0.875rem",
+              borderRadius: "0.5rem",
+              border: formMode === "normal" ? "2px solid var(--primary)" : "1px solid var(--border)",
+              background: formMode === "normal" ? "var(--accent)" : "transparent",
+              color: formMode === "normal" ? "var(--primary)" : "var(--fg)",
+              cursor: "pointer",
+              textAlign: "left",
+              transition: "all 0.15s ease",
+            }}
+          >
+            <span style={{ fontSize: "1.25rem" }}>📝</span>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: "0.875rem", fontWeight: 700 }}>Modo Normal</div>
+              <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>Formulario completo en una sola vista</div>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleModeChange("guiado")}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.625rem",
+              padding: "0.625rem 0.875rem",
+              borderRadius: "0.5rem",
+              border: formMode === "guiado" ? "2px solid var(--primary)" : "1px solid var(--border)",
+              background: formMode === "guiado" ? "var(--accent)" : "transparent",
+              color: formMode === "guiado" ? "var(--primary)" : "var(--fg)",
+              cursor: "pointer",
+              textAlign: "left",
+              transition: "all 0.15s ease",
+            }}
+          >
+            <span style={{ fontSize: "1.25rem" }}>🧭</span>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: "0.875rem", fontWeight: 700 }}>Modo Guiado</div>
+              <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>Paso a paso para nuevos usuarios</div>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      {formMode === "guiado" ? (
+        <EscritosGuidedWizard
+          userId={userId}
+          draft={draft}
+          onUpdateDraft={onUpdateDraft}
+          onGenerate={onGenerate}
+          onManualEdit={onManualEdit}
+          isGenerating={isGenerating}
+          generationError={generationError}
+          onRetryAI={onRetryAI}
+          workerProfile={workerProfile}
+          onSwitchToNormalMode={() => handleModeChange("normal")}
+        />
+      ) : (
+        <form onSubmit={handleAiSubmit} style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+          {/* Banner de perfil del trabajador */}
       {workerProfile?.nombre && (
         <div
           style={{
@@ -792,5 +906,7 @@ export function EscritosForm({
         </Button>
       </div>
     </form>
+    )}
+  </div>
   )
 }

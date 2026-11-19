@@ -22,6 +22,7 @@ import {
   FileText,
   IdentificationCard,
   Sparkle,
+  Radio,
 } from "@phosphor-icons/react"
 import { TransferDocumentsModal } from "@/features/transferir/components/TransferDocumentsModal"
 import { isExcludedByQuickActions } from "../lib/highlight-exclusion-policy"
@@ -32,6 +33,45 @@ import {
 } from "../types/home-highlights"
 import type { Announcement } from "@/shared/contracts/announcements"
 
+export const PODCAST_HIGHLIGHT_EPISODES = [
+  {
+    num: "Ep. 6",
+    title: "¿Cuántos Pacientes Me Tocan?",
+    description: "Indicadores IMSS, bitácora y cómo protegerte legalmente ante sobrecargas en tu turno.",
+    duration: "9 min",
+  },
+  {
+    num: "Ep. 5",
+    title: "Mismo Personal, Más Camillas",
+    description: "Procedimiento 2900, Cláusula 22 Bis y qué exigir cuando abren camas sin más plantilla.",
+    duration: "13 min",
+  },
+  {
+    num: "Ep. 4",
+    title: "Mitos de la Investigación Laboral",
+    description: "Cláusula 55 Bis, el plazo estricto de 36 horas hábiles y tus garantías de defensa.",
+    duration: "11 min",
+  },
+  {
+    num: "Ep. 3",
+    title: "Todo sobre tus Vacaciones IMSS",
+    description: "Cláusula 47, pagos, opciones de disfrute y cómo verificar tus fechas en el tarjetón.",
+    duration: "10 min",
+  },
+  {
+    num: "Ep. 2",
+    title: "Huelga en el Seguro Social",
+    description: "Lo que dice la Ley Federal del Trabajo, los estatutos sindicales y la realidad hospitalaria.",
+    duration: "9 min",
+  },
+  {
+    num: "Ep. 1",
+    title: "La verdad del 8.55%",
+    description: "Concepto 11 del tarjetón, incremento al tabulador y Cláusula 157 explicados sin rodeos.",
+    duration: "11 min",
+  },
+] as const
+
 interface HomeHighlightsCarouselProps {
   initialAnnouncements?: Announcement[]
 }
@@ -41,6 +81,7 @@ const SWIPE_THRESHOLD_PX = 40
 
 export function HomeHighlightsCarousel({ initialAnnouncements = [] }: HomeHighlightsCarouselProps) {
   const [transferModalOpen, setTransferModalOpen] = useState(false)
+  const [podcastEpisodeIndex, setPodcastEpisodeIndex] = useState(0)
 
   // Limpieza preventiva de parámetros heredados del modal de aumento
   useEffect(() => {
@@ -154,7 +195,28 @@ export function HomeHighlightsCarousel({ initialAnnouncements = [] }: HomeHighli
       testId: "highlight-copy-service",
     })
 
-    // D. Transferir Documentos (System Highlight)
+    // D. Podcast La Veinte Radio (System Highlight)
+    const featuredEp = PODCAST_HIGHLIGHT_EPISODES[podcastEpisodeIndex % PODCAST_HIGHLIGHT_EPISODES.length]
+    list.push({
+      id: "radio-podcast-highlight",
+      type: "system",
+      priority: HIGHLIGHT_PRIORITIES.RADIO_PODCAST,
+      eyebrow: "LA VEINTE RADIO · PODCAST",
+      title: `${featuredEp.num} | ${featuredEp.title}`,
+      description: featuredEp.description,
+      ctaText: "Escuchar capítulo",
+      ctaHref: "/radio",
+      icon: Radio,
+      pills: [
+        { label: featuredEp.duration },
+        { label: "Capítulo recomendado" },
+      ],
+      gradient: "linear-gradient(135deg, #092c1d 0%, #0f4a30 50%, #15803d 100%)",
+      enabled: true,
+      testId: "highlight-radio-podcast",
+    })
+
+    // E. Transferir Documentos (System Highlight)
     list.push({
       id: "transfer-docs-highlight",
       type: "system",
@@ -243,7 +305,7 @@ export function HomeHighlightsCarousel({ initialAnnouncements = [] }: HomeHighli
     filtered.sort((a, b) => b.priority - a.priority)
 
     return filtered
-  }, [remoteAnnouncements])
+  }, [remoteAnnouncements, podcastEpisodeIndex])
 
   // ── 4. Navegación, swipe y autoplay ───────────────────────────────────────
   const [activeIndex, setActiveIndex] = useState(0)
@@ -266,10 +328,15 @@ export function HomeHighlightsCarousel({ initialAnnouncements = [] }: HomeHighli
 
   const goToNext = useCallback(() => {
     setActiveIndex((prev) => (prev + 1) % (slides.length || 1))
+    setPodcastEpisodeIndex((prev) => {
+      const next = Math.floor(Math.random() * PODCAST_HIGHLIGHT_EPISODES.length)
+      return next === prev ? (prev + 1) % PODCAST_HIGHLIGHT_EPISODES.length : next
+    })
   }, [slides.length])
 
   const goToPrev = useCallback(() => {
     setActiveIndex((prev) => (prev - 1 + slides.length) % (slides.length || 1))
+    setPodcastEpisodeIndex((prev) => (prev - 1 + PODCAST_HIGHLIGHT_EPISODES.length) % PODCAST_HIGHLIGHT_EPISODES.length)
   }, [slides.length])
 
   // Autoplay temporizado

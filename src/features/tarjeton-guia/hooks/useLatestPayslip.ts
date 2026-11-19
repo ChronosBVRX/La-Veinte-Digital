@@ -4,22 +4,43 @@ import { useEffect, useMemo, useState } from "react"
 import { getPayslips } from "@/shared/services/local-storage"
 import { toGuidePayslip } from "@/features/tarjeton-guia/services/payslip-guide"
 import type { GuidePayslip } from "@/features/tarjeton-guia/lib/types"
+import type { ServerPayslipSummary } from "@/features/tarjeton-guia/services/fetch-latest-payslip"
 import { getLatestPayslipAnalysis } from "@/features/tarjeton/services/payslip-analysis-store"
 import { syncLatestSavedPayslip } from "@/features/tarjeton/services/sync-latest-payslip"
 
+export interface UseLatestPayslipResult {
+  payslip: GuidePayslip | null
+  previous: GuidePayslip | null
+  source: "local" | "server"
+  total: number
+  allPayslips: GuidePayslip[]
+  selectedId: string | null
+  setSelectedId: (id: string | null) => void
+}
+
 /**
- * Selecciona el tarjetón más reciente para la Guía de mi Tarjetón.
+ * Selecciona el tarjetón activo para la Guía de mi Tarjetón y permite alternar
+ * entre cualquier tarjetón guardado en el historial ("Mis documentos" / local / servidor).
  *
  * Fuente canónica primaria: PayslipAnalysis del documento guardado en "Mis documentos"
  * (Android Room / IndexedDB). Si no existe o está pendiente, dispara la sincronización
  * automática en segundo plano y fusiona con los registros existentes de localStorage/servidor.
  */
-export function useLatestPayslip(serverPayslip: GuidePayslip | null, userId: string) {
+export function useLatestPayslip(
+  serverPayslip: GuidePayslip | null,
+  userId: string,
+  initialServerPayslips?: ServerPayslipSummary[],
+  initialSelectedId?: string | null
+): UseLatestPayslipResult {
   const [revision, setRevision] = useState(0)
+  const [userSelectedId, setUserSelectedId] = useState<string | null>(null)
+  const selectedId = userSelectedId ?? initialSelectedId ?? null
 
   useEffect(() => {
     // Sincronizar automáticamente el tarjetón guardado en montaje
-    void syncLatestSavedPayslip(userId).catch(() => {})
+    const canonical = getLatestPayslipAnalysis(userId)
+    const needsObservations = Boolean(!canonical || !canonical.observations || canonical.observations.length === 0)
+    void syncLatestSavedPayslip(userId, { force: needsObservations }).catch(() => {})
 
     const handler = () => setRevision((r) => r + 1)
     const handleFocus = () => {
@@ -87,28 +108,40 @@ export function useLatestPayslip(serverPayslip: GuidePayslip | null, userId: str
 
     if (!candidateLocal && !candidateServer) {
       if (canonicalAnalysis && (canonicalAnalysis.status === "analyzing" || canonicalAnalysis.status === "pending")) {
+        const analyzingSlip: GuidePayslip = {
+          id: canonicalAnalysis.documentId,
+          periodRaw: canonicalAnalysis.period,
+          periodLabel: canonicalAnalysis.period,
+          earnings: [],
+          deductions: [],
+          perceptions: [],
+          observations: [],
+          totalEarnings: 0,
+          totalDeductions: 0,
+          netPay: 0,
+          netAmount: 0,
+          source: "local" as const,
+          analysisStatus: canonicalAnalysis.status,
+        }
         return {
-          payslip: {
-            id: canonicalAnalysis.documentId,
-            periodRaw: canonicalAnalysis.period,
-            periodLabel: canonicalAnalysis.period,
-            earnings: [],
-            deductions: [],
-            perceptions: [],
-            observations: [],
-            totalEarnings: 0,
-            totalDeductions: 0,
-            netPay: 0,
-            netAmount: 0,
-            source: "local" as const,
-            analysisStatus: canonicalAnalysis.status,
-          },
+          payslip: analyzingSlip,
           previous: null,
           source: "local" as const,
           total: 1,
+          allPayslips: [analyzingSlip],
+          selectedId: analyzingSlip.id,
+          setSelectedId: setUserSelectedId,
         }
       }
-      return { payslip: null, previous: null, source: "server" as const, total: 0 }
+      return {
+        payslip: null,
+        previous: null,
+        source: "server" as const,
+        total: 0,
+        allPayslips: [],
+        selectedId: null,
+        setSelectedId: setUserSelectedId,
+      }
     }
 
     if (!candidateLocal) {
@@ -160,9 +193,65 @@ export function useLatestPayslip(serverPayslip: GuidePayslip | null, userId: str
       }
     }
 
-    const total = allLocal.length + (candidateServer ? 1 : 0)
-    return { payslip: latest, previous: previousLocal, source: "local" as const, total }
-  }, [serverPayslip, revision, userId])
+    // Unificar lista completa de tarjetones disponibles
+    const allSlipsMap = new Map<string, GuidePayslip>()
+    if (latest) allSlipsMap.set(latest.id, latest)
+    for (const slip of byPeriod) {
+      if (!allSlipsMap.has(slip.id)) allSlipsMap.set(slip.id, slip)
+    }
+    if (candidateServer && !allSlipsMap.has(candidateServer.id)) {
+      allSlipsMap.set(candidateServer.id, candidateServer)
+    }
+    if (initialServerPayslips) {
+      for (const s of initialServerPayslips) {
+        if (!allSlipsMap.has(s.id)) {
+          allSlipsMap.set(s.id, {
+            id: s.id,
+            periodRaw: s.periodRaw,
+            periodLabel: s.periodLabel,
+            earnings: [],
+            deductions: [],
+            perceptions: [],
+            observations: [],
+            totalEarnings: 0,
+            totalDeductions: 0,
+            netPay: s.netPay,
+            netAmount: s.netPay,
+            source: "server",
+          })
+        }
+      }
+    }
+
+    const allPayslips = Array.from(allSlipsMap.values()).sort((a, b) => {
+      const pa = periodRank(a)
+      const pb = periodRank(b)
+      if (pa === pb) return (b.createdAt ?? "").localeCompare(a.createdAt ?? "")
+      return pb - pa
+    })
+
+    // Resolver selección de usuario
+    let activeSlip: GuidePayslip | null = latest
+    let activePrev: GuidePayslip | null = previousLocal
+
+    if (selectedId) {
+      const foundIdx = allPayslips.findIndex((s) => s.id === selectedId)
+      if (foundIdx >= 0) {
+        activeSlip = allPayslips[foundIdx]
+        activePrev = foundIdx + 1 < allPayslips.length ? allPayslips[foundIdx + 1] : null
+      }
+    }
+
+    return {
+      payslip: activeSlip,
+      previous: activePrev,
+      source: (activeSlip?.source ?? "local") as "local" | "server",
+      total: allPayslips.length,
+      allPayslips,
+      selectedId: activeSlip?.id ?? null,
+      setSelectedId: setUserSelectedId,
+    }
+  }, [serverPayslip, revision, userId, selectedId, initialServerPayslips])
 }
 
 function mergePayslips(preferred: GuidePayslip, secondary: GuidePayslip): GuidePayslip {

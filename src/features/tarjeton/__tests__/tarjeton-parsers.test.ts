@@ -3,7 +3,7 @@ import { parseImssMoney, roundImssMoney, sumImssMoney } from "../lib/money-parse
 import { parseImssPeriod, parseImssDate, imssPeriodEndDate } from "../lib/imss-date-parser"
 import { parseImssPayslipSeniority, reconstructEffectiveDateFromSeniority } from "../lib/imss-seniority-parser"
 import { parseImssConceptTables } from "../lib/imss-concept-table-parser"
-import { parseImssObservations } from "../lib/imss-observations-parser"
+import { parseImssObservations, parseObservationUnits } from "../lib/imss-observations-parser"
 import { stripSensitiveFields, maskIdentifier, isSensitiveKey } from "../lib/sanitize-sensitive-fields"
 import { reconstructLines } from "../lib/line-reconstruction"
 import { parseImssTarjeton } from "../lib/imss-tarjeton-parser"
@@ -113,6 +113,15 @@ describe("imss-concept-table-parser", () => {
 })
 
 describe("imss-observations-parser", () => {
+  it("parseObservationUnits extrae unidades numéricas o con texto como HRS", () => {
+    expect(parseObservationUnits("8")).toBe(8)
+    expect(parseObservationUnits("8.0")).toBe(8)
+    expect(parseObservationUnits("8.0 HRS")).toBe(8)
+    expect(parseObservationUnits("18 HORAS")).toBe(18)
+    expect(parseObservationUnits("3 UNIDADES")).toBe(3)
+    expect(parseObservationUnits("")).toBeUndefined()
+    expect(parseObservationUnits(null)).toBeUndefined()
+  })
   const lines = reconstructLines([
     item(10, "OBSERVACIONES"),
     item(11, "055 VENCIMIENTO 2026014"),

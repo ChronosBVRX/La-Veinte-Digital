@@ -64,8 +64,8 @@ Los crons se ejecutan de forma **100% nativa e independiente** en el cron del si
 
 ### Configuración en Crontab del VPS (`crontab -e` o `/etc/crontab`):
 ```cron
-# Recordatorios de agenda laboral (Diario a las 08:00 AM hora México)
-0 14 * * * /opt/laveinte-app/scripts/run-cron.sh agenda-reminders >> /var/log/laveinte-crons.log 2>&1
+# Recordatorios de agenda laboral (Cada 15 minutos)
+*/15 * * * * /opt/laveinte-app/scripts/run-cron.sh agenda-reminders >> /var/log/laveinte-crons.log 2>&1
 
 # Procesamiento de campañas push en cola (Cada 10 minutos)
 */10 * * * * /opt/laveinte-app/scripts/run-cron.sh push-campaigns >> /var/log/laveinte-crons.log 2>&1

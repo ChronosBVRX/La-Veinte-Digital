@@ -131,8 +131,8 @@ export function buildCalculatorPrefillResponse(ctx: CalculatorPrefillBuildContex
       }
     }
 
-    const c002 = concept("002")
-    if (c002 && policy.allowedConceptCodes.includes("002")) {
+    const c002 = concept("002") ?? concept("008") ?? concept("08") ?? concept("001") ?? concept("003")
+    if (c002 && (policy.allowedConceptCodes.includes("002") || policy.allowedConceptCodes.includes("008"))) {
       fields.concepto002 = fieldFromConcept(c002, ctx.category.salaryTableVersion, ctx.targetDate)
     }
 
