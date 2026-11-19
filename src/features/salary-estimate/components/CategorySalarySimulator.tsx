@@ -1,9 +1,9 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import { Calculator, MagnifyingGlass, XCircle, CheckCircle, Sparkle } from "@phosphor-icons/react"
+import { Calculator, MagnifyingGlass, XCircle, CheckCircle } from "@phosphor-icons/react"
 import {
-  CATALOGO_CATEGORIAS,
+  TABULADOR_VIGENTE_2025_2026,
   normalizeCategoryName,
   matchCategorySearch,
   type CategoriaSalarial,
@@ -45,7 +45,7 @@ export function CategorySalarySimulator({
   // 1. Obtener y desduplicar categorías del catálogo oficial
   const uniqueCategories = useMemo<CategoriaSalarial[]>(() => {
     const map = new Map<string, CategoriaSalarial>()
-    for (const cat of CATALOGO_CATEGORIAS) {
+    for (const cat of TABULADOR_VIGENTE_2025_2026.categorias) {
       const key = normalizeCategoryName(cat.nombre)
       if (!map.has(key)) {
         map.set(key, cat)

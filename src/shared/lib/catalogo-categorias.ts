@@ -17,6 +17,7 @@ export interface TabuladorVersion {
 
 import tabulador2024Data from "@/shared/data/tabulador-2024-2025.json"
 import tabulador2025Data from "@/shared/data/tabulador-2025-2026.json"
+import tabulador2026Data from "@/shared/data/tabulador-2026-2027.json"
 
 /**
  * Categorías oficiales contractuales complementarias del CCT IMSS
@@ -120,6 +121,20 @@ export const CATEGORIAS_COMPLEMENTARIAS_OFICIALES: CategoriaSalarial[] = [
   },
 ]
 
+export const CATEGORIAS_COMPLEMENTARIAS_2026_2027: CategoriaSalarial[] = CATEGORIAS_COMPLEMENTARIAS_OFICIALES.map((c) => {
+  const sq = Math.round(c.sueldoQuincenal * 1.04 * 100) / 100
+  const c11 = Math.round(sq * 0.8615 * 100) / 100
+  const bm = Math.round((sq + c11) * 2 * 100) / 100
+  const smi = Math.round(bm * 1.2 * 100) / 100
+  return {
+    ...c,
+    sueldoQuincenal: sq,
+    concepto011: c11,
+    baseMensual: bm,
+    smi,
+  }
+})
+
 export const TABULADOR_ANTERIOR_2024_2025: TabuladorVersion = {
   version: "tabulador-anterior-2024-2025",
   effectiveFrom: "2024-10-16",
@@ -127,8 +142,8 @@ export const TABULADOR_ANTERIOR_2024_2025: TabuladorVersion = {
   categorias: tabulador2024Data as CategoriaSalarial[],
 }
 
-export const TABULADOR_VIGENTE_2025_2026: TabuladorVersion = {
-  version: "tabulador-vigente-2025-2026",
+export const TABULADOR_ANTERIOR_2025_2026: TabuladorVersion = {
+  version: "tabulador-anterior-2025-2026",
   effectiveFrom: "2025-10-16",
   effectiveTo: "2026-10-15",
   categorias: [
@@ -137,14 +152,28 @@ export const TABULADOR_VIGENTE_2025_2026: TabuladorVersion = {
   ],
 }
 
+/** Alias de compatibilidad hacia atrás */
+export const TABULADOR_VIGENTE_2025_2026 = TABULADOR_ANTERIOR_2025_2026
+
+export const TABULADOR_VIGENTE_2026_2027: TabuladorVersion = {
+  version: "tabulador-vigente-2026-2027",
+  effectiveFrom: "2026-10-16",
+  effectiveTo: "2027-10-15",
+  categorias: [
+    ...(tabulador2026Data as CategoriaSalarial[]),
+    ...CATEGORIAS_COMPLEMENTARIAS_2026_2027,
+  ],
+}
+
 export const TABULADORES_VERSIONADOS: TabuladorVersion[] = [
   TABULADOR_ANTERIOR_2024_2025,
-  TABULADOR_VIGENTE_2025_2026,
+  TABULADOR_ANTERIOR_2025_2026,
+  TABULADOR_VIGENTE_2026_2027,
 ]
 
 /**
  * Resuelve la versión oficial del tabulador para una fecha dada (YYYY-MM-DD).
- * Bloquea estrictamente a partir de 2026-10-16 devolviendo null si aún no existe
+ * Bloquea estrictamente a partir de 2027-10-16 devolviendo null si aún no existe
  * un nuevo tabulador oficial pactado en revisión salarial.
  */
 export function getTabuladorPorFecha(date: string): TabuladorVersion | null {
@@ -156,7 +185,7 @@ export function getTabuladorPorFecha(date: string): TabuladorVersion | null {
   return null
 }
 
-export const CATALOGO_CATEGORIAS: CategoriaSalarial[] = TABULADOR_VIGENTE_2025_2026.categorias
+export const CATALOGO_CATEGORIAS: CategoriaSalarial[] = TABULADOR_VIGENTE_2026_2027.categorias
 
 export const CATEGORY_CANONICAL_ALIASES: Readonly<Record<string, string>> = {
   // Limpieza e Higiene (Auxiliar)
@@ -329,7 +358,7 @@ export function matchCategorySearch(categoryName: string, query: string): boolea
  * Búsqueda de categoría por nombre o ID, priorizando coincidencia exacta.
  */
 export function findCategoria(nombre: string, targetDate?: string): CategoriaSalarial | undefined {
-  const tabulador = targetDate ? getTabuladorPorFecha(targetDate) : TABULADOR_VIGENTE_2025_2026
+  const tabulador = targetDate ? getTabuladorPorFecha(targetDate) : TABULADOR_VIGENTE_2026_2027
   if (!tabulador) return undefined
 
   const norm = normalizeCategoryName(nombre)
@@ -359,6 +388,6 @@ export function findCategoria(nombre: string, targetDate?: string): CategoriaSal
 }
 
 export function getAllCategorias(targetDate?: string): CategoriaSalarial[] {
-  const tabulador = targetDate ? getTabuladorPorFecha(targetDate) : TABULADOR_VIGENTE_2025_2026
+  const tabulador = targetDate ? getTabuladorPorFecha(targetDate) : TABULADOR_VIGENTE_2026_2027
   return tabulador ? tabulador.categorias : []
 }

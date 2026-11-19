@@ -64,12 +64,12 @@ test.describe("HomeHighlightsCarousel — Smoke E2E Visual y Funcional", () => {
     const tabCount = await tabs.count()
     expect(tabCount).toBeGreaterThanOrEqual(5)
 
-    // Pulsar el dot de vacaciones
-    const vacationTab = tabs.nth(1)
+    // Pulsar el dot de vacaciones (slide inicial tras retiro del anuncio de aumento)
+    const vacationTab = tabs.nth(0)
     await vacationTab.click()
     await expect(page.getByText("Ya están disponibles los roles vacacionales 2027")).toBeVisible()
 
-    // Avanzar con la flecha
+    // Avanzar con la flecha al siguiente slide (copias)
     await nextBtn.click()
     await expect(page.getByText("Sacar copias")).toBeVisible()
 
@@ -78,23 +78,19 @@ test.describe("HomeHighlightsCarousel — Smoke E2E Visual y Funcional", () => {
     await expect(page.getByText("Ya están disponibles los roles vacacionales 2027")).toBeVisible()
   })
 
-  test("modal de detalle de aumento se abre y cierra correctamente", async ({ page }) => {
+  test("el anuncio de aumento salarial está retirado del carrusel", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 })
     await page.goto("/")
 
-    // Si el slide visible de aumento tiene "Ver detalle", probarlo
-    const detailBtn = page.getByRole("button", { name: "Ver detalle" })
-    if (await detailBtn.isVisible()) {
-      await detailBtn.click()
-      const modal = page.locator('[role="dialog"]')
-      await expect(modal).toBeVisible()
-      await expect(page.getByText("Detalle del aumento estimado")).toBeVisible()
+    const carousel = page.locator('[data-testid="home-highlights-carousel"]')
+    await expect(carousel).toBeVisible()
 
-      // Cerrar modal
-      const closeBtn = page.getByRole("button", { name: "Cerrar detalle" })
-      await closeBtn.click()
-      await expect(modal).not.toBeVisible()
-    }
+    // El slide y modal de aumento salarial no están presentes
+    const aumentoSlide = page.locator('[data-testid="highlight-salary-increase"]')
+    await expect(aumentoSlide).toHaveCount(0)
+
+    const detailBtn = page.getByRole("button", { name: "Ver detalle" })
+    await expect(detailBtn).toHaveCount(0)
   })
 
   test("slide de transferir documentos abre modal QR", async ({ page }) => {

@@ -11,7 +11,6 @@ import {
 } from "react"
 import Link from "next/link"
 import {
-  TrendUp,
   CalendarCheck,
   CopySimple,
   ArrowsLeftRight,
@@ -24,12 +23,7 @@ import {
   IdentificationCard,
   Sparkle,
 } from "@phosphor-icons/react"
-import { useWorkerContextSync } from "@/shared/hooks/useLiveWorkerContext"
-import { selectSalaryEstimateInputs } from "@/features/salary-estimate/services/salary-estimate-selector"
-import { calculateSalaryIncrease } from "@/features/salary-estimate/lib/calculate-salary-increase"
-import { formatCurrency } from "@/features/calculators/lib/money"
 import { TransferDocumentsModal } from "@/features/transferir/components/TransferDocumentsModal"
-import { SalaryIncreaseDetailModal } from "./SalaryIncreaseDetailModal"
 import { isExcludedByQuickActions } from "../lib/highlight-exclusion-policy"
 import {
   HIGHLIGHT_PRIORITIES,
@@ -46,60 +40,36 @@ const AUTOPLAY_INTERVAL_MS = 11000
 const SWIPE_THRESHOLD_PX = 40
 
 export function HomeHighlightsCarousel({ initialAnnouncements = [] }: HomeHighlightsCarouselProps) {
-  // ── 1. Datos y estado de Aumento Salarial ─────────────────────────────────
-  const { context, status: workerStatus, retry: retryWorker } = useWorkerContextSync(null)
-
-  const salarySelection = useMemo(() => {
-    return selectSalaryEstimateInputs(context)
-  }, [context])
-
-  const salaryResult = useMemo(() => {
-    return calculateSalaryIncrease(salarySelection)
-  }, [salarySelection])
-
-  const [detailModalOpen, setDetailModalOpen] = useState(() => {
-    if (typeof window === "undefined") return false
-    try {
-      const searchParams = new URLSearchParams(window.location.search)
-      const modalParam = searchParams.get("modal")
-      const hasAumentoQuery = modalParam === "aumento" || modalParam === "aumento-salarial" || searchParams.has("aumento")
-      const hasAumentoHash = window.location.hash === "#aumento" || window.location.hash === "#aumento-salarial"
-      return Boolean(hasAumentoQuery || hasAumentoHash)
-    } catch {
-      return false
-    }
-  })
   const [transferModalOpen, setTransferModalOpen] = useState(false)
 
-  const handleCloseDetailModal = useCallback(() => {
-    setDetailModalOpen(false)
-    if (typeof window !== "undefined") {
-      try {
-        const url = new URL(window.location.href)
-        let changed = false
-        if (url.searchParams.get("modal") === "aumento" || url.searchParams.get("modal") === "aumento-salarial") {
-          url.searchParams.delete("modal")
-          changed = true
-        }
-        if (url.searchParams.has("aumento")) {
-          url.searchParams.delete("aumento")
-          changed = true
-        }
-        if (url.hash === "#aumento" || url.hash === "#aumento-salarial") {
-          url.hash = ""
-          changed = true
-        }
-        if (changed) {
-          const newUrl = url.pathname + (url.searchParams.toString() ? '?' + url.searchParams.toString() : "") + url.hash
-          window.history.replaceState({}, "", newUrl)
-        }
-      } catch {
-        // Fallback defensivo
+  // Limpieza preventiva de parámetros heredados del modal de aumento
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    try {
+      const url = new URL(window.location.href)
+      let changed = false
+      if (url.searchParams.get("modal") === "aumento" || url.searchParams.get("modal") === "aumento-salarial") {
+        url.searchParams.delete("modal")
+        changed = true
       }
+      if (url.searchParams.has("aumento")) {
+        url.searchParams.delete("aumento")
+        changed = true
+      }
+      if (url.hash === "#aumento" || url.hash === "#aumento-salarial") {
+        url.hash = ""
+        changed = true
+      }
+      if (changed) {
+        const newUrl = url.pathname + (url.searchParams.toString() ? '?' + url.searchParams.toString() : "") + url.hash
+        window.history.replaceState({}, "", newUrl)
+      }
+    } catch {
+      // Fallback defensivo
     }
   }, [])
 
-  // ── 2. Avisos remotos (Supabase announcements con show_in_home_hero) ────────
+  // ── 1. Avisos remotos (Supabase announcements con show_in_home_hero) ────────
   const [remoteAnnouncements, setRemoteAnnouncements] = useState<Announcement[]>(initialAnnouncements)
 
   useEffect(() => {
@@ -122,78 +92,11 @@ export function HomeHighlightsCarousel({ initialAnnouncements = [] }: HomeHighli
     }
   }, [])
 
-  // ── 3. Construcción del conjunto de slides ────────────────────────────────
+  // ── 2. Construcción del conjunto de slides ────────────────────────────────
   const slides = useMemo<HomeHighlight[]>(() => {
     const list: HomeHighlight[] = []
 
-    // A. Aumento Salarial (System Highlight)
-    let salaryTitle = "Tu aumento estimado"
-    let salaryDescription = "Basado en tu tarjetón activo."
-    let salaryCtaText = "Ver detalle"
-    let salaryCtaHref: string | undefined = undefined
-    let salaryCtaAction: (() => void) | undefined = () => setDetailModalOpen(true)
-    let salaryBadge = "TU AUMENTO ESTIMADO"
-
-    if (workerStatus === "loading") {
-      salaryDescription = "Estamos revisando tu tarjetón más reciente."
-      salaryCtaText = "Consultando..."
-      salaryCtaAction = undefined
-    } else if (workerStatus === "error") {
-      salaryDescription = "No pudimos consultar tu información laboral en este momento."
-      salaryCtaText = "Reintentar"
-      salaryCtaAction = retryWorker
-    } else if (!salarySelection.hasPayslip || salaryResult.calculationStatus === "missing-payslip") {
-      salaryTitle = "Descubre tu aumento"
-      salaryDescription = "Importa tu tarjetón más reciente para calcularlo."
-      salaryCtaText = "Importar tarjetón"
-      salaryCtaHref = "/profile/mi-informacion-laboral"
-      salaryCtaAction = undefined
-    } else if (
-      salaryResult.calculationStatus === "missing-concept11" ||
-      salaryResult.calculationStatus === "missing-tabular" ||
-      salaryResult.calculationStatus === "insufficient-data"
-    ) {
-      salaryDescription = "Tu tarjetón guardado requiere revisión de conceptos para estimar el aumento."
-      salaryCtaText = "Revisar mi información"
-      salaryCtaHref = "/profile/mi-informacion-laboral"
-      salaryCtaAction = undefined
-    } else if (
-      salaryResult.calculationStatus === "new-schedule-unverified" ||
-      salaryResult.calculationStatus === "unverified-comparable-base"
-    ) {
-      salaryTitle = "Estimación pendiente de comprobar"
-      salaryDescription = "Tu tarjetón registra vigencia o importes que requieren comprobación antes de estimar."
-      salaryCtaText = "Revisar mi información"
-      salaryCtaHref = "/profile/mi-informacion-laboral"
-      salaryCtaAction = undefined
-    } else if (salaryResult.calculationStatus === "ok") {
-      const formatted = formatCurrency(salaryResult.estimatedFortnightlyIncrease)
-      salaryBadge = salaryResult.salaryType === "substitute"
-        ? "TU AUMENTO ESTIMADO (SUSTITUCIÓN)"
-        : "TU AUMENTO ESTIMADO"
-      salaryTitle = `+${formatted} por quincena`
-      salaryDescription = salaryResult.salaryType === "substitute"
-        ? "Estimación preliminar sobre tu percepción por sustitución (concepto 008) y ayuda de renta (concepto 011)."
-        : "Estimación preliminar sobre tu sueldo tabular (concepto 002) y ayuda de renta (concepto 011)."
-    }
-
-    list.push({
-      id: "salary-increase-highlight",
-      type: "system",
-      priority: HIGHLIGHT_PRIORITIES.SALARY_INCREASE,
-      eyebrow: salaryBadge,
-      title: salaryTitle,
-      description: salaryDescription,
-      ctaText: salaryCtaText,
-      ctaHref: salaryCtaHref,
-      ctaAction: salaryCtaAction,
-      icon: TrendUp,
-      gradient: "linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)",
-      enabled: true,
-      testId: "highlight-salary-increase",
-    })
-
-    // B. Roles Vacacionales 2027 (System Highlight)
+    // A. Roles Vacacionales 2027 (System Highlight)
     list.push({
       id: "vacation-2027-highlight",
       type: "system",
@@ -340,13 +243,7 @@ export function HomeHighlightsCarousel({ initialAnnouncements = [] }: HomeHighli
     filtered.sort((a, b) => b.priority - a.priority)
 
     return filtered
-  }, [
-    workerStatus,
-    retryWorker,
-    salarySelection,
-    salaryResult,
-    remoteAnnouncements,
-  ])
+  }, [remoteAnnouncements])
 
   // ── 4. Navegación, swipe y autoplay ───────────────────────────────────────
   const [activeIndex, setActiveIndex] = useState(0)
@@ -658,13 +555,6 @@ export function HomeHighlightsCarousel({ initialAnnouncements = [] }: HomeHighli
       </div>
 
       {/* Modales correspondientes */}
-      <SalaryIncreaseDetailModal
-        open={detailModalOpen}
-        onClose={handleCloseDetailModal}
-        result={salaryResult}
-        activePeriod={salarySelection.activePeriod}
-      />
-
       <TransferDocumentsModal
         open={transferModalOpen}
         onClose={() => setTransferModalOpen(false)}

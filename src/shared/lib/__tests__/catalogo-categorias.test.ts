@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { findCategoria, matchCategorySearch, CATALOGO_CATEGORIAS } from "../catalogo-categorias"
+import { findCategoria, matchCategorySearch } from "../catalogo-categorias"
 
 describe("catalogo-categorias", () => {
   it("encuentra categoría por nombre canónico exacto", () => {
@@ -50,15 +50,22 @@ describe("catalogo-categorias", () => {
   })
 
   it("incluye categorías médicas y de enfermería de alta demanda en el catálogo oficial", () => {
+    // Tabulador vigente activo (2026-2027 tras el aumento de octubre 2026)
     const noFam = findCategoria("MEDICO NO FAMILIAR 80")
     expect(noFam).toBeDefined()
-    expect(noFam?.sueldoQuincenal).toBe(6422.10)
-    expect(noFam?.concepto011).toBe(5275.75)
+    expect(noFam?.sueldoQuincenal).toBe(6678.98)
+    expect(noFam?.concepto011).toBe(5753.94)
 
     const enfEsp = findCategoria("ENFERMERA ESPECIALISTA 80")
     expect(enfEsp).toBeDefined()
-    expect(enfEsp?.sueldoQuincenal).toBe(4207.74)
-    expect(enfEsp?.concepto011).toBe(3456.66)
+    expect(enfEsp?.sueldoQuincenal).toBe(4376.05)
+    expect(enfEsp?.concepto011).toBe(3769.97)
+
+    // Tabulador histórico 2025-2026 (vigente hasta 2026-10-15)
+    const noFamPrev = findCategoria("MEDICO NO FAMILIAR 80", "2026-09-01")
+    expect(noFamPrev).toBeDefined()
+    expect(noFamPrev?.sueldoQuincenal).toBe(6422.10)
+    expect(noFamPrev?.concepto011).toBe(5275.75)
 
     const r1 = findCategoria("RESIDENTE 1")
     expect(r1).toBeDefined()
