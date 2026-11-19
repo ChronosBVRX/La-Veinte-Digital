@@ -92,14 +92,20 @@ fun TuPerfilLoginDialog(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(LvdColors.Scrim)
-            .windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime))
-            .clickable(
-                indication = null,
-                interactionSource = remember { MutableInteractionSource() },
-                onClick = onDismiss,
-            ),
+            .windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime)),
     ) {
+        // Scrim independiente de fondo: captura clics fuera del sheet para cerrar
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(LvdColors.Scrim)
+                .clickable(
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() },
+                    onClick = onDismiss,
+                ),
+        )
+
         AnimatedVisibility(
             visible = true,
             enter = fadeIn(LvdMotion.StateTransition) +

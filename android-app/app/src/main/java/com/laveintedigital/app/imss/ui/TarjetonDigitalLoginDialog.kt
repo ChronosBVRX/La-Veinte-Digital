@@ -83,7 +83,9 @@ fun TarjetonDigitalLoginDialog(
     onSwitchToTuPerfil: (() -> Unit)? = null,
     onDismiss: () -> Unit,
 ) {
-    var delegacion by remember { mutableStateOf(savedDelegacion) }
+    var delegacion by remember {
+        mutableStateOf(savedDelegacion ?: delegaciones.find { it.value == "17" } ?: delegaciones.firstOrNull())
+    }
     var username by remember { mutableStateOf(savedUsername ?: "") }
     var password by remember { mutableStateOf("") }
     var rememberMe by remember { mutableStateOf(true) }
@@ -93,14 +95,20 @@ fun TarjetonDigitalLoginDialog(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(LvdColors.Scrim)
-            .windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime))
-            .clickable(
-                indication = null,
-                interactionSource = remember { MutableInteractionSource() },
-                onClick = onDismiss,
-            ),
+            .windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime)),
     ) {
+        // Scrim independiente de fondo: captura clics fuera del sheet para cerrar
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(LvdColors.Scrim)
+                .clickable(
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() },
+                    onClick = onDismiss,
+                ),
+        )
+
         AnimatedVisibility(
             visible = true,
             enter = fadeIn(LvdMotion.StateTransition) +

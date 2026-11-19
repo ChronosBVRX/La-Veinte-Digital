@@ -7,7 +7,9 @@ import android.webkit.*
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Description
@@ -16,6 +18,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -378,6 +381,63 @@ fun ImssPortalScreen(
                 modifier = Modifier.fillMaxSize(),
             )
 
+            // Native backdrop that completely shields the WebView during assisted mode
+            val isAssistedActive = (portal == ImssPortal.TARJETON_DIGITAL && !tarjetonRawFormVisible) ||
+                (portal == ImssPortal.TU_PERFIL && !tuPerfilRawFormVisible)
+            if (isAssistedActive) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(LvdColors.Background),
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 36.dp, start = 24.dp, end = 24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .clip(LvdShapes.Pill)
+                                .background(LvdColors.Surface)
+                                .border(1.dp, LvdColors.Border, LvdShapes.Pill)
+                                .padding(horizontal = 14.dp, vertical = 7.dp),
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(LvdColors.SuccessStrong),
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                if (portal == ImssPortal.TARJETON_DIGITAL) "Tarjetón Digital IMSS • Conexión protegida"
+                                else "Tu Perfil IMSS • Conexión protegida",
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = LvdColors.TextSecondary,
+                            )
+                        }
+                        Spacer(Modifier.height(14.dp))
+                        Text(
+                            if (portal == ImssPortal.TARJETON_DIGITAL) "Portal oficial de comprobantes"
+                            else "Portal oficial Tu Perfil",
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = LvdColors.TextPrimary,
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            if (portal == ImssPortal.TARJETON_DIGITAL) "rh.imss.gob.mx/Personal/TarjetonDigital/"
+                            else "tuperfil.imss.gob.mx",
+                            fontSize = 13.sp,
+                            color = LvdColors.TextMuted,
+                        )
+                    }
+                }
+            }
+
             // Tu Perfil flow UI overlay
             if (portal == ImssPortal.TU_PERFIL && !tuPerfilRawFormVisible) {
                 if (flowState == null && !cardPageDetected) {
@@ -455,7 +515,7 @@ fun ImssPortalScreen(
                                 { switch(ImssPortal.TARJETON_DIGITAL) }
                             },
                             onDismiss = {
-                                tuPerfilRawFormVisible = true
+                                showLoginDialog = true
                                 flowController?.manualEntry()
                             },
                         )
@@ -510,18 +570,43 @@ fun ImssPortalScreen(
                                 { switch(ImssPortal.TU_PERFIL) }
                             },
                             onDismiss = {
-                                tarjetonRawFormVisible = true
-                                tarjetonController?.manualEntry()
+                                showTarjetonLoginDialog = true
+                                tarjetonController?.reviewData()
                             },
                         )
                     }
                     is TarjetonDigitalFlowState.TarjetonSaved -> {
                         tarjetonRawFormVisible = false
                     }
+                    is TarjetonDigitalFlowState.Error -> {
+                        if (tarjetonController?.periods?.isEmpty() != false) {
+                            TarjetonDigitalLoginErrorDialog(
+                                error = TarjetonDigitalFlowState.LoginError(
+                                    result = TarjetonDigitalLoginResult.ServiceUnavailable,
+                                    portalMessage = (ts as TarjetonDigitalFlowState.Error).reason,
+                                ),
+                                onReviewData = {
+                                    showTarjetonLoginDialog = true
+                                    tarjetonController?.reviewData()
+                                },
+                                onRetry = { tarjetonController?.retryLogin() },
+                                onManualEntry = {
+                                    tarjetonRawFormVisible = true
+                                    tarjetonController?.manualEntry()
+                                },
+                                onSwitchPortal = onSwitchPortal?.let { switch ->
+                                    { switch(ImssPortal.TU_PERFIL) }
+                                },
+                                onDismiss = {
+                                    showTarjetonLoginDialog = true
+                                    tarjetonController?.reviewData()
+                                },
+                            )
+                        }
+                    }
                     is TarjetonDigitalFlowState.TarjetonReady,
                     is TarjetonDigitalFlowState.GeneratingTarjeton,
                     is TarjetonDigitalFlowState.SavingTarjeton,
-                    is TarjetonDigitalFlowState.Error,
                     is TarjetonDigitalFlowState.TarjetonError,
                     is TarjetonDigitalFlowState.ManualMode,
                     null -> {}
@@ -738,7 +823,10 @@ fun ImssPortalScreen(
                     showRegisterDialog = true
                 }
             } else null,
-            onDismiss = { showLoginDialog = false },
+            onDismiss = {
+                showLoginDialog = false
+                onClose()
+            },
         )
     }
 
@@ -775,6 +863,7 @@ fun ImssPortalScreen(
             },
             onManualEntry = {
                 showTarjetonLoginDialog = false
+                tarjetonRawFormVisible = true
                 tarjetonController?.manualEntry()
             },
             onSwitchToTuPerfil = onSwitchPortal?.let { switch ->
@@ -783,7 +872,10 @@ fun ImssPortalScreen(
                     switch(ImssPortal.TU_PERFIL)
                 }
             },
-            onDismiss = { showTarjetonLoginDialog = false },
+            onDismiss = {
+                showTarjetonLoginDialog = false
+                onClose()
+            },
         )
     }
 }

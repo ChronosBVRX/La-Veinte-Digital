@@ -342,6 +342,13 @@ try{
             if (!awaitIframe(wv)) { fail("IFRAME_TIMEOUT"); return }
             Log.i(TAG, "iframe detected")
 
+            if (authenticated) {
+                Log.i(TAG, "skipping login, already authenticated")
+                _state.value = TarjetonDigitalFlowState.Authenticated
+                doOpenTarjetonPage(wv)
+                return
+            }
+
             // 2) Esperar DOM del login (select de delegaciones ya poblado)
             _state.value = TarjetonDigitalFlowState.WaitingDom
             if (!awaitDom(wv)) { fail("LOGIN_DOM_TIMEOUT"); return }
@@ -413,6 +420,13 @@ try{
     private suspend fun awaitIframe(wv: WebView): Boolean {
         var attempts = 0
         while (attempts < 40) {
+            val a = parseJson(evaluateJs(wv, AUTH_SCRIPT))
+            if (a?.optString("page") == "tarjeton") {
+                Log.i(TAG, "session already active in iframe")
+                injectReportHook(wv)
+                authenticated = true
+                return true
+            }
             val s = parseJson(evaluateJs(wv, SNAPSHOT_SCRIPT))
             if (s?.optBoolean("iframeFound") == true && s.optBoolean("loginInputs") == true) {
                 injectReportHook(wv)
