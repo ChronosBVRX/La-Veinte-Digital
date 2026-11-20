@@ -1,13 +1,14 @@
 "use client"
 
 import Link from "next/link"
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 import type { CSSProperties, ReactNode } from "react"
-import { TrendUp } from "@phosphor-icons/react"
+import { TrendUp, Calculator } from "@phosphor-icons/react"
 import { useWorkerContextSync } from "@/shared/hooks/useLiveWorkerContext"
 import { formatCurrency } from "@/features/calculators/lib/money"
 import { calculateSalaryIncrease } from "@/features/salary-estimate/lib/calculate-salary-increase"
 import { selectSalaryEstimateInputs } from "@/features/salary-estimate/services/salary-estimate-selector"
+import { CategorySalarySimulator } from "./CategorySalarySimulator"
 
 const IMPORT_HREF = "/profile/mi-informacion-laboral"
 const PROFILE_HREF = "/profile/mi-informacion-laboral"
@@ -40,6 +41,8 @@ const label: CSSProperties = {
  */
 export function SalaryIncreaseCard() {
   const { context, status, error, retry } = useWorkerContextSync(null)
+  const [showSimulator, setShowSimulator] = useState(false)
+  const [showEmptySimulator, setShowEmptySimulator] = useState(false)
 
   const selection = useMemo(() => {
     return selectSalaryEstimateInputs(context)
@@ -104,9 +107,39 @@ export function SalaryIncreaseCard() {
   if (!selection.hasPayslip || result.calculationStatus === "missing-payslip") {
     return (
       <NoticeCapsule testId="salary-estimate-empty">
-        <Link href={IMPORT_HREF} style={{ color: "#1d4ed8", fontWeight: 700, textDecoration: "underline" }}>
-          {IMPORT_MESSAGE}
-        </Link>
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+          <Link href={IMPORT_HREF} style={{ color: "#1d4ed8", fontWeight: 700, textDecoration: "underline" }}>
+            {IMPORT_MESSAGE}
+          </Link>
+          <div>
+            <button
+              type="button"
+              data-testid="toggle-empty-simulator"
+              onClick={() => setShowEmptySimulator((prev) => !prev)}
+              style={{
+                background: "rgba(37, 99, 235, 0.1)",
+                border: "1px solid #bfdbfe",
+                color: "#1d4ed8",
+                borderRadius: "var(--radius-md, 0.375rem)",
+                padding: "0.35rem 0.65rem",
+                fontSize: "var(--text-xs, 0.75rem)",
+                fontWeight: 700,
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.35rem",
+              }}
+            >
+              <Calculator size={14} weight="bold" />
+              <span>{showEmptySimulator ? "Ocultar simulador de categorías" : "Simular aumento por categoría sin tarjetón"}</span>
+            </button>
+          </div>
+          {showEmptySimulator && (
+            <div style={{ marginTop: "0.25rem" }}>
+              <CategorySalarySimulator theme="light" />
+            </div>
+          )}
+        </div>
       </NoticeCapsule>
     )
   }
@@ -252,11 +285,83 @@ export function SalaryIncreaseCard() {
           </span>{" "}
           más brutos por quincena.
         </p>
+
         <p style={{ margin: "0.5rem 0 0", fontSize: "var(--text-xs)", lineHeight: 1.5, color: "#c7d2fe" }}>
           {result.salaryType === "substitute"
             ? substituteDescription
             : "Estimación calculada sobre tu sueldo tabular (concepto 002) y ayuda de renta (concepto 011) de tu tarjetón más reciente, sujeta al convenio salarial definitivo."}
         </p>
+
+
+        {/* Comparativa de negociaciones: anterior vs definitiva */}
+        <div
+          style={{
+            marginTop: "0.75rem",
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
+            gap: "0.5rem",
+          }}
+        >
+          <div
+            style={{
+              padding: "0.5rem 0.65rem",
+              borderRadius: "var(--radius-sm, 0.375rem)",
+              background: "rgba(255, 255, 255, 0.08)",
+              border: "1px solid rgba(255, 255, 255, 0.16)",
+            }}
+          >
+            <div style={{ color: "#cbd5e1", fontSize: "0.6875rem", fontWeight: 600 }}>
+              Propuesta anterior (2.9% + 86.05%)
+            </div>
+            <div
+              style={{
+                fontSize: "1rem",
+                fontWeight: 700,
+                color: "#94a3b8",
+                textDecoration: "line-through",
+                marginTop: "0.2rem",
+              }}
+            >
+              {formatCurrency(result.previousProposalIncrease ?? 0)}
+            </div>
+          </div>
+          <div
+            style={{
+              padding: "0.5rem 0.65rem",
+              borderRadius: "var(--radius-sm, 0.375rem)",
+              background: "rgba(34, 197, 94, 0.18)",
+              border: "1px solid rgba(74, 222, 128, 0.4)",
+            }}
+          >
+            <div style={{ color: "#86efac", fontSize: "0.6875rem", fontWeight: 700 }}>
+              Nueva negociación (4.0% + 86.15%)
+            </div>
+            <div
+              style={{
+                fontSize: "1.0625rem",
+                fontWeight: 800,
+                color: "#ffffff",
+                marginTop: "0.2rem",
+              }}
+            >
+              {aumentoFormateado}
+            </div>
+          </div>
+        </div>
+        {(result.differentialGain ?? 0) > 0 && (
+          <div
+            style={{
+              marginTop: "0.45rem",
+              fontSize: "var(--text-xs, 0.75rem)",
+              fontWeight: 700,
+              color: "#86efac",
+            }}
+          >
+            ▲ Ganancia adicional lograda: +{formatCurrency(result.differentialGain ?? 0)} quincenales sobre la propuesta anterior
+          </div>
+        )}
+
+
         <div
           style={{
             marginTop: "0.625rem",
@@ -268,7 +373,40 @@ export function SalaryIncreaseCard() {
             color: "#e0e7ff",
           }}
         >
-          <strong>Hipótesis de estimación preliminar:</strong> sueldo base +2.9% y factor Concepto 11 del 86.05% (hipótesis de cálculo frente al 82.15% contractual vigente según Cláusula 63 Bis, hasta contar con el documento oficial definitivo del Convenio Salarial 2026).
+          <strong>Convenio Salarial 2026:</strong> sueldo base +4.0% y factor Concepto 11 del 86.15% (incremento frente al 82.15% contractual vigente según Cláusula 63 Bis Inciso B del CCT).
+        </div>
+
+        {/* Sección interactiva: Simulador de otras categorías */}
+        <div style={{ marginTop: "0.75rem", paddingTop: "0.65rem", borderTop: "1px solid rgba(255, 255, 255, 0.2)" }}>
+          <button
+            type="button"
+            data-testid="toggle-category-simulator"
+            onClick={() => setShowSimulator((prev) => !prev)}
+            style={{
+              background: "rgba(255, 255, 255, 0.15)",
+              border: "1px solid rgba(255, 255, 255, 0.3)",
+              color: "#ffffff",
+              borderRadius: "var(--radius-md, 0.375rem)",
+              padding: "0.4rem 0.75rem",
+              fontSize: "var(--text-xs, 0.75rem)",
+              fontWeight: 700,
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.4rem",
+              width: "100%",
+              justifyContent: "center",
+              boxSizing: "border-box",
+            }}
+          >
+            <Calculator size={15} weight="bold" />
+            <span>{showSimulator ? "Ocultar simulador de otras categorías" : "Simular aumento para otras categorías"}</span>
+          </button>
+          {showSimulator && (
+            <div style={{ marginTop: "0.75rem" }}>
+              <CategorySalarySimulator theme="dark" />
+            </div>
+          )}
         </div>
         {error && (
           <div

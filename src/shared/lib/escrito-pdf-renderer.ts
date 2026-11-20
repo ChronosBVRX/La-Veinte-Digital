@@ -282,9 +282,32 @@ export async function buildJsPdfDocument(
   doc.setFontSize(11)
 
   const checkPageBreak = (neededHeight: number) => {
-    if (y + neededHeight > pageHeight - margin) {
+    // Umbral inferior: deja 28pt limpios para el pie de página
+    if (y + neededHeight > pageHeight - margin - 28) {
       doc.addPage()
-      y = margin
+      // Re-asegurar fuentes y estilos formales
+      doc.setFont("times", "normal")
+      doc.setFontSize(11)
+      doc.setTextColor(0, 0, 0)
+
+      // Encabezado de continuidad en páginas 2+
+      const continuationText = draft.asunto?.trim()
+        ? `Continuación - ASUNTO: ${draft.asunto.trim()}`
+        : `Continuación de escrito formal`
+      const shortContinuation = doc.splitTextToSize(continuationText, contentWidth)[0] || continuationText
+
+      doc.setFont("times", "italic")
+      doc.setFontSize(8.5)
+      doc.setTextColor(110, 110, 110)
+      doc.text(shortContinuation, margin, 38)
+      doc.setDrawColor(210, 210, 210)
+      doc.setLineWidth(0.5)
+      doc.line(margin, 43, pageWidth - margin, 43)
+
+      doc.setFont("times", "normal")
+      doc.setFontSize(11)
+      doc.setTextColor(0, 0, 0)
+      y = 58
     }
   }
 
@@ -367,7 +390,9 @@ export async function buildJsPdfDocument(
 
   // 6. Bloque de Cierre y Firma
   const firmaBlockHeight = 160
-  checkPageBreak(firmaBlockHeight)
+  const copiasHeight = draft.copias && draft.copias.length > 0 ? draft.copias.length * 12 + 25 : 0
+  const totalClosingHeight = firmaBlockHeight + copiasHeight
+  checkPageBreak(totalClosingHeight)
 
   doc.setFont("times", "bold")
   doc.text("A T E N T A M E N T E", pageWidth / 2, y, { align: "center" })
@@ -538,6 +563,20 @@ export async function buildJsPdfDocument(
       }
 
       anexoIdx++
+    }
+  }
+
+  // 9. Numeración institucional de páginas (Página X de Y) cuando el documento tiene múltiples páginas
+  const totalPages = doc.getNumberOfPages()
+  if (totalPages > 1) {
+    for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+      doc.setPage(pageNum)
+      doc.setFont("times", "normal")
+      doc.setFontSize(8.5)
+      doc.setTextColor(110, 110, 110)
+      doc.text(`Página ${pageNum} de ${totalPages}`, pageWidth - margin, pageHeight - 30, {
+        align: "right",
+      })
     }
   }
 

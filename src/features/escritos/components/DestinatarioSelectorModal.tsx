@@ -138,7 +138,7 @@ export function DestinatarioSelectorModal({
               textAlign: "center",
             }}
           >
-            ✍️ Manual / Externo
+            ✍️ Manual / Delegado
           </button>
         </div>
 
@@ -248,18 +248,56 @@ export function DestinatarioSelectorModal({
             </div>
           </div>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "1rem", padding: "0.5rem 0" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.875rem", padding: "0.5rem 0" }}>
             <p style={{ fontSize: "0.875rem", color: "var(--muted)", margin: 0 }}>
-              Utiliza esta opción para dirigir tu escrito a autoridades del Instituto (Director de Unidad, Jefatura de
-              Personal, Jefatura de Enfermería) o a cualquier otra persona o cargo fuera del directorio seccional.
+              Utiliza esta opción para dirigir tu escrito sindical a tu Delegado Sindical, Representante Delegacional en tu centro de trabajo o cargo sindical específico.
             </p>
+
+            {/* Sugerencias rápidas para el cargo */}
+            <div>
+              <div style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--muted)", marginBottom: "0.375rem" }}>
+                Sugerencias rápidas:
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.375rem" }}>
+                {[
+                  "Delegado Sindical",
+                  "Representante Delegacional",
+                  "Subcomisión Mixta",
+                  "A quien corresponda",
+                ].map((sug) => (
+                  <button
+                    key={sug}
+                    type="button"
+                    onClick={() => {
+                      if (sug === "A quien corresponda") {
+                        setManualCargo(sug)
+                        setManualNombre(sug)
+                      } else {
+                        setManualCargo(sug)
+                      }
+                    }}
+                    style={{
+                      fontSize: "0.75rem",
+                      padding: "0.25rem 0.5rem",
+                      borderRadius: "1rem",
+                      border: "1px solid var(--border)",
+                      background: "var(--accent)",
+                      color: "var(--fg)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    + {sug}
+                  </button>
+                ))}
+              </div>
+            </div>
 
             <Input
               id="manual-cargo-input"
-              label="Cargo o puesto del destinatario"
+              label="Cargo o puesto del destinatario sindical"
               value={manualCargo}
               onChange={(e) => setManualCargo(e.target.value)}
-              placeholder="Ej. Director de HGZ No. 1, Jefe de Personal, Delegado Sindical..."
+              placeholder="Ej. Delegado Sindical, Representante Delegacional, Subcomisión..."
               required
             />
 

@@ -1,0 +1,21 @@
+{
+  "name": "la-veinte-digital-desktop",
+  "version": "1.0.0",
+  "description": "La 20 Digital - Edición Portátil para PC (Navegador IMSS, Tarjetón y Registros Biométricos)",
+  "main": "dist/main/index.js",
+  "scripts": {
+    "build:ts": "tsc",
+    "build": "tsc && node scripts/copy-assets.js",
+    "watch:ts": "tsc -w",
+    "start": "npm run build && electron .",
+    "package:portable": "npm run build && electron-builder --win portable"
+  },
+  "author": "La Veinte Digital",
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "@types/node": "^22.10.1",
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8",
+    "typescript": "^5.7.2"
+  }
+}

@@ -1,6 +1,6 @@
 import {
   TABULADORES_VERSIONADOS,
-  TABULADOR_VIGENTE_2025_2026,
+  TABULADOR_VIGENTE_2026_2027,
   type TabuladorVersion,
 } from "@/shared/lib/catalogo-categorias"
 import { deriveWorkdayHoursFromCategoryName } from "../lib/types"
@@ -19,8 +19,8 @@ export interface SalaryDataRecord {
   sourceRecordId: string
 }
 
-/** Versión vigente del tabulador al 16-10-2025. */
-export const SALARY_TABLE_VERSION = "salary-table-2025-2026"
+/** Versión vigente del tabulador al 16-10-2026. */
+export const SALARY_TABLE_VERSION = "salary-table-2026-2027"
 
 /**
  * ID estable y determinista por categoría, derivado del nombre del catálogo.
@@ -56,7 +56,7 @@ export const SALARY_DATA: SalaryDataRecord[] = TABULADORES_VERSIONADOS.flatMap((
 )
 
 export const LEGACY_CATEGORY_ID_MAP: ReadonlyMap<string, string> = new Map(
-  TABULADOR_VIGENTE_2025_2026.categorias.map((c, idx) => [
+  TABULADOR_VIGENTE_2026_2027.categorias.map((c, idx) => [
     String(idx + 1),
     stableCategoryId(c.nombre),
   ])

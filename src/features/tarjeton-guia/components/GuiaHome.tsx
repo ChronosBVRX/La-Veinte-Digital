@@ -279,7 +279,7 @@ export function GuiaHome({ data, userId }: { data: GuiaHomeServerData; userId: s
               {hasPayslip ? "Tu quincena, explicada" : "✨ Entiende tu última quincena"}
             </h2>
             <p style={{ fontSize: "0.84375rem", color: "var(--muted)", margin: 0, lineHeight: 1.45 }}>
-              Te explicamos cada pago (+), descuento (−) y observación utilizando tu tarjetón.
+              Te explicamos cada pago (+), descuento (−), fechas exactas de incidencias (guardias, vacaciones, estímulos) y observaciones.
             </p>
           </div>
         </div>
@@ -389,10 +389,10 @@ export function GuiaHome({ data, userId }: { data: GuiaHomeServerData; userId: s
               }}
             >
               <ActionLink href="/guia/mi-quincena" size="md">
-                Explícame mi pago <CaretRight size={14} />
+                ✨ Explícame mi quincena con fechas <CaretRight size={14} />
               </ActionLink>
-              <ActionLink href="/guia/mi-quincena?vista=revisar" variant="secondary" size="md">
-                Revisar mi quincena
+              <ActionLink href="/profile/mi-informacion-laboral" variant="secondary" size="md">
+                Historial de tarjetones
               </ActionLink>
             </div>
           </div>

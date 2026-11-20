@@ -247,9 +247,12 @@ export function buildVacationPlan(
     if (periodStartDate && units !== undefined && units > 0) {
       const schedule = getWorkScheduleForProfile(workerProfile ?? { weeklyRestDays: [5, 6] })
       const uType = getUnitType(workerProfile?.workScheduleType ?? "ORDINARY")
+      const unitsToConsume = (uType === "VELADA" || uType === "JOURNEY") && entitlementBreakdown
+        ? entitlementBreakdown.journeyEquivalent
+        : units
       dateBreakdown = calculateVacationRange({
         startDate: periodStartDate,
-        entitlementUnits: units,
+        entitlementUnits: unitsToConsume,
         unitType: uType,
         weeklyRestDays: workerProfile?.weeklyRestDays ?? [5, 6],
         mandatoryRestDates: getMandatoryRestDatesForRange(periodStartDate, 400),

@@ -55,7 +55,7 @@ function setupWorkerWithSalary(amount002 = 10000, amount011 = 8215) {
   }
 }
 
-function setupWorkerWithoutPayslip() {
+function _setupWorkerWithoutPayslip() {
   mockWorkerStatus = "ready"
   mockWorkerError = null
   mockWorkerContext = {
@@ -104,35 +104,11 @@ describe("HomeHighlightsCarousel", () => {
     expect(cta.getAttribute("href")).toBe("/vacaciones")
   })
 
-  it("3. aumento salarial aparece como slide y muestra el importe estimado quincenal", () => {
+  it("3. el anuncio del aumento salarial está retirado de los slides", () => {
     render(<HomeHighlightsCarousel />)
-    const salarySlide = screen.getByTestId("highlight-salary-increase")
-    expect(salarySlide).toBeDefined()
-    expect(screen.getByText("TU AUMENTO ESTIMADO")).toBeDefined()
-    expect(screen.getByText(/por quincena/i)).toBeDefined()
-    expect(screen.getByRole("button", { name: /Ver detalle/i })).toBeDefined()
-  })
-
-  it("3a. aumento salarial en estado sin tarjetón invita a importar y no muestra $0.00", () => {
-    setupWorkerWithoutPayslip()
-    render(<HomeHighlightsCarousel />)
-    expect(screen.getByText("Descubre tu aumento")).toBeDefined()
-    expect(screen.getByText("Importa tu tarjetón más reciente para calcularlo.")).toBeDefined()
-    const cta = screen.getByRole("link", { name: /Importar tarjetón/i })
-    expect(cta.getAttribute("href")).toBe("/profile/mi-informacion-laboral")
-    expect(document.body.textContent).not.toContain("$0.00")
-  })
-
-  it("3b. aumento salarial en estado de error permite reintentar y no rompe el carrusel", () => {
-    mockWorkerStatus = "error"
-    mockWorkerError = new Error("Network error")
-    render(<HomeHighlightsCarousel />)
-    expect(screen.getByText("No pudimos consultar tu información laboral en este momento.")).toBeDefined()
-    const retryBtn = screen.getByRole("button", { name: /Reintentar/i })
-    fireEvent.click(retryBtn)
-    expect(mockRetry).toHaveBeenCalled()
-    // El carrusel continúa funcionando
-    expect(screen.getByTestId("home-highlights-carousel")).toBeDefined()
+    expect(screen.queryByTestId("highlight-salary-increase")).toBeNull()
+    expect(screen.queryByText("TU AUMENTO ESTIMADO")).toBeNull()
+    expect(screen.queryByText(/por quincena/i)).toBeNull()
   })
 
   it("4. copias aparece como slide con sus etiquetas", () => {
@@ -186,6 +162,19 @@ describe("HomeHighlightsCarousel", () => {
     expect(cta.getAttribute("href")).toBe("/guia")
   })
 
+  it("7b. La Veinte Radio aparece como slide con recomendación de episodio y enlace a /radio", () => {
+    render(<HomeHighlightsCarousel />)
+    const tab = screen.getByRole("tab", { name: /¿Cuántos Pacientes Me Tocan\?/i })
+    expect(tab).toBeDefined()
+
+    fireEvent.click(tab)
+    expect(screen.getByTestId("highlight-radio-podcast")).toBeDefined()
+    expect(screen.getByText("LA VEINTE RADIO · PODCAST")).toBeDefined()
+    expect(screen.getByText("Escuchar capítulo")).toBeDefined()
+    const cta = screen.getByRole("link", { name: /Escuchar capítulo/i })
+    expect(cta.getAttribute("href")).toBe("/radio")
+  })
+
   it("8. regla de exclusión funcional: las 6 funciones de HomeQuickActions NO se duplican por ID, título ni ruta", () => {
     expect(HOME_QUICK_ACTION_IDS.has("agenda")).toBe(true)
     expect(HOME_QUICK_ACTION_IDS.has("tarjeton")).toBe(true)
@@ -222,15 +211,15 @@ describe("HomeHighlightsCarousel", () => {
     expect(isExcludedByQuickActions({ id: "guia-tarjeton-highlight", title: "¿Tienes dudas sobre tu tarjetón?", href: "/guia" })).toBe(false)
   })
 
-  it("9. respeta prioridades canónicas (aumento > vacaciones > copias > transferir > calculadoras > guía)", () => {
+  it("9. respeta prioridades canónicas (vacaciones > copias > biblioteca normativa > transferir > calculadoras > guía)", () => {
     render(<HomeHighlightsCarousel />)
     const tabs = screen.getAllByRole("tab")
-    // El primer tab debe ser aumento salarial
-    expect(tabs[0].getAttribute("aria-label")).toContain("por quincena")
-    // El segundo tab debe ser vacaciones 2027
-    expect(tabs[1].getAttribute("aria-label")).toContain("roles vacacionales 2027")
-    // El tercer tab debe ser copias
-    expect(tabs[2].getAttribute("aria-label")).toContain("copias")
+    // El primer tab debe ser vacaciones 2027
+    expect(tabs[0].getAttribute("aria-label")).toContain("roles vacacionales 2027")
+    // El segundo tab debe ser copias
+    expect(tabs[1].getAttribute("aria-label")).toContain("copias")
+    // El tercer tab debe ser biblioteca normativa
+    expect(tabs[2].getAttribute("aria-label")).toContain("derechos")
   })
 
   it("10. integra anuncios remotos de administración cuando se reciben", async () => {
@@ -272,20 +261,20 @@ describe("HomeHighlightsCarousel", () => {
     render(<HomeHighlightsCarousel />)
     // El carrusel se mantiene con los destacados base
     expect(screen.getByTestId("home-highlights-carousel")).toBeDefined()
-    expect(screen.getByTestId("highlight-salary-increase")).toBeDefined()
+    expect(screen.getByTestId("highlight-vacation-roles")).toBeDefined()
   })
 
   it("12. navegación por controles desktop (flechas siguiente y anterior)", () => {
     render(<HomeHighlightsCarousel />)
-    expect(screen.getByTestId("highlight-salary-increase")).toBeDefined()
+    expect(screen.getByTestId("highlight-vacation-roles")).toBeDefined()
 
     const nextBtn = screen.getByRole("button", { name: "Destacado siguiente" })
     fireEvent.click(nextBtn)
-    expect(screen.getByTestId("highlight-vacation-roles")).toBeDefined()
+    expect(screen.getByTestId("highlight-copy-service")).toBeDefined()
 
     const prevBtn = screen.getByRole("button", { name: "Destacado anterior" })
     fireEvent.click(prevBtn)
-    expect(screen.getByTestId("highlight-salary-increase")).toBeDefined()
+    expect(screen.getByTestId("highlight-vacation-roles")).toBeDefined()
   })
 
   it("13. swipe táctil en móvil avanza y retrocede según la dirección", () => {
@@ -295,12 +284,12 @@ describe("HomeHighlightsCarousel", () => {
     // Swipe izquierda (adelante)
     fireEvent.touchStart(carouselRoot, { touches: [{ clientX: 200, clientY: 100 }] })
     fireEvent.touchEnd(carouselRoot, { changedTouches: [{ clientX: 100, clientY: 100 }] })
-    expect(screen.getByTestId("highlight-vacation-roles")).toBeDefined()
+    expect(screen.getByTestId("highlight-copy-service")).toBeDefined()
 
     // Swipe derecha (atrás)
     fireEvent.touchStart(carouselRoot, { touches: [{ clientX: 100, clientY: 100 }] })
     fireEvent.touchEnd(carouselRoot, { changedTouches: [{ clientX: 200, clientY: 100 }] })
-    expect(screen.getByTestId("highlight-salary-increase")).toBeDefined()
+    expect(screen.getByTestId("highlight-vacation-roles")).toBeDefined()
   })
 
   it("14. no desborda en viewport móvil (estilos defensivos minWidth: 0, maxWidth: 100%)", () => {
@@ -309,5 +298,12 @@ describe("HomeHighlightsCarousel", () => {
     expect(root.style.minWidth).toBe("0px")
     expect(root.style.maxWidth).toBe("100%")
     expect(root.style.overflow).toBe("hidden")
+  })
+
+  it("15. no abre el modal de aumento retirado si la URL incluye ?modal=aumento", () => {
+    window.history.pushState({}, "", "/?modal=aumento")
+
+    render(<HomeHighlightsCarousel />)
+    expect(screen.queryByText("Detalle del aumento estimado")).toBeNull()
   })
 })

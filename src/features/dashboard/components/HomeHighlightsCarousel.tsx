@@ -11,7 +11,6 @@ import {
 } from "react"
 import Link from "next/link"
 import {
-  TrendUp,
   CalendarCheck,
   CopySimple,
   ArrowsLeftRight,
@@ -23,13 +22,9 @@ import {
   FileText,
   IdentificationCard,
   Sparkle,
+  Radio,
 } from "@phosphor-icons/react"
-import { useWorkerContextSync } from "@/shared/hooks/useLiveWorkerContext"
-import { selectSalaryEstimateInputs } from "@/features/salary-estimate/services/salary-estimate-selector"
-import { calculateSalaryIncrease } from "@/features/salary-estimate/lib/calculate-salary-increase"
-import { formatCurrency } from "@/features/calculators/lib/money"
 import { TransferDocumentsModal } from "@/features/transferir/components/TransferDocumentsModal"
-import { SalaryIncreaseDetailModal } from "./SalaryIncreaseDetailModal"
 import { isExcludedByQuickActions } from "../lib/highlight-exclusion-policy"
 import {
   HIGHLIGHT_PRIORITIES,
@@ -37,6 +32,45 @@ import {
   type AnnouncementHighlight,
 } from "../types/home-highlights"
 import type { Announcement } from "@/shared/contracts/announcements"
+
+export const PODCAST_HIGHLIGHT_EPISODES = [
+  {
+    num: "Ep. 6",
+    title: "¿Cuántos Pacientes Me Tocan?",
+    description: "Indicadores IMSS, bitácora y cómo protegerte legalmente ante sobrecargas en tu turno.",
+    duration: "9 min",
+  },
+  {
+    num: "Ep. 5",
+    title: "Mismo Personal, Más Camillas",
+    description: "Procedimiento 2900, Cláusula 22 Bis y qué exigir cuando abren camas sin más plantilla.",
+    duration: "13 min",
+  },
+  {
+    num: "Ep. 4",
+    title: "Mitos de la Investigación Laboral",
+    description: "Cláusula 55 Bis, el plazo estricto de 36 horas hábiles y tus garantías de defensa.",
+    duration: "11 min",
+  },
+  {
+    num: "Ep. 3",
+    title: "Todo sobre tus Vacaciones IMSS",
+    description: "Cláusula 47, pagos, opciones de disfrute y cómo verificar tus fechas en el tarjetón.",
+    duration: "10 min",
+  },
+  {
+    num: "Ep. 2",
+    title: "Huelga en el Seguro Social",
+    description: "Lo que dice la Ley Federal del Trabajo, los estatutos sindicales y la realidad hospitalaria.",
+    duration: "9 min",
+  },
+  {
+    num: "Ep. 1",
+    title: "La verdad del 8.55%",
+    description: "Concepto 11 del tarjetón, incremento al tabulador y Cláusula 157 explicados sin rodeos.",
+    duration: "11 min",
+  },
+] as const
 
 interface HomeHighlightsCarouselProps {
   initialAnnouncements?: Announcement[]
@@ -46,21 +80,37 @@ const AUTOPLAY_INTERVAL_MS = 11000
 const SWIPE_THRESHOLD_PX = 40
 
 export function HomeHighlightsCarousel({ initialAnnouncements = [] }: HomeHighlightsCarouselProps) {
-  // ── 1. Datos y estado de Aumento Salarial ─────────────────────────────────
-  const { context, status: workerStatus, retry: retryWorker } = useWorkerContextSync(null)
-
-  const salarySelection = useMemo(() => {
-    return selectSalaryEstimateInputs(context)
-  }, [context])
-
-  const salaryResult = useMemo(() => {
-    return calculateSalaryIncrease(salarySelection)
-  }, [salarySelection])
-
-  const [detailModalOpen, setDetailModalOpen] = useState(false)
   const [transferModalOpen, setTransferModalOpen] = useState(false)
+  const [podcastEpisodeIndex, setPodcastEpisodeIndex] = useState(0)
 
-  // ── 2. Avisos remotos (Supabase announcements con show_in_home_hero) ────────
+  // Limpieza preventiva de parámetros heredados del modal de aumento
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    try {
+      const url = new URL(window.location.href)
+      let changed = false
+      if (url.searchParams.get("modal") === "aumento" || url.searchParams.get("modal") === "aumento-salarial") {
+        url.searchParams.delete("modal")
+        changed = true
+      }
+      if (url.searchParams.has("aumento")) {
+        url.searchParams.delete("aumento")
+        changed = true
+      }
+      if (url.hash === "#aumento" || url.hash === "#aumento-salarial") {
+        url.hash = ""
+        changed = true
+      }
+      if (changed) {
+        const newUrl = url.pathname + (url.searchParams.toString() ? '?' + url.searchParams.toString() : "") + url.hash
+        window.history.replaceState({}, "", newUrl)
+      }
+    } catch {
+      // Fallback defensivo
+    }
+  }, [])
+
+  // ── 1. Avisos remotos (Supabase announcements con show_in_home_hero) ────────
   const [remoteAnnouncements, setRemoteAnnouncements] = useState<Announcement[]>(initialAnnouncements)
 
   useEffect(() => {
@@ -83,78 +133,11 @@ export function HomeHighlightsCarousel({ initialAnnouncements = [] }: HomeHighli
     }
   }, [])
 
-  // ── 3. Construcción del conjunto de slides ────────────────────────────────
+  // ── 2. Construcción del conjunto de slides ────────────────────────────────
   const slides = useMemo<HomeHighlight[]>(() => {
     const list: HomeHighlight[] = []
 
-    // A. Aumento Salarial (System Highlight)
-    let salaryTitle = "Tu aumento estimado"
-    let salaryDescription = "Basado en tu tarjetón activo."
-    let salaryCtaText = "Ver detalle"
-    let salaryCtaHref: string | undefined = undefined
-    let salaryCtaAction: (() => void) | undefined = () => setDetailModalOpen(true)
-    let salaryBadge = "TU AUMENTO ESTIMADO"
-
-    if (workerStatus === "loading") {
-      salaryDescription = "Estamos revisando tu tarjetón más reciente."
-      salaryCtaText = "Consultando..."
-      salaryCtaAction = undefined
-    } else if (workerStatus === "error") {
-      salaryDescription = "No pudimos consultar tu información laboral en este momento."
-      salaryCtaText = "Reintentar"
-      salaryCtaAction = retryWorker
-    } else if (!salarySelection.hasPayslip || salaryResult.calculationStatus === "missing-payslip") {
-      salaryTitle = "Descubre tu aumento"
-      salaryDescription = "Importa tu tarjetón más reciente para calcularlo."
-      salaryCtaText = "Importar tarjetón"
-      salaryCtaHref = "/profile/mi-informacion-laboral"
-      salaryCtaAction = undefined
-    } else if (
-      salaryResult.calculationStatus === "missing-concept11" ||
-      salaryResult.calculationStatus === "missing-tabular" ||
-      salaryResult.calculationStatus === "insufficient-data"
-    ) {
-      salaryDescription = "Tu tarjetón guardado requiere revisión de conceptos para estimar el aumento."
-      salaryCtaText = "Revisar mi información"
-      salaryCtaHref = "/profile/mi-informacion-laboral"
-      salaryCtaAction = undefined
-    } else if (
-      salaryResult.calculationStatus === "new-schedule-unverified" ||
-      salaryResult.calculationStatus === "unverified-comparable-base"
-    ) {
-      salaryTitle = "Estimación pendiente de comprobar"
-      salaryDescription = "Tu tarjetón registra vigencia o importes que requieren comprobación antes de estimar."
-      salaryCtaText = "Revisar mi información"
-      salaryCtaHref = "/profile/mi-informacion-laboral"
-      salaryCtaAction = undefined
-    } else if (salaryResult.calculationStatus === "ok") {
-      const formatted = formatCurrency(salaryResult.estimatedFortnightlyIncrease)
-      salaryBadge = salaryResult.salaryType === "substitute"
-        ? "TU AUMENTO ESTIMADO (SUSTITUCIÓN)"
-        : "TU AUMENTO ESTIMADO"
-      salaryTitle = `+${formatted} por quincena`
-      salaryDescription = salaryResult.salaryType === "substitute"
-        ? "Estimación preliminar sobre tu percepción por sustitución (concepto 008) y ayuda de renta (concepto 011)."
-        : "Estimación preliminar sobre tu sueldo tabular (concepto 002) y ayuda de renta (concepto 011)."
-    }
-
-    list.push({
-      id: "salary-increase-highlight",
-      type: "system",
-      priority: HIGHLIGHT_PRIORITIES.SALARY_INCREASE,
-      eyebrow: salaryBadge,
-      title: salaryTitle,
-      description: salaryDescription,
-      ctaText: salaryCtaText,
-      ctaHref: salaryCtaHref,
-      ctaAction: salaryCtaAction,
-      icon: TrendUp,
-      gradient: "linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)",
-      enabled: true,
-      testId: "highlight-salary-increase",
-    })
-
-    // B. Roles Vacacionales 2027 (System Highlight)
+    // A. Roles Vacacionales 2027 (System Highlight)
     list.push({
       id: "vacation-2027-highlight",
       type: "system",
@@ -212,7 +195,28 @@ export function HomeHighlightsCarousel({ initialAnnouncements = [] }: HomeHighli
       testId: "highlight-copy-service",
     })
 
-    // D. Transferir Documentos (System Highlight)
+    // D. Podcast La Veinte Radio (System Highlight)
+    const featuredEp = PODCAST_HIGHLIGHT_EPISODES[podcastEpisodeIndex % PODCAST_HIGHLIGHT_EPISODES.length]
+    list.push({
+      id: "radio-podcast-highlight",
+      type: "system",
+      priority: HIGHLIGHT_PRIORITIES.RADIO_PODCAST,
+      eyebrow: "LA VEINTE RADIO · PODCAST",
+      title: `${featuredEp.num} | ${featuredEp.title}`,
+      description: featuredEp.description,
+      ctaText: "Escuchar capítulo",
+      ctaHref: "/radio",
+      icon: Radio,
+      pills: [
+        { label: featuredEp.duration },
+        { label: "Capítulo recomendado" },
+      ],
+      gradient: "linear-gradient(135deg, #092c1d 0%, #0f4a30 50%, #15803d 100%)",
+      enabled: true,
+      testId: "highlight-radio-podcast",
+    })
+
+    // E. Transferir Documentos (System Highlight)
     list.push({
       id: "transfer-docs-highlight",
       type: "system",
@@ -301,13 +305,7 @@ export function HomeHighlightsCarousel({ initialAnnouncements = [] }: HomeHighli
     filtered.sort((a, b) => b.priority - a.priority)
 
     return filtered
-  }, [
-    workerStatus,
-    retryWorker,
-    salarySelection,
-    salaryResult,
-    remoteAnnouncements,
-  ])
+  }, [remoteAnnouncements, podcastEpisodeIndex])
 
   // ── 4. Navegación, swipe y autoplay ───────────────────────────────────────
   const [activeIndex, setActiveIndex] = useState(0)
@@ -330,10 +328,15 @@ export function HomeHighlightsCarousel({ initialAnnouncements = [] }: HomeHighli
 
   const goToNext = useCallback(() => {
     setActiveIndex((prev) => (prev + 1) % (slides.length || 1))
+    setPodcastEpisodeIndex((prev) => {
+      const next = Math.floor(Math.random() * PODCAST_HIGHLIGHT_EPISODES.length)
+      return next === prev ? (prev + 1) % PODCAST_HIGHLIGHT_EPISODES.length : next
+    })
   }, [slides.length])
 
   const goToPrev = useCallback(() => {
     setActiveIndex((prev) => (prev - 1 + slides.length) % (slides.length || 1))
+    setPodcastEpisodeIndex((prev) => (prev - 1 + PODCAST_HIGHLIGHT_EPISODES.length) % PODCAST_HIGHLIGHT_EPISODES.length)
   }, [slides.length])
 
   // Autoplay temporizado
@@ -619,13 +622,6 @@ export function HomeHighlightsCarousel({ initialAnnouncements = [] }: HomeHighli
       </div>
 
       {/* Modales correspondientes */}
-      <SalaryIncreaseDetailModal
-        open={detailModalOpen}
-        onClose={() => setDetailModalOpen(false)}
-        result={salaryResult}
-        activePeriod={salarySelection.activePeriod}
-      />
-
       <TransferDocumentsModal
         open={transferModalOpen}
         onClose={() => setTransferModalOpen(false)}

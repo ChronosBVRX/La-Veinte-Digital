@@ -63,7 +63,7 @@ export async function isNormativaDocDownloaded(docId: string): Promise<boolean> 
     try {
       const nativeDocs = await window.LaVeinteApp.listNativeDocuments()
       const found = nativeDocs.some(
-        (d) =>
+        (d: NativeDocumentMeta) =>
           d.source === "NORMATIVA" &&
           (d.name === meta.fileName || d.escritoId === meta.id)
       )
@@ -197,7 +197,7 @@ export async function deleteOfflineNormativaDoc(docId: string): Promise<boolean>
     try {
       const nativeDocs = await window.LaVeinteApp.listNativeDocuments()
       const target = nativeDocs.find(
-        (d) =>
+        (d: NativeDocumentMeta) =>
           d.source === "NORMATIVA" &&
           (d.name === meta.fileName || d.escritoId === meta.id)
       )
@@ -255,7 +255,7 @@ export async function getOfflineDocUrl(docId: string): Promise<string | null> {
     try {
       const nativeDocs = await window.LaVeinteApp.listNativeDocuments()
       const target = nativeDocs.find(
-        (d) =>
+        (d: NativeDocumentMeta) =>
           d.source === "NORMATIVA" &&
           (d.name === meta.fileName || d.escritoId === meta.id)
       )

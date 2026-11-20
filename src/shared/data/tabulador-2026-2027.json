@@ -1,0 +1,1055 @@
+[
+  {
+    "nombre": "ABOGADO 80",
+    "sueldoQuincenal": 5839.93,
+    "concepto011": 5031.1,
+    "baseMensual": 21742.06,
+    "smi": 26090.47,
+    "sueldoPlaza": 10892.96,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "ASIST BIBLIOTECARIO 80",
+    "sueldoQuincenal": 4733.63,
+    "concepto011": 4078.02,
+    "baseMensual": 17623.3,
+    "smi": 21147.96,
+    "sueldoPlaza": 8829.42,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "ASISTENTE MEDICA 65",
+    "sueldoQuincenal": 2580.84,
+    "concepto011": 2223.39,
+    "baseMensual": 9608.46,
+    "smi": 11530.15,
+    "sueldoPlaza": 4813.92,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "ASISTENTE MEDICA 80",
+    "sueldoQuincenal": 3176.51,
+    "concepto011": 2736.56,
+    "baseMensual": 11826.14,
+    "smi": 14191.37,
+    "sueldoPlaza": 5925,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "AUX ADMON UNID MEDICA 65",
+    "sueldoQuincenal": 2500.38,
+    "concepto011": 2154.08,
+    "baseMensual": 9308.92,
+    "smi": 11170.7,
+    "sueldoPlaza": 4663.84,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "AUX ADMON UNID MEDICA 80",
+    "sueldoQuincenal": 3077.31,
+    "concepto011": 2651.1,
+    "baseMensual": 11456.82,
+    "smi": 13748.18,
+    "sueldoPlaza": 5739.96,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "AUX DE ENF SALUD PUB 80",
+    "sueldoQuincenal": 3176.51,
+    "concepto011": 2736.56,
+    "baseMensual": 11826.14,
+    "smi": 14191.37,
+    "sueldoPlaza": 5925,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "AUX DE ENFERMERIA GRAL 80",
+    "sueldoQuincenal": 3176.51,
+    "concepto011": 2736.56,
+    "baseMensual": 11826.14,
+    "smi": 14191.37,
+    "sueldoPlaza": 5925,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "AUX DE LABORATORIO 60",
+    "sueldoQuincenal": 2460.67,
+    "concepto011": 2119.87,
+    "baseMensual": 9161.08,
+    "smi": 10993.3,
+    "sueldoPlaza": 4589.78,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "AUX DE LABORATORIO 80",
+    "sueldoQuincenal": 3280.98,
+    "concepto011": 2826.56,
+    "baseMensual": 12215.08,
+    "smi": 14658.1,
+    "sueldoPlaza": 6119.86,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "AUX DE SERVS DE INT 65",
+    "sueldoQuincenal": 2059.88,
+    "concepto011": 1774.59,
+    "baseMensual": 7668.94,
+    "smi": 9202.73,
+    "sueldoPlaza": 3842.2,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "AUX DE SERVS DE INT 80",
+    "sueldoQuincenal": 2535.24,
+    "concepto011": 2184.11,
+    "baseMensual": 9438.7,
+    "smi": 11326.44,
+    "sueldoPlaza": 4728.86,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "AUX DE TRAB SOCIAL 65",
+    "sueldoQuincenal": 2426.92,
+    "concepto011": 2090.79,
+    "baseMensual": 9035.42,
+    "smi": 10842.5,
+    "sueldoPlaza": 4526.82,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "AUX DE VELATORIO 80",
+    "sueldoQuincenal": 2537.6,
+    "concepto011": 2186.14,
+    "baseMensual": 9447.48,
+    "smi": 11336.98,
+    "sueldoPlaza": 4733.26,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "AUX ENFERMERIA U M 80",
+    "sueldoQuincenal": 3151.66,
+    "concepto011": 2715.16,
+    "baseMensual": 11733.64,
+    "smi": 14080.37,
+    "sueldoPlaza": 5878.64,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "AUX LIMPIEZA E HIGIENE UM Y NO MED 80",
+    "sueldoQuincenal": 2535.24,
+    "concepto011": 2184.11,
+    "baseMensual": 9438.7,
+    "smi": 11326.44,
+    "sueldoPlaza": 4728.86,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "AUX SOPORTE TEC INFORMAT",
+    "sueldoQuincenal": 4337.05,
+    "concepto011": 3736.37,
+    "baseMensual": 16146.84,
+    "smi": 19376.21,
+    "sueldoPlaza": 8089.7,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "AUX UNIV DE OFICINAS 65",
+    "sueldoQuincenal": 2468,
+    "concepto011": 2126.18,
+    "baseMensual": 9188.36,
+    "smi": 11026.03,
+    "sueldoPlaza": 4603.46,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "AUX UNIV DE OFICINAS 80",
+    "sueldoQuincenal": 3037.55,
+    "concepto011": 2616.85,
+    "baseMensual": 11308.8,
+    "smi": 13570.56,
+    "sueldoPlaza": 5665.8,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "AUXILIAR DE FARMACIA 80",
+    "sueldoQuincenal": 3340.79,
+    "concepto011": 2878.09,
+    "baseMensual": 12437.76,
+    "smi": 14925.31,
+    "sueldoPlaza": 6231.42,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "AYTE DE SERVS DE INT 80",
+    "sueldoQuincenal": 2937.26,
+    "concepto011": 2530.45,
+    "baseMensual": 10935.42,
+    "smi": 13122.5,
+    "sueldoPlaza": 5478.74,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "AYTE DE SERVS DE INT 80",
+    "sueldoQuincenal": 2937.26,
+    "concepto011": 2530.45,
+    "baseMensual": 10935.42,
+    "smi": 13122.5,
+    "sueldoPlaza": 5478.74,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "AYTE EMBALSAMAMIENTO 80",
+    "sueldoQuincenal": 3190.72,
+    "concepto011": 2748.81,
+    "baseMensual": 11879.06,
+    "smi": 14254.87,
+    "sueldoPlaza": 5951.5,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "AYTE LIMPIEZA E HIGIENE UM Y NO MED 80",
+    "sueldoQuincenal": 2937.26,
+    "concepto011": 2530.45,
+    "baseMensual": 10935.42,
+    "smi": 13122.5,
+    "sueldoPlaza": 5478.74,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "AYUDANTE DE AUTOPSIA 80",
+    "sueldoQuincenal": 3408.65,
+    "concepto011": 2936.55,
+    "baseMensual": 12690.4,
+    "smi": 15228.48,
+    "sueldoPlaza": 6358,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "AYUDANTE DE FARMACIA 80",
+    "sueldoQuincenal": 3733.74,
+    "concepto011": 3216.62,
+    "baseMensual": 13900.72,
+    "smi": 16680.86,
+    "sueldoPlaza": 6964.36,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "BIBLIOTECARIO 80",
+    "sueldoQuincenal": 5839.93,
+    "concepto011": 5031.1,
+    "baseMensual": 21742.06,
+    "smi": 26090.47,
+    "sueldoPlaza": 10892.96,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "CAMILLERO EN UNIDADES HOSPITALARIAS 80",
+    "sueldoQuincenal": 2989.44,
+    "concepto011": 2575.4,
+    "baseMensual": 11129.68,
+    "smi": 13355.62,
+    "sueldoPlaza": 5576.06,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "CHOFER 65",
+    "sueldoQuincenal": 2424.39,
+    "concepto011": 2088.61,
+    "baseMensual": 9026,
+    "smi": 10831.2,
+    "sueldoPlaza": 4522.1,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "CHOFER 80",
+    "sueldoQuincenal": 2983.78,
+    "concepto011": 2570.53,
+    "baseMensual": 11108.62,
+    "smi": 13330.34,
+    "sueldoPlaza": 5565.5,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "CIRUJANO MAXILO-FACIAL 80",
+    "sueldoQuincenal": 6678.98,
+    "concepto011": 5753.94,
+    "baseMensual": 24865.84,
+    "smi": 29839.01,
+    "sueldoPlaza": 12458,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "CITOTECNOLOGO 80",
+    "sueldoQuincenal": 4095.15,
+    "concepto011": 3527.97,
+    "baseMensual": 15246.24,
+    "smi": 18295.49,
+    "sueldoPlaza": 7638.48,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "COCINERO TECNICO 1 80",
+    "sueldoQuincenal": 3171.31,
+    "concepto011": 2732.08,
+    "baseMensual": 11806.78,
+    "smi": 14168.14,
+    "sueldoPlaza": 5915.3,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "COCINERO TECNICO 2 80",
+    "sueldoQuincenal": 2937.26,
+    "concepto011": 2530.45,
+    "baseMensual": 10935.42,
+    "smi": 13122.5,
+    "sueldoPlaza": 5478.74,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "COOR DE SERVS TECNICOS 80",
+    "sueldoQuincenal": 4337.05,
+    "concepto011": 3736.37,
+    "baseMensual": 16146.84,
+    "smi": 19376.21,
+    "sueldoPlaza": 8089.7,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "COOR SOPORTE TEC INFORMAT",
+    "sueldoQuincenal": 5858.57,
+    "concepto011": 5047.16,
+    "baseMensual": 21811.46,
+    "smi": 26173.75,
+    "sueldoPlaza": 10927.72,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "COORD ASIST MEDICAS 80",
+    "sueldoQuincenal": 3518.94,
+    "concepto011": 3031.57,
+    "baseMensual": 13101.02,
+    "smi": 15721.22,
+    "sueldoPlaza": 6563.72,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "COORDINADOR DE FARMACIA80",
+    "sueldoQuincenal": 5096.16,
+    "concepto011": 4390.34,
+    "baseMensual": 18973,
+    "smi": 22767.6,
+    "sueldoPlaza": 9505.62,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "EDUCADORA 40",
+    "sueldoQuincenal": 2187.57,
+    "concepto011": 1884.59,
+    "baseMensual": 8144.32,
+    "smi": 9773.18,
+    "sueldoPlaza": 4080.36,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "EDUCADORA 65",
+    "sueldoQuincenal": 3080.83,
+    "concepto011": 2654.14,
+    "baseMensual": 11469.94,
+    "smi": 13763.93,
+    "sueldoPlaza": 5746.54,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "EDUCADORA 80",
+    "sueldoQuincenal": 3791.81,
+    "concepto011": 3266.64,
+    "baseMensual": 14116.9,
+    "smi": 16940.28,
+    "sueldoPlaza": 7072.68,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "ENF ESPEC SALUD PUBL 80",
+    "sueldoQuincenal": 4376.05,
+    "concepto011": 3769.97,
+    "baseMensual": 16292.04,
+    "smi": 19550.45,
+    "sueldoPlaza": 8162.44,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "ENFERMERA GENERAL 80",
+    "sueldoQuincenal": 3838.18,
+    "concepto011": 3306.59,
+    "baseMensual": 14289.54,
+    "smi": 17147.45,
+    "sueldoPlaza": 7159.18,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "ENFERMERA GENERAL CLINICA 80",
+    "sueldoQuincenal": 4107.12,
+    "concepto011": 3538.28,
+    "baseMensual": 15290.8,
+    "smi": 18348.96,
+    "sueldoPlaza": 7660.82,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "ENFERMERA JEFE DE PISO 80",
+    "sueldoQuincenal": 5325.9,
+    "concepto011": 4588.26,
+    "baseMensual": 19828.32,
+    "smi": 23793.98,
+    "sueldoPlaza": 9934.16,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "ESP DE ALMACEN 80",
+    "sueldoQuincenal": 5858.57,
+    "concepto011": 5047.16,
+    "baseMensual": 21811.46,
+    "smi": 26173.75,
+    "sueldoPlaza": 10927.72,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "ESP NUTRIC DIETETICA 80",
+    "sueldoQuincenal": 4376.05,
+    "concepto011": 3769.97,
+    "baseMensual": 16292.04,
+    "smi": 19550.45,
+    "sueldoPlaza": 8162.44,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "ESTOMATOLOGO 80",
+    "sueldoQuincenal": 6200.54,
+    "concepto011": 5341.77,
+    "baseMensual": 23084.62,
+    "smi": 27701.54,
+    "sueldoPlaza": 11565.58,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "FONOAUDIOLOGO 80",
+    "sueldoQuincenal": 4095.15,
+    "concepto011": 3527.97,
+    "baseMensual": 15246.24,
+    "smi": 18295.49,
+    "sueldoPlaza": 7638.48,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "GUARDAVIDAS 65",
+    "sueldoQuincenal": 2377.34,
+    "concepto011": 2048.08,
+    "baseMensual": 8850.84,
+    "smi": 10621.01,
+    "sueldoPlaza": 4434.34,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "HISTOTECNOLOGO 60",
+    "sueldoQuincenal": 3071.36,
+    "concepto011": 2645.98,
+    "baseMensual": 11434.68,
+    "smi": 13721.62,
+    "sueldoPlaza": 5728.86,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "HISTOTECNOLOGO 80",
+    "sueldoQuincenal": 4095.15,
+    "concepto011": 3527.97,
+    "baseMensual": 15246.24,
+    "smi": 18295.49,
+    "sueldoPlaza": 7638.48,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "INHALOTERAPEUTA 60",
+    "sueldoQuincenal": 3071.36,
+    "concepto011": 2645.98,
+    "baseMensual": 11434.68,
+    "smi": 13721.62,
+    "sueldoPlaza": 5728.86,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "INHALOTERAPEUTA 65",
+    "sueldoQuincenal": 3327.29,
+    "concepto011": 2866.46,
+    "baseMensual": 12387.5,
+    "smi": 14865,
+    "sueldoPlaza": 6206.24,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "INHALOTERAPEUTA 80",
+    "sueldoQuincenal": 4095.15,
+    "concepto011": 3527.97,
+    "baseMensual": 15246.24,
+    "smi": 18295.49,
+    "sueldoPlaza": 7638.48,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "JEFE DE GPO DE ALMACEN 80",
+    "sueldoQuincenal": 5325.9,
+    "concepto011": 4588.26,
+    "baseMensual": 19828.32,
+    "smi": 23793.98,
+    "sueldoPlaza": 9934.16,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "LABORATORISTA 60",
+    "sueldoQuincenal": 3230.71,
+    "concepto011": 2783.26,
+    "baseMensual": 12027.94,
+    "smi": 14433.53,
+    "sueldoPlaza": 6026.1,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "LABORATORISTA 80",
+    "sueldoQuincenal": 4307.5,
+    "concepto011": 3710.91,
+    "baseMensual": 16036.82,
+    "smi": 19244.18,
+    "sueldoPlaza": 8034.58,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "MANEJADOR ALIMENTOS 80",
+    "sueldoQuincenal": 2535.24,
+    "concepto011": 2184.11,
+    "baseMensual": 9438.7,
+    "smi": 11326.44,
+    "sueldoPlaza": 4728.86,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "MEDICO FAMILIAR 80",
+    "sueldoQuincenal": 6678.98,
+    "concepto011": 5753.94,
+    "baseMensual": 24865.84,
+    "smi": 29839.01,
+    "sueldoPlaza": 12458,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "MEDICO GENERAL 80",
+    "sueldoQuincenal": 5070.94,
+    "concepto011": 4368.61,
+    "baseMensual": 18879.1,
+    "smi": 22654.92,
+    "sueldoPlaza": 9458.58,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "MENSAJERO 65",
+    "sueldoQuincenal": 2056.81,
+    "concepto011": 1771.94,
+    "baseMensual": 7657.5,
+    "smi": 9189,
+    "sueldoPlaza": 3836.46,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "MENSAJERO 80",
+    "sueldoQuincenal": 2531.38,
+    "concepto011": 2180.78,
+    "baseMensual": 9424.32,
+    "smi": 11309.18,
+    "sueldoPlaza": 4721.66,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "NUTRICIONISTA DIETISTA 80",
+    "sueldoQuincenal": 3774.24,
+    "concepto011": 3251.51,
+    "baseMensual": 14051.5,
+    "smi": 16861.8,
+    "sueldoPlaza": 7039.92,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "NUTRIOLOGO CLIN ESPEC",
+    "sueldoQuincenal": 5325.9,
+    "concepto011": 4588.26,
+    "baseMensual": 19828.32,
+    "smi": 23793.98,
+    "sueldoPlaza": 9934.16,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "OF DE SERVS TECNICOS 80",
+    "sueldoQuincenal": 3675.43,
+    "concepto011": 3166.38,
+    "baseMensual": 13683.62,
+    "smi": 16420.34,
+    "sueldoPlaza": 6855.62,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "OF SOPORTE TEC INFORMAT",
+    "sueldoQuincenal": 5325.9,
+    "concepto011": 4588.26,
+    "baseMensual": 19828.32,
+    "smi": 23793.98,
+    "sueldoPlaza": 9934.16,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "OFICIAL DE FARMACIA 80",
+    "sueldoQuincenal": 4331.1,
+    "concepto011": 3731.24,
+    "baseMensual": 16124.68,
+    "smi": 19349.62,
+    "sueldoPlaza": 8078.6,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "OFICIAL PUERICULTURA 65",
+    "sueldoQuincenal": 2426.92,
+    "concepto011": 2090.79,
+    "baseMensual": 9035.42,
+    "smi": 10842.5,
+    "sueldoPlaza": 4526.82,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "OFICIAL PUERICULTURA 80",
+    "sueldoQuincenal": 2987.02,
+    "concepto011": 2573.32,
+    "baseMensual": 11120.68,
+    "smi": 13344.82,
+    "sueldoPlaza": 5571.54,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "OP GRAL EN TIENDAS 80",
+    "sueldoQuincenal": 3037.55,
+    "concepto011": 2616.85,
+    "baseMensual": 11308.8,
+    "smi": 13570.56,
+    "sueldoPlaza": 5665.8,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "OP MAQUINA DE REV AUT 80",
+    "sueldoQuincenal": 2925.84,
+    "concepto011": 2520.61,
+    "baseMensual": 10892.9,
+    "smi": 13071.48,
+    "sueldoPlaza": 5457.44,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "OPERADOR AMBULANCIAS 65",
+    "sueldoQuincenal": 2599.03,
+    "concepto011": 2239.06,
+    "baseMensual": 9676.18,
+    "smi": 11611.42,
+    "sueldoPlaza": 4847.86,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "OPERADOR AMBULANCIAS 80",
+    "sueldoQuincenal": 3198.85,
+    "concepto011": 2755.81,
+    "baseMensual": 11909.32,
+    "smi": 14291.18,
+    "sueldoPlaza": 5966.68,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "OPERADOR DE VELATORIO 80",
+    "sueldoQuincenal": 2983.78,
+    "concepto011": 2570.53,
+    "baseMensual": 11108.62,
+    "smi": 13330.34,
+    "sueldoPlaza": 5565.5,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "OPERADOR TELEFONICO A 65",
+    "sueldoQuincenal": 2426.92,
+    "concepto011": 2090.79,
+    "baseMensual": 9035.42,
+    "smi": 10842.5,
+    "sueldoPlaza": 4526.82,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "OPERADOR TELEFONICO A 80",
+    "sueldoQuincenal": 2987.02,
+    "concepto011": 2573.32,
+    "baseMensual": 11120.68,
+    "smi": 13344.82,
+    "sueldoPlaza": 5571.54,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "OPTOMETRISTA 60",
+    "sueldoQuincenal": 3071.36,
+    "concepto011": 2645.98,
+    "baseMensual": 11434.68,
+    "smi": 13721.62,
+    "sueldoPlaza": 5728.86,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "OPTOMETRISTA 80",
+    "sueldoQuincenal": 4095.15,
+    "concepto011": 3527.97,
+    "baseMensual": 15246.24,
+    "smi": 18295.49,
+    "sueldoPlaza": 7638.48,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "OR ACT ART ART PLAST 40",
+    "sueldoQuincenal": 1830.96,
+    "concepto011": 1577.37,
+    "baseMensual": 6816.66,
+    "smi": 8179.99,
+    "sueldoPlaza": 3415.2,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "ORIENT ACT ART DANZA 20",
+    "sueldoQuincenal": 1959.18,
+    "concepto011": 1687.83,
+    "baseMensual": 7294.02,
+    "smi": 8752.82,
+    "sueldoPlaza": 3654.38,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "ORIENT ACT FAMILIARES 20",
+    "sueldoQuincenal": 2140.33,
+    "concepto011": 1843.89,
+    "baseMensual": 7968.44,
+    "smi": 9562.13,
+    "sueldoPlaza": 3992.26,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "ORIENT ACT FAMILIARES 40",
+    "sueldoQuincenal": 2160.43,
+    "concepto011": 1861.21,
+    "baseMensual": 8043.28,
+    "smi": 9651.94,
+    "sueldoPlaza": 4029.76,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "ORIENT TECNICO MEDICO 20",
+    "sueldoQuincenal": 3026.51,
+    "concepto011": 2607.34,
+    "baseMensual": 11267.7,
+    "smi": 13521.24,
+    "sueldoPlaza": 5645.22,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "ORIENT TECNICO MEDICO 40",
+    "sueldoQuincenal": 3055.08,
+    "concepto011": 2631.95,
+    "baseMensual": 11374.06,
+    "smi": 13648.87,
+    "sueldoPlaza": 5698.5,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "ORIENT TECNICO MEDICO 80",
+    "sueldoQuincenal": 4551.59,
+    "concepto011": 3921.19,
+    "baseMensual": 16945.56,
+    "smi": 20334.67,
+    "sueldoPlaza": 8489.88,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "PROF EDUC FISICA A 40",
+    "sueldoQuincenal": 2146.26,
+    "concepto011": 1849,
+    "baseMensual": 7990.52,
+    "smi": 9588.62,
+    "sueldoPlaza": 4003.32,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "PROF EDUC FISICA A 60",
+    "sueldoQuincenal": 2772.75,
+    "concepto011": 2388.72,
+    "baseMensual": 10322.94,
+    "smi": 12387.53,
+    "sueldoPlaza": 5171.9,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "PROF EDUC FISICA A 80",
+    "sueldoQuincenal": 3697.11,
+    "concepto011": 3185.06,
+    "baseMensual": 13764.34,
+    "smi": 16517.21,
+    "sueldoPlaza": 6896.04,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "PROF EDUC FISICA C 80",
+    "sueldoQuincenal": 4794.06,
+    "concepto011": 4130.08,
+    "baseMensual": 17848.28,
+    "smi": 21417.94,
+    "sueldoPlaza": 8942.14,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "PROMOTOR ESTOMATOLOGIA 80",
+    "sueldoQuincenal": 5839.93,
+    "concepto011": 5031.1,
+    "baseMensual": 21742.06,
+    "smi": 26090.47,
+    "sueldoPlaza": 10892.96,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "PSICOLOGO CLINICO 60",
+    "sueldoQuincenal": 4379.92,
+    "concepto011": 3773.3,
+    "baseMensual": 16306.44,
+    "smi": 19567.73,
+    "sueldoPlaza": 8169.66,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "PSICOLOGO CLINICO 80",
+    "sueldoQuincenal": 5839.93,
+    "concepto011": 5031.1,
+    "baseMensual": 21742.06,
+    "smi": 26090.47,
+    "sueldoPlaza": 10892.96,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "QUIMICO CLINICO 80",
+    "sueldoQuincenal": 5839.93,
+    "concepto011": 5031.1,
+    "baseMensual": 21742.06,
+    "smi": 26090.47,
+    "sueldoPlaza": 10892.96,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "TEC A AIRE ACON REFRIG 80",
+    "sueldoQuincenal": 3498.38,
+    "concepto011": 3013.85,
+    "baseMensual": 13024.46,
+    "smi": 15629.35,
+    "sueldoPlaza": 6525.38,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "TEC B EQUIPOS MEDICOS 80",
+    "sueldoQuincenal": 3900.49,
+    "concepto011": 3360.27,
+    "baseMensual": 14521.52,
+    "smi": 17425.82,
+    "sueldoPlaza": 7275.4,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "TEC C FLUIDOS-ENERGET 80",
+    "sueldoQuincenal": 4389.64,
+    "concepto011": 3781.67,
+    "baseMensual": 16342.62,
+    "smi": 19611.14,
+    "sueldoPlaza": 8187.8,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "TEC EQ RECIPROCANTES 80",
+    "sueldoQuincenal": 3900.49,
+    "concepto011": 3360.27,
+    "baseMensual": 14521.52,
+    "smi": 17425.82,
+    "sueldoPlaza": 7275.4,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "TEC MANEJO AP ELECTRODI60",
+    "sueldoQuincenal": 2839.01,
+    "concepto011": 2445.81,
+    "baseMensual": 10569.64,
+    "smi": 12683.57,
+    "sueldoPlaza": 5295.48,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "TEC MANEJO AP ELECTRODI80",
+    "sueldoQuincenal": 3785.36,
+    "concepto011": 3261.09,
+    "baseMensual": 14092.9,
+    "smi": 16911.48,
+    "sueldoPlaza": 7060.66,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "TEC OP TRANS PAC T INT 80",
+    "sueldoQuincenal": 4047.44,
+    "concepto011": 3486.87,
+    "baseMensual": 15068.62,
+    "smi": 18082.34,
+    "sueldoPlaza": 7549.5,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "TEC OP TRANS PAC URG 80",
+    "sueldoQuincenal": 3740.69,
+    "concepto011": 3222.6,
+    "baseMensual": 13926.58,
+    "smi": 16711.9,
+    "sueldoPlaza": 6977.34,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "TECNICO DE BIBLIOTECAS 65",
+    "sueldoQuincenal": 2906.57,
+    "concepto011": 2504.01,
+    "baseMensual": 10821.16,
+    "smi": 12985.39,
+    "sueldoPlaza": 5421.5,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "TECNICO DE BIBLIOTECAS 80",
+    "sueldoQuincenal": 3577.28,
+    "concepto011": 3081.83,
+    "baseMensual": 13318.22,
+    "smi": 15981.86,
+    "sueldoPlaza": 6672.54,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "TECNICO PLOMERO 80",
+    "sueldoQuincenal": 3167.02,
+    "concepto011": 2728.39,
+    "baseMensual": 11790.82,
+    "smi": 14148.98,
+    "sueldoPlaza": 5907.3,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "TECNICO POLIVALENTE 80",
+    "sueldoQuincenal": 2987.02,
+    "concepto011": 2573.32,
+    "baseMensual": 11120.68,
+    "smi": 13344.82,
+    "sueldoPlaza": 5571.54,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "TECNICO PUERICULTURA 80",
+    "sueldoQuincenal": 3239.83,
+    "concepto011": 2791.11,
+    "baseMensual": 12061.88,
+    "smi": 14474.26,
+    "sueldoPlaza": 6043.1,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "TECNICO RADIOLOGO 60",
+    "sueldoQuincenal": 3071.36,
+    "concepto011": 2645.98,
+    "baseMensual": 11434.68,
+    "smi": 13721.62,
+    "sueldoPlaza": 5728.86,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "TECNICO RADIOLOGO 80",
+    "sueldoQuincenal": 4095.15,
+    "concepto011": 3527.97,
+    "baseMensual": 15246.24,
+    "smi": 18295.49,
+    "sueldoPlaza": 7638.48,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "TERAPISTA FISICO 60",
+    "sueldoQuincenal": 3071.36,
+    "concepto011": 2645.98,
+    "baseMensual": 11434.68,
+    "smi": 13721.62,
+    "sueldoPlaza": 5728.86,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "TERAPISTA FISICO 80",
+    "sueldoQuincenal": 4095.15,
+    "concepto011": 3527.97,
+    "baseMensual": 15246.24,
+    "smi": 18295.49,
+    "sueldoPlaza": 7638.48,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "TERAPISTA OCUPACIONAL 60",
+    "sueldoQuincenal": 3071.36,
+    "concepto011": 2645.98,
+    "baseMensual": 11434.68,
+    "smi": 13721.62,
+    "sueldoPlaza": 5728.86,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "TERAPISTA OCUPACIONAL 80",
+    "sueldoQuincenal": 4095.15,
+    "concepto011": 3527.97,
+    "baseMensual": 15246.24,
+    "smi": 18295.49,
+    "sueldoPlaza": 7638.48,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "TRABAJADOR SOCIAL CLINICO",
+    "sueldoQuincenal": 4302.92,
+    "concepto011": 3706.97,
+    "baseMensual": 16019.78,
+    "smi": 19223.74,
+    "sueldoPlaza": 8026.04,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "TRABAJADOR SOCIAL CLINICO",
+    "sueldoQuincenal": 4302.92,
+    "concepto011": 3706.97,
+    "baseMensual": 16019.78,
+    "smi": 19223.74,
+    "sueldoPlaza": 8026.04,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "TRABAJADORA SOCIAL 65",
+    "sueldoQuincenal": 3066.65,
+    "concepto011": 2641.92,
+    "baseMensual": 11417.14,
+    "smi": 13700.57,
+    "sueldoPlaza": 5720.08,
+    "descTC": "BASE"
+  },
+  {
+    "nombre": "TRABAJADORA SOCIAL 80",
+    "sueldoQuincenal": 3774.24,
+    "concepto011": 3251.51,
+    "baseMensual": 14051.5,
+    "smi": 16861.8,
+    "sueldoPlaza": 7039.92,
+    "descTC": "BASE"
+  }
+]

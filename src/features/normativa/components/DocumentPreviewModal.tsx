@@ -10,9 +10,16 @@ import {
   CheckCircle2,
   ShieldCheck,
   Calendar,
+  ExternalLink,
+  Globe,
 } from "lucide-react"
 import type { LibraryDocumentEntry } from "../services/catalog"
-import { getOrSynthesizePreambulo, formatDocSubtitle } from "../lib/preambulo-helper"
+import {
+  getOrSynthesizePreambulo,
+  formatDocSubtitle,
+  isExternalPortalDoc,
+  openOfficialPortal,
+} from "../lib/preambulo-helper"
 import { useBackLayer } from "@/shared/navigation/useBackLayer"
 import { Z_INDEX } from "@/shared/constants/z-index"
 
@@ -88,6 +95,12 @@ export function DocumentPreviewModal({ doc, isOpen, onClose, onOpenReader }: Pro
     return formatDocSubtitle(doc)
   }, [doc])
 
+  const isPortal = useMemo(() => isExternalPortalDoc(doc), [doc])
+  const effectivePortalUrl = useMemo(() => {
+    if (doc?.url) return doc.url
+    return preambulo?.urlOficial || null
+  }, [doc, preambulo])
+
   if (!isOpen || !doc || !preambulo) return null
   if (typeof document === "undefined") return null
 
@@ -96,6 +109,13 @@ export function DocumentPreviewModal({ doc, isOpen, onClose, onOpenReader }: Pro
   const handleOpenReader = () => {
     onClose()
     onOpenReader(doc)
+  }
+
+  const handleOpenPortal = () => {
+    onClose()
+    if (effectivePortalUrl) {
+      openOfficialPortal(effectivePortalUrl)
+    }
   }
 
   return createPortal(
@@ -316,15 +336,27 @@ export function DocumentPreviewModal({ doc, isOpen, onClose, onOpenReader }: Pro
 
         {/* BARRA INFERIOR DE ACCIONES */}
         <div style={footerContainerStyle}>
-          <button
-            type="button"
-            onClick={handleOpenReader}
-            style={primaryOpenBtnStyle}
-            title="Abrir documento en el lector oficial interactivo"
-          >
-            <BookOpen size={16} />
-            <span>Abrir documento en el lector</span>
-          </button>
+          {isPortal ? (
+            <button
+              type="button"
+              onClick={handleOpenPortal}
+              style={primaryOpenBtnStyle}
+              title="Abrir portal oficial interactivo en navegador integrado"
+            >
+              <ExternalLink size={16} />
+              <span>Abrir portal oficial interactivo</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleOpenReader}
+              style={primaryOpenBtnStyle}
+              title="Abrir documento en el lector oficial interactivo"
+            >
+              <BookOpen size={16} />
+              <span>Abrir documento en el lector</span>
+            </button>
+          )}
 
           <button
             type="button"

@@ -10,7 +10,7 @@ import type { ReconstructedLine } from "./line-reconstruction"
 import { parseImssMoney } from "./money-parser"
 import { isConceptCode, normalizeText } from "./positioned-text"
 
-const OBS_PATTERN = /^(\d{3})\s+(.*)$/
+const OBS_PATTERN = /^(\d{2,3})\s+(.*)$/
 
 type ObservationColumn = "conceptCode" | "amount" | "duePeriod" | "units" | "controlNumber" | "initialCharge" | "notes"
 
@@ -18,28 +18,64 @@ const COLUMN_LABELS: Array<{ column: ObservationColumn; labels: string[] }> = [
   { column: "conceptCode", labels: ["CONCEPTO"] },
   { column: "amount", labels: ["IMPORTE"] },
   { column: "duePeriod", labels: ["VENCIMIENTO"] },
-  { column: "units", labels: ["UNIDADES"] },
-  { column: "controlNumber", labels: ["NUM CONTROL", "NO CONTROL"] },
-  { column: "initialCharge", labels: ["CARGO INICIAL"] },
-  { column: "notes", labels: ["OBSERVACIONES"] },
+  { column: "units", labels: ["UNIDADES", "UNIDAD", "UDS", "HORAS", "HRS"] },
+  { column: "controlNumber", labels: ["NUM CONTROL", "NO CONTROL", "NUM. CONTROL", "NUMERO CONTROL", "CONTROL"] },
+  { column: "initialCharge", labels: ["CARGO INICIAL", "CARGO"] },
+  { column: "notes", labels: ["OBSERVACIONES", "OBSERVACION", "OBS.", "OBS"] },
 ]
 
+export function parseObservationUnits(raw: string | null | undefined): number | undefined {
+  if (raw === null || raw === undefined) return undefined
+  const input = raw.trim()
+  if (!input) return undefined
+
+  // 1. Si es puramente numérico, parseImssMoney devuelve el número
+  const money = parseImssMoney(input)
+  if (money !== undefined && money >= 0) {
+    return Math.round(money)
+  }
+
+  // 2. Extraer dígitos con unidades o prefijo/sufijo (ej: "8.0 HRS", "8 HORAS", "8 HRS", "8 UDS")
+  const match =
+    input.match(/^(\d+(?:\.\d+)?)\s*(?:HRS?|HORAS?|UNIDADES?|UDS?|DIAS?)?$/i) ||
+    input.match(/\b(\d+(?:\.\d+)?)\s*(?:HRS?|HORAS?|UNIDADES?|UDS?)\b/i)
+  if (match) {
+    const num = Number(match[1])
+    if (Number.isFinite(num) && num >= 0) {
+      return Math.round(num)
+    }
+  }
+
+  return undefined
+}
+
 function findColumnStarts(lines: ReconstructedLine[], start: number): Array<{ column: ObservationColumn; x: number }> {
+  let headerIndex = -1
+  for (let i = start + 1; i < Math.min(lines.length, start + 5); i++) {
+    if (lines[i].norm.includes("CONCEPTO") && (lines[i].norm.includes("IMPORTE") || lines[i].norm.includes("VENCIMIENTO"))) {
+      headerIndex = i
+      break
+    }
+  }
+
+  if (headerIndex < 0) return []
+
   const starts: Array<{ column: ObservationColumn; x: number }> = []
-  for (const line of lines.slice(start + 1, start + 4)) {
-    for (const spec of COLUMN_LABELS) {
-      if (starts.some((entry) => entry.column === spec.column)) continue
-      for (const label of spec.labels) {
-        const tokens = label.split(" ")
-        for (let itemIndex = 0; itemIndex < line.items.length; itemIndex++) {
-          const candidate = line.items.slice(itemIndex, itemIndex + tokens.length).map((item) => item.norm).join(" ")
-          if (candidate.includes(label)) {
-            starts.push({ column: spec.column, x: line.items[itemIndex].x })
-            break
-          }
+  const line = lines[headerIndex]
+
+  for (const spec of COLUMN_LABELS) {
+    if (starts.some((entry) => entry.column === spec.column)) continue
+    for (const label of spec.labels) {
+      const tokens = label.split(" ")
+      for (let itemIndex = 0; itemIndex < line.items.length; itemIndex++) {
+        if (!line.items[itemIndex].norm.includes(tokens[0])) continue
+        const candidate = line.items.slice(itemIndex, itemIndex + tokens.length).map((item) => item.norm).join(" ")
+        if (candidate.includes(label)) {
+          starts.push({ column: spec.column, x: line.items[itemIndex].x })
+          break
         }
-        if (starts.some((entry) => entry.column === spec.column)) break
       }
+      if (starts.some((entry) => entry.column === spec.column)) break
     }
   }
   return starts.sort((a, b) => a.x - b.x)
@@ -66,20 +102,65 @@ function positionedObservation(
   }
   const value = (column: ObservationColumn) => cells.get(column)?.join(" ").trim()
   const amount = parseImssMoney(value("amount"))
-  const units = parseImssMoney(value("units"))
+  let units = parseObservationUnits(value("units"))
+  let duePeriod = value("duePeriod") || undefined
+  let controlNumber = value("controlNumber") || undefined
   const charge = parseImssMoney(value("initialCharge"))
   // Reject non-sensical values (PDF artifacts can produce huge numbers)
   const initialCharge = charge !== undefined && Math.abs(charge) < 100_000_000 ? charge : undefined
+  let notes = value("notes") || undefined
+
+  // Post-procesamiento semántico para evitar desfasamientos entre columnas:
+  // 1. Si duePeriod recibió un número pequeño de unidades (1 a 500) y no es código quincenal (20\d{5})
+  if (units === undefined && duePeriod) {
+    const pUnits = parseObservationUnits(duePeriod)
+    if (pUnits !== undefined && pUnits <= 500 && !/^(19|20)\d{4,6}$/.test(duePeriod)) {
+      units = pUnits
+      duePeriod = undefined
+    }
+  }
+
+  // 2. Si duePeriod contiene en realidad una fecha civil de 8 dígitos (ej. 16092026) o rango:
+  if (duePeriod && (/^\d{8}$/.test(duePeriod) || /\d{8}-\d{8}/.test(duePeriod) || /\b\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}\b/.test(duePeriod))) {
+    if (!controlNumber) controlNumber = duePeriod
+    if (!notes) notes = duePeriod
+    duePeriod = undefined
+  }
+
+  // 3. Si units cayó en un valor que en realidad es una fecha (ej. 16092026) o rango:
+  const rawUnitsStr = value("units")
+  if (rawUnitsStr && (/^\d{8}$/.test(rawUnitsStr) || /\d{8}-\d{8}/.test(rawUnitsStr) || /\b\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}\b/.test(rawUnitsStr))) {
+    if (!controlNumber) controlNumber = rawUnitsStr
+    if (!notes) notes = rawUnitsStr
+    units = undefined
+  }
+
+  // 4. Si controlNumber es un entero pequeño (1 a 48) y units está vacío:
+  if (units === undefined && controlNumber) {
+    const pUnits = parseObservationUnits(controlNumber)
+    if (pUnits !== undefined && pUnits <= 500 && !/^(19|20)\d{2}/.test(controlNumber) && !/^\d{7,8}$/.test(controlNumber)) {
+      units = pUnits
+      controlNumber = undefined
+    }
+  }
+
+  // 5. Asegurar que las fechas en controlNumber se conserven en notes si notes está vacío:
+  if (controlNumber && !notes) {
+    notes = controlNumber
+  }
+
+  const rawCode = codeItem?.text.trim() ?? value("conceptCode") ?? ""
+  if (!isConceptCode(rawCode)) return null
 
   return {
     lineIndex,
-    conceptCode: codeItem?.text.trim() ?? value("conceptCode") ?? "",
+    conceptCode: rawCode,
     amount,
-    duePeriod: value("duePeriod") || undefined,
+    duePeriod,
     units,
-    controlNumber: value("controlNumber") || undefined,
+    controlNumber,
     initialCharge,
-    notes: value("notes") || undefined,
+    notes,
   }
 }
 
@@ -94,7 +175,8 @@ export function parseImssObservations(lines: ReconstructedLine[]): TarjetonObser
 
   for (let i = start + 1; i < end; i++) {
     const line = lines[i]
-    if (line.norm.includes("OBSERVACIONES")) continue
+    if (line.norm.includes("OBSERVACIONES") && !line.norm.includes("CONCEPTO")) continue
+    if (line.norm.includes("CONCEPTO") && (line.norm.includes("IMPORTE") || line.norm.includes("VENCIMIENTO"))) continue
     if (COLUMN_LABELS.some((spec) => spec.labels.some((label) => line.norm === label || line.norm.includes(`CONCEPTO ${label}`)))) continue
     const notesColumn = columns.find((column) => column.column === "notes")
     const previous = result[result.length - 1]
@@ -119,35 +201,65 @@ export function parseImssObservations(lines: ReconstructedLine[]): TarjetonObser
         notes: rest || undefined,
       }
 
-      // Importe al final de la línea: "055 400.00" o "055 RETROACTIVO 400.00"
-      const amountMatch = rest.match(/(-?[\d\s,]+\.\d{2})\s*$/)
-      if (amountMatch) {
-        const amount = parseImssMoney(amountMatch[1])
-        if (amount !== undefined) {
-          obs.amount = amount
-          obs.notes = rest.slice(0, rest.length - amountMatch[1].length).trim() || undefined
+      // 1. Extraer rango de fechas o fechas civiles (ej. 16092026-16092026, 16092026, QI 18)
+      let dateFound: string | undefined
+      const dateRangeMatch = rest.match(/\b(\d{8}\s*[-ALa\s]+\s*\d{8}|\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}\s*[-ALa\s]+\s*\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}|QI\s*\d+)\b/i)
+      if (dateRangeMatch) {
+        dateFound = dateRangeMatch[1]
+      } else {
+        const singleDateMatch = rest.match(/\b(\d{8}|\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})\b/)
+        if (singleDateMatch) {
+          dateFound = singleDateMatch[1]
+        }
+      }
+      if (dateFound) {
+        obs.controlNumber = dateFound
+      }
+
+      // 2. Extraer importes monetarios (con punto decimal)
+      const moneyMatches = [...rest.matchAll(/(-?[\d,]+\.\d{2})\b/g)]
+      if (moneyMatches.length >= 1) {
+        const parsedAmt = parseImssMoney(moneyMatches[0][1])
+        if (parsedAmt !== undefined) obs.amount = parsedAmt
+      }
+      if (moneyMatches.length >= 2) {
+        const parsedCharge = parseImssMoney(moneyMatches[1][1])
+        if (parsedCharge !== undefined) {
+          obs.initialCharge = parsedCharge
         }
       }
 
-      // Vencimiento en formato "2026014" (se conserva el texto original).
-      const dueMatch = rest.match(/\b(20\d{5,7})\b/)
-      if (dueMatch) {
+      // 3. Vencimiento quincenal (7 dígitos iniciando con 20\d{5})
+      const dueMatch = rest.match(/\b(20\d{5})\b/)
+      if (dueMatch && dueMatch[1] !== dateFound) {
         obs.duePeriod = dueMatch[1]
       }
 
-      // Unidades: "3 UNIDADES" o "3 UDS"
-      const unitsMatch = rest.match(/\b(\d+)\s*(?:UNIDADES?|UDS?|DIAS)\b/i)
-      if (unitsMatch) {
-        obs.units = Number(unitsMatch[1])
+      // 4. Unidades: explícitas (ej. "8 HRS", "3 UNIDADES") o número entero pequeño aislado (1 a 500)
+      const explicitUnits = rest.match(/\b(\d+(?:\.\d+)?)\s*(?:UNIDADES?|UDS?|DIAS|HORAS|HRS)\b/i)
+      if (explicitUnits) {
+        obs.units = parseObservationUnits(explicitUnits[0])
+      } else {
+        // Buscar entero aislado que no sea código de concepto, ni importe, ni fecha, ni vencimiento
+        const tokens = rest.split(/\s+/)
+        for (const tok of tokens) {
+          if (tok === obs.duePeriod || tok === dateFound) continue
+          if (moneyMatches.some((m) => m[1] === tok || tok.includes("."))) continue
+          const n = Number(tok)
+          if (Number.isInteger(n) && n > 0 && n <= 500 && tok.length <= 3) {
+            obs.units = n
+            break
+          }
+        }
       }
 
-      // Número de control.
-      const controlMatch = rest.match(/\bCONTROL[:\s]+(\d+)\b/i)
-      if (controlMatch) {
-        obs.controlNumber = controlMatch[1]
+      // 5. Número de control explícito
+      const explicitControl = rest.match(/\bCONTROL[:\s]+(\S+)\b/i)
+      if (explicitControl) {
+        obs.controlNumber = explicitControl[1]
       }
 
-      // Cargo inicial.
+      // 6. Cargo inicial explícito
       const chargeMatch = rest.match(/\b(?:CARGO INICIAL|CARGO)\s*[:=]?\s*(-?[\d\s,]+\.\d{2})\b/i)
       if (chargeMatch) {
         const charge = parseImssMoney(chargeMatch[1])

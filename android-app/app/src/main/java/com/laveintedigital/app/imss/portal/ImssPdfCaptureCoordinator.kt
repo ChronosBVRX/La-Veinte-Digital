@@ -94,7 +94,9 @@ object ImssPdfCaptureCoordinator {
     ): DownloadListener = DownloadListener { url, userAgent, contentDisposition, mimeType, _ ->
         val isPdf = mimeType?.contains("pdf", ignoreCase = true) == true ||
                 contentDisposition?.contains(".pdf", ignoreCase = true) == true ||
-                url?.contains(".pdf", ignoreCase = true) == true
+                url?.contains(".pdf", ignoreCase = true) == true ||
+                (portal == ImssPortal.TARJETON_DIGITAL && url != null &&
+                        (url.contains("wfrReporteTarjeton", ignoreCase = true) || url.contains("Reporte", ignoreCase = true)))
         if (isPdf && url != null && !url.startsWith("blob:")) {
             captureHttpPdf(context, portal, url, userAgent, scope, onSaved)
         }
@@ -142,17 +144,20 @@ object ImssPdfCaptureCoordinator {
             try {
                 val bytes = withContext(Dispatchers.IO) { downloadAuthenticated(url, portal) }
                 if (bytes == null) {
+                    Log.w(TAG, "REPORT_DOWNLOAD_FAILED bytes was null url=$url")
                     withContext(Dispatchers.Main) { onEvent(PdfCaptureEvent.CaptureError("REPORT_DOWNLOAD_FAILED")) }
                     finishSession(); return@launch
                 }
                 if (bytes.size < 5 || String(bytes, 0, 5) != "%PDF-") {
-                    Log.w(TAG, "REPORT_NOT_PDF url=$url")
+                    val header = if (bytes.isNotEmpty()) String(bytes.take(200).toByteArray()).replace("\n", " ").replace("\r", "") else "empty"
+                    Log.w(TAG, "REPORT_NOT_PDF size=${bytes.size} header=$header url=$url")
                     withContext(Dispatchers.Main) { onEvent(PdfCaptureEvent.CaptureError("REPORT_NOT_PDF")) }
                     finishSession(); return@launch
                 }
                 val dir = sessionDir(context, portal.id, ooadCode, periodCode)
                 val file = withContext(Dispatchers.IO) { atomicWrite(dir, "tarjeton", bytes) }
                 if (file == null) {
+                    Log.w(TAG, "REPORT_WRITE_FAILED url=$url")
                     withContext(Dispatchers.Main) { onEvent(PdfCaptureEvent.CaptureError("REPORT_WRITE_FAILED")) }
                     finishSession(); return@launch
                 }
@@ -160,7 +165,7 @@ object ImssPdfCaptureCoordinator {
                 finishSession()
                 withContext(Dispatchers.Main) { onEvent(event) }
             } catch (e: Exception) {
-                Log.e(TAG, "REPORT_CAPTURE_FAILED", e)
+                Log.e(TAG, "REPORT_CAPTURE_FAILED url=$url", e)
                 finishSession()
             }
         }
@@ -169,17 +174,42 @@ object ImssPdfCaptureCoordinator {
     /** Descarga vía HTTP autenticado (cookies de sesión + Referer). Devuelve null ante error. */
     private fun downloadAuthenticated(url: String, portal: ImssPortal): ByteArray? {
         return try {
-            val cookies = CookieManager.getInstance().getCookie(url)
+            val cm = CookieManager.getInstance()
+            cm.flush()
+            val cookies = cm.getCookie(url) ?: cm.getCookie("https://${portal.host}/")
+            Log.i(TAG, "DOWNLOAD_AUTH starting url=$url hasCookies=${!cookies.isNullOrBlank()}")
             val conn = URL(url).openConnection() as HttpURLConnection
             conn.connectTimeout = 15_000; conn.readTimeout = 60_000
+            conn.instanceFollowRedirects = true
             if (cookies != null) conn.setRequestProperty("Cookie", cookies)
-            conn.setRequestProperty("User-Agent", "LaVeinteDigitalAndroid/1.0.0")
-            conn.setRequestProperty("Referer", "https://${portal.host}/")
-            if (conn.responseCode != 200) { conn.disconnect(); return null }
-            val bytes = conn.inputStream.readBytes()
+            val ua = if (portal == ImssPortal.TARJETON_DIGITAL) {
+                "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36 LaVeinteDigitalAndroid/1.0.0"
+            } else {
+                "LaVeinteDigitalAndroid/1.0.0"
+            }
+            conn.setRequestProperty("User-Agent", ua)
+            val ref = if (portal == ImssPortal.TARJETON_DIGITAL) {
+                "https://rh.imss.gob.mx/Personal/TarjetonDigital/ComprobanteDigital/Web/wfrGenerarTarjeton.aspx"
+            } else {
+                "https://${portal.host}/"
+            }
+            conn.setRequestProperty("Referer", ref)
+            val code = conn.responseCode
+            val ct = conn.contentType
+            Log.i(TAG, "DOWNLOAD_AUTH respCode=$code contentType=$ct contentLength=${conn.contentLength}")
+            if (code !in 200..399) {
+                Log.w(TAG, "DOWNLOAD_AUTH non-2xx status: $code")
+                conn.disconnect(); return null
+            }
+            val stream = if (code in 200..299) conn.inputStream else conn.errorStream
+            val bytes = stream?.readBytes() ?: ByteArray(0)
             conn.disconnect()
+            Log.i(TAG, "DOWNLOAD_AUTH bytes read=${bytes.size}")
             bytes
-        } catch (e: Exception) { null }
+        } catch (e: Exception) {
+            Log.e(TAG, "DOWNLOAD_AUTH exception for $url", e)
+            null
+        }
     }
 
     /**

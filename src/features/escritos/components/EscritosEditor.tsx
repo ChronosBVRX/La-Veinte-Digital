@@ -50,9 +50,10 @@ export function EscritosEditor({
     onUpdateDraft({ cuerpo: text })
   }, [text, onUpdateDraft])
 
-  // Contadores
+  // Contadores y estimación de páginas
   const charCount = text.length
   const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0
+  const estimatedPages = Math.max(1, Math.ceil(Math.max(0, charCount - 1500) / 2100) + 1)
 
   // Herramientas de IA asistida no destructiva
   const handleAiTool = async (
@@ -181,7 +182,7 @@ export function EscritosEditor({
 
           <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "0.5rem" }}>
             <span style={{ fontSize: "0.75rem", color: "var(--muted)", marginRight: "0.25rem" }}>
-              {wordCount} palabras • {charCount} caracteres
+              {wordCount} palabras • {charCount} caracteres • {estimatedPages === 1 ? "1 pág. (Carta)" : `${estimatedPages} págs. (Carta)`}
             </span>
             <Button
               variant="ghost"

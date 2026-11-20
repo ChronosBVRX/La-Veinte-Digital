@@ -7,7 +7,7 @@ import { usePayslipInvalidation } from "@/shared/hooks/usePayslipInvalidation"
 import {
   FileText, FolderOpen, Printer, Clock, Trash, PencilLine,
   DotsThree, UploadSimple, PencilSimple, Eye, ShareNetwork,
-  WarningCircle, CheckCircle, X, Files, IdentificationCard,
+  WarningCircle, CheckCircle, X, Files, IdentificationCard, Sparkle,
 } from "@phosphor-icons/react"
 import { getEscritosGuardados, eliminarEscrito } from "@/shared/services/escritos-storage"
 import {
@@ -104,7 +104,7 @@ export function DocumentosPersonales() {
   const reloadNativos = () => {
     if (!isNative) return
     window.LaVeinteApp!.listNativeDocuments()
-      .then((docs) => setNativos((docs ?? []).map(toNativo).filter((d): d is NonNullable<typeof d> => !!d)))
+      .then((docs: import("../lib/documents").NativeDocumentMeta[]) => setNativos((docs ?? []).map(toNativo).filter((d): d is NonNullable<typeof d> => !!d)))
       .catch(() => setNativos([]))
   }
 
@@ -227,7 +227,7 @@ export function DocumentosPersonales() {
     if (!isNative) return
     let cancelled = false
     window.LaVeinteApp!.listNativeDocuments()
-      .then((docs) => {
+      .then((docs: import("../lib/documents").NativeDocumentMeta[]) => {
         if (cancelled) return
         setNativos((docs ?? []).map(toNativo).filter((d): d is NonNullable<typeof d> => !!d))
       })
@@ -876,6 +876,23 @@ export function DocumentosPersonales() {
                               </Link>
                             )}
 
+                            {/* Botón Explicar pago para tarjetones */}
+                            {doc.tipo === "tarjeton" && (
+                              <Link
+                                href={`/guia/mi-quincena?id=${doc.id}`}
+                                title="Explicar lo que me pagaron en este tarjetón"
+                                aria-label="Explicar tarjetón"
+                                style={{
+                                  ...iconBtn,
+                                  background: "var(--accent)",
+                                  color: "var(--primary)",
+                                  border: "1px solid var(--border)",
+                                }}
+                              >
+                                <Sparkle size={18} weight="bold" />
+                              </Link>
+                            )}
+
                             {/* Más opciones (3 puntos) para tarjetones: Exportar al perfil */}
                             {hasMenu && (
                               <button
@@ -974,11 +991,49 @@ export function DocumentosPersonales() {
                               animation: "fadeIn 0.2s ease",
                             }}
                           >
-                            <button
-                              onClick={() => {
-                                setMenuDoc(null)
-                                void handleImport(doc)
+                            <Link
+                              href={`/guia/mi-quincena?id=${doc.id}`}
+                              onClick={() => setMenuDoc(null)}
+                              style={{
+                                display: "flex",
+                                alignItems: "flex-start",
+                                gap: "0.75rem",
+                                width: "100%",
+                                padding: "0.75rem 0.875rem",
+                                borderRadius: "0.625rem",
+                                border: "1px solid var(--border)",
+                                background: "var(--card)",
+                                textDecoration: "none",
+                                color: "var(--fg)",
+                                boxSizing: "border-box",
+                                marginBottom: "0.5rem",
                               }}
+                            >
+                              <span style={{ color: "var(--primary)", flexShrink: 0, marginTop: "0.125rem" }}>
+                                <Sparkle size={22} weight="duotone" />
+                              </span>
+                              <span style={{ minWidth: 0, flex: 1 }}>
+                                <span style={{ display: "block", fontSize: "0.875rem", fontWeight: 700, color: "var(--primary)" }}>
+                                  ✨ Explicar este pago
+                                </span>
+                                <span style={{
+                                  display: "block",
+                                  fontSize: "0.75rem",
+                                  color: "var(--muted)",
+                                  lineHeight: 1.4,
+                                  marginTop: "0.25rem",
+                                  wordBreak: "break-word",
+                                }}>
+                                  Analiza sueldo base, estímulos, guardias devengadas, faltas y retenciones.
+                                </span>
+                              </span>
+                            </Link>
+
+                            <button
+                              onClick={() => {
+                                setMenuDoc(null)
+                                void handleImport(doc)
+                              }}
                               aria-label="Exportar tarjetón al perfil"
                               style={{
                                 display: "flex",

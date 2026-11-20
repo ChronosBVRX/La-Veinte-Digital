@@ -70,7 +70,7 @@ export function isInformativa(
 
 export function classifyAcompañamiento(
   question: string,
-  intent: RetrievalIntent,
+  _intent?: RetrievalIntent,
 ): Acompañamiento {
   const isSeguridad = SEGURIDAD_RE.test(question)
   const isConflicto = CONFLICTO_RE.test(question) || NEGATIVA_RE.test(question)
@@ -107,10 +107,10 @@ export function classifyAcompañamiento(
       recomendarRepresentante: true,
       chips: chips.slice(0, 4),
       guidance:
-        "CASO DE CONFLICTO LABORAL: Añade acompañamiento sindical cuando resulte pertinente, explicando PARA QUÉ sirve " +
-        "(que el representante conozca el antecedente y te acompañe a presentar un escrito, acudir a una reunión o " +
-        "identificar el procedimiento). Nunca afirme que el representante ganará el caso, detendrá una sanción o " +
-        "puede ordenar algo al IMSS. Estructura con la guía A–F.",
+        "CASO DE CONFLICTO LABORAL: Añade acompañamiento sindical fraternal en favor del trabajador sindicalizado. Explica cómo el CCT (especialmente Cláusula 22) lo protege " +
+        "(derecho a no firmar actas a solas ni bajo presión, y a que su representante sindical de la Sección XX lo asista e intervenga). " +
+        "Ofrécele formalizar el caso por escrito con el enlace directo prellenado: [✍️ Redactar escrito sobre este caso](/escritos?tipo=queja&asunto=...&hechos=...&peticion=...). " +
+        "Estructura con la guía A–F.",
     }
   }
 
@@ -137,7 +137,7 @@ Ordena la respuesta así (incluye las secciones que apliquen, sin encabezados):
 3. qué evidencia conservar si aplica: mensajes, correos, documentos, comunicaciones. NO afirmes que toda grabación es legal; si se menciona, di: "conserva lo que ya tengas; si consideras grabar, evita poner en riesgo tu seguridad y no afirmes su validez jurídica salvo respaldo normativo del corpus".
 4. qué dice la normativa en lenguaje normal, cada afirmación con [S#].
 5. acompañamiento sindical cuando resulte pertinente: explica PARA QUÉ sirve, sin prometer resultados.
-6. cierra ofreciendo una acción concreta que el asistente pueda ayudar a hacer (ej. "si quieres, puedo ayudarte a armar una cronología de los hechos").
+6. cierra ofreciendo una acción concreta y el enlace directo para formalizar el caso mediante un escrito oficial en la plataforma con su contexto (ej. [✍️ Redactar escrito sobre este caso](/escritos?tipo=queja&asunto=...&hechos=...&peticion=...)).
 
 Regla de CITAS: toda afirmación normativa, cifra, plazo o artículo debe llevar [S#]. Los consejos prácticos de sentido común (guardar mensajes, anotar fechas, no confrontar) no requieren cita, pero tampoco deben inventar requisitos legales.`
 

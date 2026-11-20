@@ -344,7 +344,7 @@ export function buildOfflineWorkerSnapshot(params: {
 
   // Extracción explícita de Concepto 002 + Concepto 011 (Golden Behavior 2ª de Julio)
   const base002 = lines
-    .filter((l) => l.kind === "earning" && l.code === "002")
+    .filter((l) => l.kind === "earning" && (l.code === "002" || l.code === "008" || l.code === "08" || l.code === "001" || l.code === "003"))
     .reduce((acc, l) => acc + l.amount, 0)
   const base011 = lines
     .filter((l) => l.kind === "earning" && l.code === "011")

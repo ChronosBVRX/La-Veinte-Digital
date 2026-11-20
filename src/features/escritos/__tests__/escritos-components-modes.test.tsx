@@ -226,4 +226,36 @@ describe("Componentes de UI del Generador de Escritos (DestinatarioResumen, Form
     fireEvent.click(btnDiscard)
     expect(onDiscard).toHaveBeenCalledTimes(1)
   })
+
+  it("EscritosForm incluye selector al principio entre Modo Normal y Modo Guiado", () => {
+    const draft = createEmptyEscritoDraftV2("user-123")
+    draft.destino = { cargo: "Director HGZ 1", nombre: "Dr. Roberto" }
+
+    render(
+      <EscritosForm
+        userId="user-123"
+        draft={draft}
+        onUpdateDraft={vi.fn()}
+        onGenerate={vi.fn()}
+        onManualEdit={vi.fn()}
+        isGenerating={false}
+      />
+    )
+
+    // Selector al principio visible
+    const modoNormalBtn = screen.getByRole("button", { name: /Modo Normal/i })
+    const modoGuiadoBtn = screen.getByRole("button", { name: /Modo Guiado/i })
+    expect(modoNormalBtn).toBeDefined()
+    expect(modoGuiadoBtn).toBeDefined()
+
+    // Alternar a modo guiado
+    fireEvent.click(modoGuiadoBtn)
+    expect(screen.getByText(/Asistente Guiado Paso a Paso/i)).toBeDefined()
+    expect(screen.getByText(/Paso 1: ¿A qué representante del Sindicato va dirigido tu escrito\?/i)).toBeDefined()
+
+    // Botón para volver a modo normal
+    const volverNormalBtn = screen.getByRole("button", { name: /Cambiar a modo normal/i })
+    fireEvent.click(volverNormalBtn)
+    expect(screen.getByRole("button", { name: /Ayúdame a redactarlo con IA/i })).toBeDefined()
+  })
 })

@@ -338,5 +338,36 @@ describe("Planificador Anual de Vacaciones y Encadenamiento de Continuidad", () 
       expect(invertedCuatPlan.periods[2].reasons).toContain(PERIOD_SEQUENCE_INVERTED_MESSAGE)
       expect(invertedCuatPlan.isValidPlan).toBe(false)
     })
+    it("Calcula correctamente las veladas para trabajadores de guardia nocturna (ACCUMULATED_NIGHT)", () => {
+      const nightProfile: WorkerProfile = {
+        contractType: "BASE",
+        effectiveSeniority: { years: 5, fortnights: 0, days: 0 },
+        workScheduleType: "ACCUMULATED_NIGHT",
+        weeklyRestDays: [0, 2, 4, 6], // Descansa Lun, Mié, Vie, Dom (labora Mar, Jue, Sáb)
+      }
+
+      const input: VacationPlanInput = {
+        workerProfile: nightProfile,
+        regime: "SEMESTRAL",
+        initialContinuity: 0,
+        entitlements: [
+          { id: "1", kind: "ORDINARY", periodNumber: 1, dueDate: "2027-06-01", confirmed: true, sourcePayslipPeriod: "2026-16" },
+          { id: "2", kind: "ORDINARY", periodNumber: 2, dueDate: "2027-12-01", confirmed: true, sourcePayslipPeriod: "2026-16" },
+        ],
+        calendar: null,
+        integratedMonthlySalary: 30000,
+      }
+
+      // 5 años = 20 días anuales -> Marca 1 primera fracción = 10 días contractuales -> 6 veladas
+      const plan = buildVacationPlan(input, {
+        1: { mark: 1, startDate: "2027-06-01" }, // 2027-06-01 es martes (laborable)
+      })
+
+      const period1 = plan.periods[0]
+      expect(period1.units).toBe(10)
+      expect(period1.entitlementBreakdown?.journeyType).toBe("VELADA")
+      expect(period1.entitlementBreakdown?.journeyEquivalent).toBe(6)
+      expect(period1.dateBreakdown?.consumedDates).toHaveLength(6)
+    })
   })
 })
