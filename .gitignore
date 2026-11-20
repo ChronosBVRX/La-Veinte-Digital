@@ -104,6 +104,7 @@ __pycache__/
 /output/
 /scratch/
 /e2e-screenshots/
+/voces-elenco-la-20-radio/
 
 # Desktop app artifacts y perfil de usuario local
 /desktop-app/dist/
