@@ -6,9 +6,12 @@ import {
   Pause,
   ArrowCounterClockwise,
   ArrowClockwise,
+  SpeakerHigh,
+  SpeakerSlash,
+  SpotifyLogo,
+  ArrowSquareOut,
   X,
   Radio,
-  CaretRight,
 } from "@phosphor-icons/react"
 import { useRadio } from "../context/RadioContext"
 
@@ -19,14 +22,21 @@ function formatSeconds(secs: number): string {
   return `${m}:${s < 10 ? "0" : ""}${s}`
 }
 
+const PLAYBACK_RATES = [1, 1.25, 1.5, 2]
+
 export function PersistentMiniPlayer() {
   const {
     currentEpisode,
     isPlaying,
     currentTime,
     duration,
+    playbackRate,
+    isMuted,
     togglePlay,
+    seek,
     skip,
+    setRate,
+    toggleMute,
     closePlayer,
     isVisible,
   } = useRadio()
@@ -35,39 +45,38 @@ export function PersistentMiniPlayer() {
     return null
   }
 
-  const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0
+  const progressPercent = duration > 0 ? Math.min(100, Math.max(0, (currentTime / duration) * 100)) : 0
+
+  const handleToggleRate = () => {
+    const currentIdx = PLAYBACK_RATES.indexOf(playbackRate)
+    const nextIdx = (currentIdx + 1) % PLAYBACK_RATES.length
+    setRate(PLAYBACK_RATES[nextIdx])
+  }
+
+  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    seek(parseFloat(e.target.value))
+  }
 
   return (
     <aside
       aria-label="Reproductor persistente de La Veinte Radio"
-      className="persistent-radio-bar"
-      style={{
-        position: "fixed",
-        bottom: 0,
-        left: 0,
-        right: 0,
-        width: "100%",
-        maxWidth: "100%",
-        boxSizing: "border-box",
-        zIndex: 40,
-        background: "var(--card)",
-        borderTop: "1px solid var(--border)",
-        height: "calc(var(--mobile-value-bar-height) + env(safe-area-inset-bottom, 0px))",
-        paddingBottom: "env(safe-area-inset-bottom, 0px)",
-        boxShadow: "0 -2px 12px rgba(0, 0, 0, 0.08)",
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "space-between",
-        overflow: "hidden",
-      }}
+      className="spotify-radio-bar"
     >
-      {/* Micro progress bar en el borde superior */}
+      {/* 1. Micro-barra de progreso superior */}
       <div
         style={{
           width: "100%",
           height: "3px",
           background: "var(--border)",
           position: "relative",
+          cursor: "pointer",
+        }}
+        onClick={(e) => {
+          if (duration <= 0) return
+          const rect = e.currentTarget.getBoundingClientRect()
+          const clickX = e.clientX - rect.left
+          const percent = Math.min(1, Math.max(0, clickX / rect.width))
+          seek(percent * duration)
         }}
       >
         <div
@@ -75,161 +84,284 @@ export function PersistentMiniPlayer() {
             height: "100%",
             width: `${progressPercent}%`,
             background: "var(--primary)",
-            transition: "width 0.25s linear",
+            transition: "width 0.15s linear",
           }}
         />
       </div>
 
-      <div
-        style={{
-          flex: 1,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "0 0.5rem 0 0.75rem",
-          gap: "0.5rem",
-          minWidth: 0,
-        }}
-      >
-        {/* Info del episodio con enlace a /radio */}
-        <Link
-          href="/radio"
-          aria-label={`Ir a La Veinte Radio: ${currentEpisode.title}`}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "0.625rem",
-            textDecoration: "none",
-            color: "inherit",
-            flex: 1,
-            minWidth: 0,
-            overflow: "hidden",
-          }}
-        >
-          {currentEpisode.imageUrl ? (
+      <div className="spotify-radio-bar__content">
+        {/* =====================================================================
+            COLUMNA IZQUIERDA: Portada + Título + Subtítulo (Estilo Spotify)
+           ===================================================================== */}
+        <div className="spotify-radio-bar__left">
+          <Link
+            href="/radio"
+            aria-label={`Ver episodio: ${currentEpisode.title}`}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.75rem",
+              textDecoration: "none",
+              color: "inherit",
+              minWidth: 0,
+              flex: 1,
+              overflow: "hidden",
+            }}
+          >
+            {/* Portada del capítulo */}
             <div
               style={{
-                width: 34,
-                height: 34,
-                borderRadius: "6px",
+                width: 48,
+                height: 48,
+                borderRadius: "8px",
                 overflow: "hidden",
                 flexShrink: 0,
                 border: "1px solid var(--border)",
                 background: "var(--accent)",
-              }}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={currentEpisode.imageUrl}
-                alt=""
-                style={{ width: "100%", height: "100%", objectFit: "cover" }}
-              />
-            </div>
-          ) : (
-            <div
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: "6px",
-                background: "rgba(37, 99, 235, 0.1)",
-                color: "var(--primary)",
+                boxShadow: "0 3px 8px rgba(0, 0, 0, 0.12)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                flexShrink: 0,
               }}
             >
-              <Radio size={18} weight="bold" />
+              {currentEpisode.imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={currentEpisode.imageUrl}
+                  alt={currentEpisode.title}
+                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                />
+              ) : (
+                <div
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    background: "rgba(37, 99, 235, 0.1)",
+                    color: "var(--primary)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Radio size={22} weight="bold" />
+                </div>
+              )}
             </div>
-          )}
 
-          <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
-            <div
+            {/* Nombre del capítulo y metadatos */}
+            <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
+              <div
+                style={{
+                  fontSize: "0.875rem",
+                  fontWeight: 700,
+                  color: "var(--fg)",
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  lineHeight: 1.25,
+                }}
+                title={currentEpisode.title}
+              >
+                {currentEpisode.title}
+              </div>
+              <div
+                style={{
+                  fontSize: "0.75rem",
+                  color: "var(--muted)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.4rem",
+                  lineHeight: 1.2,
+                  marginTop: "2px",
+                }}
+              >
+                <span style={{ color: "var(--primary)", fontWeight: 600 }}>La 20 Radio</span>
+                <span>•</span>
+                <span style={{ fontVariantNumeric: "tabular-nums" }}>
+                  {formatSeconds(currentTime)} / {duration > 0 ? formatSeconds(duration) : (currentEpisode.duration || "--:--")}
+                </span>
+              </div>
+            </div>
+          </Link>
+        </div>
+
+        {/* =====================================================================
+            COLUMNA CENTRAL: Controles Principales + Línea de Tiempo
+           ===================================================================== */}
+        <div className="spotify-radio-bar__center">
+          {/* Fila de controles de reproducción */}
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            {/* Selector de velocidad (Desktop) */}
+            <button
+              onClick={handleToggleRate}
+              className="spotify-radio-bar__desktop-only"
+              title="Velocidad de reproducción"
+              aria-label={`Velocidad actual: ${playbackRate}x`}
               style={{
-                fontSize: "0.75rem",
+                background: "var(--accent)",
+                border: "1px solid var(--border)",
+                borderRadius: "6px",
+                padding: "0.2rem 0.45rem",
+                fontSize: "0.6875rem",
                 fontWeight: 700,
                 color: "var(--fg)",
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                lineHeight: 1.25,
+                cursor: "pointer",
+                minWidth: "34px",
               }}
             >
-              {currentEpisode.title}
-            </div>
-            <div
+              {playbackRate}x
+            </button>
+
+            {/* Retroceder 15s */}
+            <button
+              onClick={() => skip(-15)}
+              title="Retroceder 15s"
+              aria-label="Retroceder 15 segundos"
               style={{
-                fontSize: "0.6875rem",
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                padding: "0.35rem",
+                borderRadius: "50%",
                 color: "var(--muted)",
                 display: "flex",
                 alignItems: "center",
-                gap: "0.35rem",
-                lineHeight: 1.2,
-                marginTop: "1px",
+                justifyContent: "center",
               }}
             >
-              <span style={{ color: "var(--primary)", fontWeight: 600 }}>La 20 Radio</span>
-              <span>•</span>
-              <span style={{ fontVariantNumeric: "tabular-nums" }}>
-                {formatSeconds(currentTime)} / {duration > 0 ? formatSeconds(duration) : (currentEpisode.duration || "--:--")}
-              </span>
-              <CaretRight size={10} weight="bold" />
-            </div>
-          </div>
-        </Link>
+              <ArrowCounterClockwise size={19} weight="bold" />
+            </button>
 
-        {/* Controles de reproducción */}
-        <div style={{ display: "flex", alignItems: "center", gap: "0.25rem", flexShrink: 0 }}>
-          {/* Skip -15s */}
-          <button
-            onClick={() => skip(-15)}
-            title="Retroceder 15s"
-            aria-label="Retroceder 15 segundos"
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              padding: "0.35rem",
-              borderRadius: "50%",
-              color: "var(--muted)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <ArrowCounterClockwise size={18} weight="bold" />
-          </button>
+            {/* Botón Circular Principal Play / Pause */}
+            <button
+              onClick={togglePlay}
+              aria-label={isPlaying ? "Pausar episodio" : "Reproducir episodio"}
+              style={{
+                width: 38,
+                height: 38,
+                borderRadius: "50%",
+                background: "var(--primary)",
+                color: "var(--primary-fg)",
+                border: "none",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                boxShadow: "0 2px 8px rgba(37, 99, 235, 0.4)",
+                transition: "transform 0.15s, background-color 0.15s",
+                flexShrink: 0,
+              }}
+            >
+              {isPlaying ? (
+                <Pause size={19} weight="fill" />
+              ) : (
+                <Play size={19} weight="fill" style={{ marginLeft: 2 }} />
+              )}
+            </button>
 
-          {/* Play / Pause principal */}
-          <button
-            onClick={togglePlay}
-            aria-label={isPlaying ? "Pausar episodio" : "Reproducir episodio"}
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: "50%",
-              background: "var(--primary)",
-              color: "var(--primary-fg)",
-              border: "none",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              boxShadow: "0 2px 6px rgba(37, 99, 235, 0.35)",
-            }}
-          >
-            {isPlaying ? (
-              <Pause size={18} weight="fill" />
-            ) : (
-              <Play size={18} weight="fill" style={{ marginLeft: 2 }} />
+            {/* Adelantar 15s */}
+            <button
+              onClick={() => skip(15)}
+              title="Adelantar 15s"
+              aria-label="Adelantar 15 segundos"
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                padding: "0.35rem",
+                borderRadius: "50%",
+                color: "var(--muted)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <ArrowClockwise size={19} weight="bold" />
+            </button>
+
+            {/* Acceso a Spotify (Desktop icon) */}
+            {currentEpisode.link && (
+              <a
+                href={currentEpisode.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="spotify-radio-bar__desktop-only"
+                title="Abrir este episodio en Spotify"
+                style={{
+                  background: "rgba(29, 185, 84, 0.1)",
+                  border: "none",
+                  borderRadius: "50%",
+                  padding: "0.35rem",
+                  color: "#1DB954",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  textDecoration: "none",
+                }}
+              >
+                <SpotifyLogo size={18} weight="fill" />
+              </a>
             )}
-          </button>
+          </div>
 
-          {/* Skip +15s */}
+          {/* Fila inferior: Línea de tiempo deslizable (Scrub bar) */}
+          <div className="spotify-radio-bar__scrub">
+            <span
+              style={{
+                fontSize: "0.75rem",
+                color: "var(--muted)",
+                minWidth: "36px",
+                textAlign: "right",
+                fontVariantNumeric: "tabular-nums",
+              }}
+            >
+              {formatSeconds(currentTime)}
+            </span>
+
+            <div style={{ position: "relative", flex: 1, display: "flex", alignItems: "center" }}>
+              <input
+                type="range"
+                min={0}
+                max={duration || 100}
+                step={0.5}
+                value={currentTime}
+                onChange={handleSeek}
+                aria-label="Progreso del episodio"
+                style={{
+                  width: "100%",
+                  height: "5px",
+                  borderRadius: "3px",
+                  background: `linear-gradient(to right, var(--primary) ${progressPercent}%, var(--border) ${progressPercent}%)`,
+                  outline: "none",
+                  cursor: "pointer",
+                  WebkitAppearance: "none",
+                }}
+              />
+            </div>
+
+            <span
+              style={{
+                fontSize: "0.75rem",
+                color: "var(--muted)",
+                minWidth: "36px",
+                fontVariantNumeric: "tabular-nums",
+              }}
+            >
+              {duration > 0 ? formatSeconds(duration) : (currentEpisode.duration || "--:--")}
+            </span>
+          </div>
+        </div>
+
+        {/* =====================================================================
+            COLUMNA DERECHA: Opciones adicionales y Cierre
+           ===================================================================== */}
+        <div className="spotify-radio-bar__right">
+          {/* Silenciar / Activar sonido (Desktop) */}
           <button
-            onClick={() => skip(15)}
-            title="Adelantar 15s"
-            aria-label="Adelantar 15 segundos"
+            onClick={toggleMute}
+            className="spotify-radio-bar__desktop-only"
+            title={isMuted ? "Activar sonido" : "Silenciar"}
+            aria-label={isMuted ? "Activar sonido" : "Silenciar"}
             style={{
               background: "none",
               border: "none",
@@ -242,10 +374,37 @@ export function PersistentMiniPlayer() {
               justifyContent: "center",
             }}
           >
-            <ArrowClockwise size={18} weight="bold" />
+            {isMuted ? <SpeakerSlash size={19} /> : <SpeakerHigh size={19} />}
           </button>
 
-          {/* Cerrar / Ocultar */}
+          {/* Enlace Spotify con etiqueta (Desktop) */}
+          {currentEpisode.link && (
+            <a
+              href={currentEpisode.link}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="spotify-radio-bar__desktop-only"
+              title="Abrir este episodio en Spotify"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.35rem",
+                fontSize: "0.75rem",
+                color: "#1DB954",
+                padding: "0.25rem 0.55rem",
+                borderRadius: "6px",
+                background: "rgba(29, 185, 84, 0.08)",
+                textDecoration: "none",
+                fontWeight: 600,
+              }}
+            >
+              <SpotifyLogo size={16} weight="fill" />
+              <span>Spotify</span>
+              <ArrowSquareOut size={12} />
+            </a>
+          )}
+
+          {/* Cerrar reproductor */}
           <button
             onClick={closePlayer}
             title="Cerrar reproductor"
@@ -263,7 +422,7 @@ export function PersistentMiniPlayer() {
               marginLeft: "0.25rem",
             }}
           >
-            <X size={16} weight="bold" />
+            <X size={18} weight="bold" />
           </button>
         </div>
       </div>

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { parsePodcastRss } from "../services/podcast-rss"
+import { parsePodcastRss, normalizeAudioUrl } from "../services/podcast-rss"
 
 describe("parsePodcastRss", () => {
   const sampleXml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -57,5 +57,17 @@ describe("parsePodcastRss", () => {
 
   it("throws when XML has no channel", () => {
     expect(() => parsePodcastRss("<rss><invalid /></rss>")).toThrow()
+  })
+
+  it("normalizes Anchor tracking audio URLs to direct CDN URLs", () => {
+    const rawAnchorUrl = "https://anchor.fm/s/118056a04/podcast/play/129725912/https%3A%2F%2Fd3ctxlq1ktw2nl.cloudfront.net%2Fstaging%2F2026-10-19%2F437109648-44100-2-a0b3da5fd9093.mp3"
+    const { audioUrl, fallbackAudioUrl } = normalizeAudioUrl(rawAnchorUrl)
+
+    expect(audioUrl).toBe("https://d3ctxlq1ktw2nl.cloudfront.net/staging/2026-10-19/437109648-44100-2-a0b3da5fd9093.mp3")
+    expect(fallbackAudioUrl).toBe(rawAnchorUrl)
+
+    // Direct URLs remain unchanged
+    const directUrl = "https://example.com/audio/direct.mp3"
+    expect(normalizeAudioUrl(directUrl).audioUrl).toBe(directUrl)
   })
 })

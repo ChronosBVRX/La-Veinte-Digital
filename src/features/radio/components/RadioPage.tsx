@@ -15,7 +15,6 @@ import {
 import { Card } from "@/shared/components/ui/Card"
 import { Input } from "@/shared/components/ui/Input"
 import { EpisodeCard } from "./EpisodeCard"
-import { RadioPlayer } from "./RadioPlayer"
 import { useRadio } from "../context/RadioContext"
 import type { PodcastEpisode, PodcastShow } from "../types"
 
@@ -55,7 +54,16 @@ export function RadioPage({ initialShow }: RadioPageProps) {
   }, [show.episodes, searchQuery])
 
   return (
-    <div style={{ maxWidth: "1000px", margin: "0 auto", display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+    <div
+      style={{
+        maxWidth: "1000px",
+        margin: "0 auto",
+        display: "flex",
+        flexDirection: "column",
+        gap: "1.5rem",
+        paddingBottom: currentEpisode ? "96px" : "2rem",
+      }}
+    >
       {/* Header Banner */}
       <Card
         padding="1.5rem"
@@ -263,9 +271,6 @@ export function RadioPage({ initialShow }: RadioPageProps) {
           </Card>
         )}
       </div>
-
-      {/* Sticky Radio Player */}
-      <RadioPlayer />
     </div>
   )
 }

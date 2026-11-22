@@ -53,19 +53,30 @@ export function RadioProvider({ children }: { children: ReactNode }) {
 
     if (audio.src !== episode.audioUrl) {
       audio.src = episode.audioUrl
-      if (typeof audio.load === "function") {
-        audio.load()
-      }
+      audio.currentTime = 0
     }
 
     try {
       const playPromise = audio.play()
       if (playPromise !== undefined && typeof playPromise.then === "function") {
-        playPromise.then(() => {
-          setIsPlaying(true)
-        }).catch(() => {
-          setIsPlaying(false)
-        })
+        playPromise
+          .then(() => {
+            setIsPlaying(true)
+          })
+          .catch((err: unknown) => {
+            console.warn("Primary audio play rejected:", err)
+            // Si la URL directa falla o es bloqueada, intentar URL de respaldo
+            if (episode.fallbackAudioUrl && audio.src !== episode.fallbackAudioUrl) {
+              console.log("Intentando fallback audio URL:", episode.fallbackAudioUrl)
+              audio.src = episode.fallbackAudioUrl
+              audio.play().then(() => setIsPlaying(true)).catch((err2) => {
+                console.error("Fallback audio play failed:", err2)
+                setIsPlaying(false)
+              })
+            } else {
+              setIsPlaying(false)
+            }
+          })
       } else {
         setIsPlaying(true)
       }
@@ -168,6 +179,20 @@ export function RadioProvider({ children }: { children: ReactNode }) {
 
   const handleEnded = () => {
     setIsPlaying(false)
+    setCurrentTime(0)
+  }
+
+  const handleAudioError = () => {
+    const audio = audioRef.current
+    const err = audio?.error
+    console.warn("Audio element error:", err?.code, err?.message, "Source:", audio?.src)
+    if (currentEpisode?.fallbackAudioUrl && audio && audio.src !== currentEpisode.fallbackAudioUrl) {
+      console.log("Recuperando con URL de respaldo:", currentEpisode.fallbackAudioUrl)
+      audio.src = currentEpisode.fallbackAudioUrl
+      audio.play().then(() => setIsPlaying(true)).catch(console.error)
+    } else {
+      setIsPlaying(false)
+    }
   }
 
   // Integración con MediaSession API nativa
@@ -231,8 +256,12 @@ export function RadioProvider({ children }: { children: ReactNode }) {
         ref={audioRef}
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
+        onDurationChange={handleLoadedMetadata}
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
         onEnded={handleEnded}
-        preload="metadata"
+        onError={handleAudioError}
+        preload="auto"
       />
       {children}
     </RadioContext.Provider>

@@ -59,6 +59,26 @@ function formatDuration(rawDuration: string): string {
   return rawDuration
 }
 
+export function normalizeAudioUrl(rawUrl: string): { audioUrl: string; fallbackAudioUrl?: string } {
+  if (!rawUrl) return { audioUrl: "" }
+  // Extrae la URL directa del CDN si proviene de un enlace de rastreo de Anchor.fm / Spotify Podcasters
+  const match = rawUrl.match(/(https?%3A%2F%2F[^\s"'>]+)/i)
+  if (match) {
+    try {
+      const decoded = decodeURIComponent(match[1])
+      if (decoded.startsWith("http://") || decoded.startsWith("https://")) {
+        return {
+          audioUrl: decoded,
+          fallbackAudioUrl: rawUrl,
+        }
+      }
+    } catch {
+      // fallback a URL original
+    }
+  }
+  return { audioUrl: rawUrl }
+}
+
 export function parsePodcastRss(xmlText: string, feedUrl = DEFAULT_PODCAST_RSS): PodcastShow {
   const channelMatch = xmlText.match(/<channel>([\s\S]*?)<\/channel>/i)
   if (!channelMatch) {
@@ -101,7 +121,8 @@ export function parsePodcastRss(xmlText: string, feedUrl = DEFAULT_PODCAST_RSS):
     const formattedDate = formatDate(pubDate)
 
     const audioMatch = iXml.match(/<enclosure[^>]+url=["'](.*?)["']/i)
-    const audioUrl = audioMatch ? audioMatch[1].trim() : ""
+    const rawAudioUrl = audioMatch ? audioMatch[1].trim() : ""
+    const { audioUrl, fallbackAudioUrl } = normalizeAudioUrl(rawAudioUrl)
 
     const durMatch = (iXml.match(/<itunes:duration>([\s\S]*?)<\/itunes:duration>/i) || [])[1]
     const duration = formatDuration(durMatch ? extractCdata(durMatch) : "")
@@ -124,6 +145,7 @@ export function parsePodcastRss(xmlText: string, feedUrl = DEFAULT_PODCAST_RSS):
         pubDate,
         formattedDate,
         audioUrl,
+        fallbackAudioUrl,
         duration,
         link: epLink,
         imageUrl: epImage || imageUrl,

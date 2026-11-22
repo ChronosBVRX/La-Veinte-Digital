@@ -1,7 +1,6 @@
 "use client"
 
 import dynamic from "next/dynamic"
-import { usePathname } from "next/navigation"
 import { useRadio } from "../context/RadioContext"
 import { PersistentMiniPlayer } from "./PersistentMiniPlayer"
 
@@ -11,12 +10,11 @@ const MobileValueBar = dynamic(
 )
 
 export function PersistentRadioBar() {
-  const pathname = usePathname()
   const { currentEpisode, isVisible } = useRadio()
 
-  // Si hay un episodio activo y visible, y no estamos en /radio (donde ya está el reproductor completo),
-  // la barra de sugerencias inferior es reemplazada por el mini reproductor persistente.
-  if (currentEpisode && isVisible && pathname !== "/radio") {
+  // Si hay un episodio activo y visible en el reproductor (en cualquier sección incluida /radio),
+  // la barra inferior despliega el reproductor persistente estilo Spotify.
+  if (currentEpisode && isVisible) {
     return <PersistentMiniPlayer />
   }
 

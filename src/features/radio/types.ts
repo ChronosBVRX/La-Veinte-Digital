@@ -6,6 +6,7 @@ export interface PodcastEpisode {
   pubDate: string
   formattedDate: string
   audioUrl: string
+  fallbackAudioUrl?: string
   duration: string
   link?: string
   imageUrl?: string
