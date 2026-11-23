@@ -26,6 +26,7 @@ import {
   revokeEscritoBlobs,
 } from "../services/escritos-indexeddb"
 import { generarEscrito } from "../services/generarEscrito"
+import { isGenericAsunto } from "@/shared/lib/escrito-asunto"
 import {
   syncEscritoPdfToNative,
   deleteNativeEscritoCopies,
@@ -272,9 +273,17 @@ export function EscritosGenerator() {
         return
       }
 
+      const finalAsunto =
+        response.asuntoSugerido && (!draft.asunto || isGenericAsunto(draft.asunto))
+          ? response.asuntoSugerido
+          : draft.asunto && !isGenericAsunto(draft.asunto)
+          ? draft.asunto
+          : response.asuntoSugerido || ""
+
       const updatedDraft: EscritoDraftV2 = {
         ...draft,
         cuerpo: response.cuerpo,
+        asunto: finalAsunto,
         fuentes: response.fuentes,
         advertencias: response.advertencias,
         generationMode: response.generationMode,

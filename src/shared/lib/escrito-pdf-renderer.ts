@@ -7,8 +7,9 @@
  */
 
 import { jsPDF } from "jspdf"
-import type { EscritoDraftV2 } from "@/shared/contracts/escrito-draft"
+import type { EscritoDraftV2, AnexoItem } from "@/shared/contracts/escrito-draft"
 import { getBlobResource } from "@/shared/services/blob-storage"
+import { isGenericAsunto, inferAsuntoFromProblem } from "@/shared/lib/escrito-asunto"
 
 export interface RenderPdfOptions {
   nombreTrabajador?: string
@@ -16,6 +17,7 @@ export interface RenderPdfOptions {
   matricula?: string
   categoria?: string
   adscripcion?: string
+  anexosLayout?: "compact" | "individual"
 }
 
 export interface ProcessedImage {
@@ -258,6 +260,76 @@ export async function processBlobForPdf(blobInput: Blob | unknown): Promise<Proc
 }
 
 /**
+ * Renderiza un anexo fotográfico dentro de un área acotada de la página.
+ */
+async function renderAnexoItem(
+  doc: jsPDF,
+  anexo: AnexoItem,
+  anexoIdx: number,
+  slotTopY: number,
+  maxSlotH: number,
+  contentWidth: number,
+  margin: number,
+  userId: string,
+  isCompact: boolean
+): Promise<void> {
+  let curY = slotTopY
+  doc.setFont("times", "bold")
+  doc.setFontSize(isCompact ? 11 : 12)
+  doc.text(`ANEXO ${anexoIdx}: ${anexo.nombre.toUpperCase()}`, margin, curY)
+  curY += isCompact ? 14 : 16
+
+  if (anexo.descripcion) {
+    doc.setFont("times", "normal")
+    doc.setFontSize(isCompact ? 9 : 10)
+    const descLines = doc.splitTextToSize(anexo.descripcion, contentWidth)
+    doc.text(descLines, margin, curY)
+    curY += descLines.length * (isCompact ? 11 : 13) + (isCompact ? 6 : 15)
+  }
+
+  if (anexo.storageRef) {
+    try {
+      const anexoBlob = await getBlobResource(userId, anexo.storageRef)
+      if (anexoBlob) {
+        const processedAnexo = await processBlobForPdf(anexoBlob)
+        if (processedAnexo) {
+          const maxW = contentWidth
+          const maxH = Math.max(50, slotTopY + maxSlotH - curY - (isCompact ? 6 : 20))
+          const aspect = (processedAnexo.width || 1) / (processedAnexo.height || 1)
+
+          let renderWidth = maxW
+          let renderHeight = renderWidth / aspect
+
+          if (renderHeight > maxH) {
+            renderHeight = maxH
+            renderWidth = renderHeight * aspect
+          }
+
+          const renderX = margin + (contentWidth - renderWidth) / 2
+
+          doc.addImage(
+            processedAnexo.dataUrl,
+            processedAnexo.format,
+            renderX,
+            curY,
+            renderWidth,
+            renderHeight
+          )
+        }
+      }
+    } catch {
+      doc.setFont("times", "italic")
+      doc.setFontSize(isCompact ? 9 : 10)
+      doc.text("[Imagen no disponible para renderizado]", margin, curY)
+    }
+  } else {
+    doc.setFont("times", "italic")
+    doc.setFontSize(isCompact ? 9 : 10)
+    doc.text("[Archivo de anexo adjunto]", margin, curY)
+  }
+}
+
+/**
  * Construye el objeto jsPDF completo y poblado con texto vectorial, firma y anexos.
  */
 export async function buildJsPdfDocument(
@@ -278,6 +350,12 @@ export async function buildJsPdfDocument(
   const contentWidth = pageWidth - margin * 2
   let y = margin
 
+  const safeAsunto = isGenericAsunto(draft.asunto)
+    ? draft.hechos || draft.peticion
+      ? inferAsuntoFromProblem(draft.tipo, draft.hechos, draft.peticion, "")
+      : ""
+    : draft.asunto?.trim() || ""
+
   doc.setFont("times", "normal")
   doc.setFontSize(11)
 
@@ -291,8 +369,8 @@ export async function buildJsPdfDocument(
       doc.setTextColor(0, 0, 0)
 
       // Encabezado de continuidad en páginas 2+
-      const continuationText = draft.asunto?.trim()
-        ? `Continuación - ASUNTO: ${draft.asunto.trim()}`
+      const continuationText = safeAsunto
+        ? `Continuación - ASUNTO: ${safeAsunto}`
         : `Continuación de escrito formal`
       const shortContinuation = doc.splitTextToSize(continuationText, contentWidth)[0] || continuationText
 
@@ -322,10 +400,10 @@ export async function buildJsPdfDocument(
   doc.text(fechaCompleta, pageWidth - margin - fechaWidth, y)
   y += 24
 
-  // 2. Asunto (si existe)
-  if (draft.asunto && draft.asunto.trim()) {
+  // 2. Asunto (si existe o inferido del problema)
+  if (safeAsunto) {
     doc.setFont("times", "bold")
-    const asuntoText = `ASUNTO: ${draft.asunto.trim()}`
+    const asuntoText = `ASUNTO: ${safeAsunto}`
     const asuntoLines = doc.splitTextToSize(asuntoText, contentWidth)
     doc.text(asuntoLines, margin, y)
     y += asuntoLines.length * 14 + 14
@@ -503,66 +581,65 @@ export async function buildJsPdfDocument(
     }
   }
 
-  // 8. Anexos Fotográficos (Páginas dedicadas con dimensiones proporcionadas)
+  // 8. Anexos Fotográficos (Páginas dedicadas o compactas de 2 por hoja para ahorro de papel)
   if (draft.anexos && draft.anexos.length > 0) {
-    let anexoIdx = 1
-    for (const anexo of draft.anexos) {
-      doc.addPage()
-      let anexoY = margin
+    const layout = options?.anexosLayout || draft.anexosLayout || "individual"
+    const isCompact = layout === "compact" && draft.anexos.length > 1
 
-      doc.setFont("times", "bold")
-      doc.setFontSize(12)
-      doc.text(`ANEXO ${anexoIdx}: ${anexo.nombre.toUpperCase()}`, margin, anexoY)
-      anexoY += 16
+    if (isCompact) {
+      const slotH = (pageHeight - 2 * margin - 24) / 2
+      for (let i = 0; i < draft.anexos.length; i += 2) {
+        doc.addPage()
+        // Slot 1 (arriba)
+        await renderAnexoItem(
+          doc,
+          draft.anexos[i],
+          i + 1,
+          margin,
+          slotH,
+          contentWidth,
+          margin,
+          userId,
+          true
+        )
 
-      if (anexo.descripcion) {
-        doc.setFont("times", "normal")
-        doc.setFontSize(10)
-        const descLines = doc.splitTextToSize(anexo.descripcion, contentWidth)
-        doc.text(descLines, margin, anexoY)
-        anexoY += descLines.length * 13 + 15
-      }
+        // Slot 2 (abajo, si existe)
+        if (i + 1 < draft.anexos.length) {
+          const dividerY = margin + slotH + 12
+          doc.setDrawColor(220, 225, 230)
+          doc.setLineDashPattern([2, 2], 0)
+          doc.line(margin, dividerY, pageWidth - margin, dividerY)
+          doc.setLineDashPattern([], 0)
 
-      if (anexo.storageRef) {
-        try {
-          const anexoBlob = await getBlobResource(userId, anexo.storageRef)
-          if (anexoBlob) {
-            const processedAnexo = await processBlobForPdf(anexoBlob)
-            if (processedAnexo) {
-              const maxW = contentWidth
-              const maxH = pageHeight - anexoY - margin - 20
-              const aspect = (processedAnexo.width || 1) / (processedAnexo.height || 1)
-
-              let renderWidth = maxW
-              let renderHeight = renderWidth / aspect
-
-              if (renderHeight > maxH) {
-                renderHeight = maxH
-                renderWidth = renderHeight * aspect
-              }
-
-              const renderX = margin + (contentWidth - renderWidth) / 2
-
-              doc.addImage(
-                processedAnexo.dataUrl,
-                processedAnexo.format,
-                renderX,
-                anexoY,
-                renderWidth,
-                renderHeight
-              )
-            }
-          }
-        } catch {
-          doc.setFont("times", "italic")
-          doc.text("[Imagen no disponible para renderizado]", margin, anexoY)
+          await renderAnexoItem(
+            doc,
+            draft.anexos[i + 1],
+            i + 2,
+            dividerY + 12,
+            slotH,
+            contentWidth,
+            margin,
+            userId,
+            true
+          )
         }
-      } else {
-        doc.setFont("times", "italic")
-        doc.text("[Archivo de anexo adjunto]", margin, anexoY)
       }
-
-      anexoIdx++
+    } else {
+      // Distribución individual: 1 foto por página dedicada
+      for (let i = 0; i < draft.anexos.length; i++) {
+        doc.addPage()
+        await renderAnexoItem(
+          doc,
+          draft.anexos[i],
+          i + 1,
+          margin,
+          pageHeight - 2 * margin,
+          contentWidth,
+          margin,
+          userId,
+          false
+        )
+      }
     }
   }
 

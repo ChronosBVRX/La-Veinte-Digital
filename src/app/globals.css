@@ -73,6 +73,7 @@
   --state-info-bg: #eef5ff;
   --state-info-fg: #245a9b;
   --focus-ring: 0 0 0 3px rgba(46, 79, 119, 0.2);
+  --placeholder: rgba(37, 99, 235, 0.7);
 }
 
 * {
@@ -105,6 +106,26 @@ body {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Color guía informativo para textos de ejemplo (placeholder) que evita confusión con texto capturado */
+::placeholder,
+input::placeholder,
+textarea::placeholder {
+  color: var(--placeholder, rgba(37, 99, 235, 0.7));
+  opacity: 1;
+}
+
+input::-webkit-input-placeholder,
+textarea::-webkit-input-placeholder {
+  color: var(--placeholder, rgba(37, 99, 235, 0.7));
+  opacity: 1;
+}
+
+input::-moz-placeholder,
+textarea::-moz-placeholder {
+  color: var(--placeholder, rgba(37, 99, 235, 0.7));
+  opacity: 1;
 }
 
 .typing-dot {

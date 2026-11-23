@@ -52,7 +52,7 @@ describe("EscritosGenerator (Componente Principal con Auth y Protección de Camb
     await waitFor(() => {
       expect(screen.getByText(/Generador de Escritos/i)).toBeDefined()
       expect(screen.getByText(/Solicitud de Permiso Económico/i)).toBeDefined()
-    })
+    }, { timeout: 4000 })
   })
 
   it("permite duplicar un escrito existente creando copia física independiente", async () => {

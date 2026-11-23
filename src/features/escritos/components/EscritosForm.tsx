@@ -13,6 +13,7 @@ import {
   type AnexoItem,
 } from "@/shared/contracts/escrito-draft"
 import { saveBlobResource, deleteBlobResource } from "../services/escritos-indexeddb"
+import { isGenericAsunto } from "@/shared/lib/escrito-asunto"
 import { DestinatarioResumen } from "./DestinatarioResumen"
 import { DestinatarioSelectorModal } from "./DestinatarioSelectorModal"
 import { EscritosGuidedWizard } from "./EscritosGuidedWizard"
@@ -79,7 +80,7 @@ export function EscritosForm({
   const handleTipoSelect = (tipo: TipoEscritoKey) => {
     onUpdateDraft({
       tipo,
-      asunto: draft.asunto || `${TIPOS_ESCRITO[tipo].titulo}: Solicitud formal`,
+      ...(draft.asunto && !isGenericAsunto(draft.asunto) ? { asunto: draft.asunto } : { asunto: "" }),
     })
   }
 
@@ -195,7 +196,10 @@ export function EscritosForm({
         })
       }
 
-      onUpdateDraft({ anexos: newAnexos })
+      onUpdateDraft({
+        anexos: newAnexos,
+        ...(newAnexos.length >= 2 && !draft.anexosLayout ? { anexosLayout: "compact" } : {}),
+      })
     } catch (err) {
       console.error("Error guardando anexo en IndexedDB:", err)
       setValidationError("Error al procesar la imagen adjunta.")
@@ -629,6 +633,92 @@ export function EscritosForm({
 
           {draft.anexos.length > 0 && (
             <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+              {draft.anexos.length >= 2 && (
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.375rem",
+                    padding: "0.625rem 0.75rem",
+                    background: "var(--accent)",
+                    borderRadius: "0.5rem",
+                    border: "1px solid var(--border)",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      flexWrap: "wrap",
+                      gap: "0.5rem",
+                    }}
+                  >
+                    <span style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--fg)" }}>
+                      Distribución al imprimir ({draft.anexos.length} fotos):
+                    </span>
+                    <div style={{ display: "flex", gap: "0.375rem" }}>
+                      <button
+                        type="button"
+                        onClick={() => onUpdateDraft({ anexosLayout: "compact" })}
+                        style={{
+                          padding: "0.25rem 0.5rem",
+                          fontSize: "0.75rem",
+                          fontWeight: 600,
+                          borderRadius: "0.375rem",
+                          border:
+                            (draft.anexosLayout || "compact") === "compact"
+                              ? "1px solid var(--primary)"
+                              : "1px solid var(--border)",
+                          background:
+                            (draft.anexosLayout || "compact") === "compact"
+                              ? "var(--primary)"
+                              : "var(--card)",
+                          color:
+                            (draft.anexosLayout || "compact") === "compact"
+                              ? "var(--primary-fg)"
+                              : "var(--muted)",
+                          cursor: "pointer",
+                        }}
+                      >
+                        📄 Varias por hoja (Ahorro de papel)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onUpdateDraft({ anexosLayout: "individual" })}
+                        style={{
+                          padding: "0.25rem 0.5rem",
+                          fontSize: "0.75rem",
+                          fontWeight: 600,
+                          borderRadius: "0.375rem",
+                          border:
+                            draft.anexosLayout === "individual"
+                              ? "1px solid var(--primary)"
+                              : "1px solid var(--border)",
+                          background:
+                            draft.anexosLayout === "individual"
+                              ? "var(--primary)"
+                              : "var(--card)",
+                          color:
+                            draft.anexosLayout === "individual"
+                              ? "var(--primary-fg)"
+                              : "var(--muted)",
+                          cursor: "pointer",
+                        }}
+                      >
+                        📑 Una por hoja (Página completa)
+                      </button>
+                    </div>
+                  </div>
+                  <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
+                    {(draft.anexosLayout || "compact") === "compact"
+                      ? `Se agruparán de 2 en 2 fotos por página (${Math.ceil(
+                          draft.anexos.length / 2
+                        )} hoja${Math.ceil(draft.anexos.length / 2) > 1 ? "s" : ""} de anexos).`
+                      : `Cada foto ocupará una hoja independiente (${draft.anexos.length} hojas de anexos).`}
+                  </span>
+                </div>
+              )}
               {draft.anexos.map((anexo, idx) => (
                 <Card
                   key={anexo.id}

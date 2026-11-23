@@ -5,6 +5,8 @@
 import { GlobalWorkerOptions } from "pdfjs-dist"
 import type { PDFDocumentProxy, PDFDocumentLoadingTask } from "pdfjs-dist"
 
+export type { PDFDocumentProxy, PDFDocumentLoadingTask } from "pdfjs-dist"
+
 let configured = false
 
 export function configurePdfJs(): void {
