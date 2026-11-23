@@ -54,6 +54,8 @@ describe("API route policy", () => {
       "/api/tarjeton/select": "authenticated",
       "/api/worker-context": "authenticated",
       "/api/escritos/generar": "authenticated",
+      "/api/escritos/stats": "authenticated",
+      "/api/escritos/log": "authenticated",
       "/api/union/workers": "authenticated",
       "/api/union/cases": "authenticated",
       "/api/union/lockers": "authenticated",

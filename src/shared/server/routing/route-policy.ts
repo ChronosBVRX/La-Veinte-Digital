@@ -18,6 +18,8 @@ export const API_ACCESS = {
   "/api/normativa/sync": "authenticated",
   "/api/normativa/visor": "authenticated",
   "/api/escritos/generar": "authenticated",
+  "/api/escritos/stats": "authenticated",
+  "/api/escritos/log": "authenticated",
   "/api/radio/episodes": "authenticated",
   "/api/radio/stream": "public",
   "/api/union/workers": "authenticated",

@@ -20,6 +20,7 @@ import {
   CaretRight,
   Sparkle,
   Radio,
+  PencilLine,
 } from "@phosphor-icons/react"
 import { TransferDocumentsModal } from "@/features/transferir/components/TransferDocumentsModal"
 import { isExcludedByQuickActions } from "../lib/highlight-exclusion-policy"
@@ -29,6 +30,7 @@ import {
   type AnnouncementHighlight,
 } from "../types/home-highlights"
 import type { Announcement } from "@/shared/contracts/announcements"
+import type { EscritosStats } from "@/shared/contracts/escritos-stats"
 
 export const PODCAST_HIGHLIGHT_EPISODES = [
   {
@@ -69,16 +71,53 @@ export const PODCAST_HIGHLIGHT_EPISODES = [
   },
 ] as const
 
+export const DEFAULT_ESCRITOS_HELPED_COUNT = 1200
+
 interface HomeHighlightsCarouselProps {
   initialAnnouncements?: Announcement[]
+  initialEscritosStats?: EscritosStats
+  escritosHelpedCount?: number | string
 }
 
 const AUTOPLAY_INTERVAL_MS = 11000
 const SWIPE_THRESHOLD_PX = 40
 
-export function HomeHighlightsCarousel({ initialAnnouncements = [] }: HomeHighlightsCarouselProps) {
+export function HomeHighlightsCarousel({
+  initialAnnouncements = [],
+  initialEscritosStats,
+  escritosHelpedCount,
+}: HomeHighlightsCarouselProps) {
   const [transferModalOpen, setTransferModalOpen] = useState(false)
   const [podcastEpisodeIndex, setPodcastEpisodeIndex] = useState(0)
+
+  // ── 0. Estadísticas reales de escritos (servidor + fetch reactivo) ─────────
+  const [escritosStats, setEscritosStats] = useState<EscritosStats>(() => {
+    if (initialEscritosStats) return initialEscritosStats
+    if (typeof escritosHelpedCount === "number") {
+      return { totalGenerados: escritosHelpedCount, totalCompaneros: escritosHelpedCount }
+    }
+    return { totalGenerados: 0, totalCompaneros: 0 }
+  })
+
+  useEffect(() => {
+    let cancelled = false
+    async function loadStats() {
+      try {
+        const res = await fetch("/api/escritos/stats")
+        if (!res.ok) return
+        const data = (await res.json()) as EscritosStats
+        if (!cancelled && typeof data.totalGenerados === "number") {
+          setEscritosStats(data)
+        }
+      } catch {
+        // Fallback defensivo: se conservan las estadísticas iniciales
+      }
+    }
+    loadStats()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   // Limpieza preventiva de parámetros heredados del modal de aumento
   useEffect(() => {
@@ -193,6 +232,51 @@ export function HomeHighlightsCarousel({ initialAnnouncements = [] }: HomeHighli
       testId: "highlight-radio-podcast",
     })
 
+    // E. Estadística Comunitaria: Creador de Escritos (System Highlight)
+    const hasGenerados = escritosStats.totalGenerados > 0
+    const countGenerados = escritosStats.totalGenerados.toLocaleString("es-MX")
+    const countCompaneros = escritosStats.totalCompaneros.toLocaleString("es-MX")
+
+    const statsTitle = hasGenerados
+      ? escritosStats.totalCompaneros > 0
+        ? `La 20 Digital ha ayudado a ${countCompaneros} ${escritosStats.totalCompaneros === 1 ? "compañero" : "compañeros"} a generar ${countGenerados} ${escritosStats.totalGenerados === 1 ? "escrito" : "escritos"}`
+        : `La 20 Digital ha ayudado a generar ${countGenerados} ${escritosStats.totalGenerados === 1 ? "escrito" : "escritos"}`
+      : "La 20 Digital te ayuda a realizar tus escritos laborales"
+
+    const statsDescription = hasGenerados
+      ? "¿Qué esperas? Usa el creador de escritos para ayudarte y guiarte paso a paso con sustento normativo."
+      : "¿Qué esperas? Usa el creador de escritos para ayudarte y guiarte paso a paso con sustento normativo."
+
+    const statsPills = hasGenerados
+      ? [
+          { label: `${countGenerados} ${escritosStats.totalGenerados === 1 ? "escrito generado" : "escritos generados"}` },
+          ...(escritosStats.totalCompaneros > 0
+            ? [{ label: `${countCompaneros} ${escritosStats.totalCompaneros === 1 ? "compañero" : "compañeros"}` }]
+            : []),
+          { label: "Paso a paso" },
+        ]
+      : [
+          { label: "0 escritos generados" },
+          { label: "Sé de los primeros" },
+          { label: "Sustento CCT" },
+        ]
+
+    list.push({
+      id: "escritos-stats-highlight",
+      type: "system",
+      priority: HIGHLIGHT_PRIORITIES.ESCRITOS_STATS,
+      eyebrow: "COMUNIDAD · IMPACTO",
+      title: statsTitle,
+      description: statsDescription,
+      ctaText: "Crear mi escrito",
+      ctaHref: "/escritos",
+      icon: PencilLine,
+      pills: statsPills,
+      gradient: "linear-gradient(135deg, #1e1b4b 0%, #3730a3 50%, #4f46e5 100%)",
+      enabled: true,
+      testId: "highlight-escritos-stats",
+    })
+
     // E. Transferir Documentos (System Highlight)
     list.push({
       id: "transfer-docs-highlight",
@@ -282,7 +366,7 @@ export function HomeHighlightsCarousel({ initialAnnouncements = [] }: HomeHighli
     filtered.sort((a, b) => b.priority - a.priority)
 
     return filtered
-  }, [remoteAnnouncements, podcastEpisodeIndex])
+  }, [remoteAnnouncements, podcastEpisodeIndex, escritosStats])
 
   // ── 4. Navegación, swipe y autoplay ───────────────────────────────────────
   const [activeIndex, setActiveIndex] = useState(0)

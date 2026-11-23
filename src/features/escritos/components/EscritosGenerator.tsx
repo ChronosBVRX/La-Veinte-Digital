@@ -315,11 +315,25 @@ export function EscritosGenerator() {
 
   const handleSaveDraft = useCallback(() => {
     try {
+      const isNewDraft = !savedList.some((s) => s.id === draft.id)
       const updatedList = guardarEscrito(draft, userId)
       setSavedList(updatedList)
       setLastSavedSnapshot(serializePersistableDraft(draft))
       setSaveToast("Escrito guardado correctamente en Mis Documentos.")
       setTimeout(() => setSaveToast(null), 3000)
+
+      // Registrar métrica real anónima de nuevo escrito guardado (fire-and-forget)
+      if (isNewDraft && userId) {
+        fetch("/api/escritos/log", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            tipoEscrito: draft.tipo,
+            modo: "manual",
+          }),
+        }).catch(() => {})
+      }
+
       // Respaldo offline Android (fire-and-forget): el PDF queda disponible sin conexión.
       syncEscritoPdfToNative(draft, userId || draft.ownerId || "anonymous", {
         nombre: workerProfile.nombre,
@@ -329,7 +343,7 @@ export function EscritosGenerator() {
     } catch (e) {
       alert(e instanceof Error ? e.message : "Error al guardar el borrador.")
     }
-  }, [draft, userId, workerProfile])
+  }, [draft, userId, workerProfile, savedList])
 
   const performNewDraft = () => {
     revokeEscritoBlobs(draft)
