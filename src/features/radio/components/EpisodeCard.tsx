@@ -1,9 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { Play, Pause, Clock, CalendarBlank, ArrowSquareOut, SpotifyLogo } from "@phosphor-icons/react"
+import { Play, Pause, Clock, CalendarBlank, ArrowSquareOut, SpotifyLogo, Radio } from "@phosphor-icons/react"
 import { Card } from "@/shared/components/ui/Card"
-import { Button } from "@/shared/components/ui/Button"
 import type { PodcastEpisode } from "../types"
 
 interface EpisodeCardProps {
@@ -13,6 +12,8 @@ interface EpisodeCardProps {
   onPlay: (episode: PodcastEpisode) => void
   onPause: () => void
 }
+
+const DEFAULT_COVER = "https://d3t3ozftmdmh3i.cloudfront.net/staging/podcast_uploaded_nologo/46879753/46879753-1790947894171-e2a7105671072.jpg"
 
 export function EpisodeCard({
   episode,
@@ -31,49 +32,110 @@ export function EpisodeCard({
     }
   }
 
-  const hasLongDescription = episode.cleanDescription.length > 200
+  const coverUrl = episode.imageUrl || DEFAULT_COVER
+  const hasLongDescription = episode.cleanDescription.length > 180
 
   return (
     <Card
       padding="1rem"
       style={{
         border: isActive ? "2px solid var(--primary)" : "1px solid var(--border)",
-        background: isActive ? "rgba(37, 99, 235, 0.03)" : "var(--card)",
-        transition: "border-color 0.2s, box-shadow 0.2s",
-        boxShadow: isActive ? "0 4px 12px rgba(37, 99, 235, 0.08)" : "none",
+        background: isActive ? "rgba(37, 99, 235, 0.04)" : "var(--card)",
+        transition: "border-color 0.2s, box-shadow 0.2s, transform 0.15s",
+        boxShadow: isActive ? "0 4px 16px rgba(37, 99, 235, 0.1)" : "0 1px 3px rgba(0, 0, 0, 0.04)",
         display: "flex",
         flexDirection: "column",
-        gap: "0.75rem",
+        gap: "0.875rem",
+        borderRadius: "12px",
+        overflow: "hidden",
       }}
     >
-      <div style={{ display: "flex", alignItems: "flex-start", gap: "0.875rem" }}>
-        <button
+      {/* =====================================================================
+          Fila principal: Portada (Cover) + Metadatos + Título
+         ===================================================================== */}
+      <div
+        style={{
+          display: "flex",
+          gap: "1rem",
+          alignItems: "flex-start",
+          width: "100%",
+        }}
+      >
+        {/* Portada del capítulo estilo Spotify con botón play integrado */}
+        <div
           onClick={handleTogglePlay}
-          aria-label={isActive && isPlaying ? "Pausar episodio" : "Reproducir episodio"}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault()
+              handleTogglePlay()
+            }
+          }}
+          aria-label={isActive && isPlaying ? `Pausar: ${episode.title}` : `Reproducir: ${episode.title}`}
           style={{
+            position: "relative",
+            width: "clamp(56px, 15vw, 84px)",
+            height: "clamp(56px, 15vw, 84px)",
+            borderRadius: "8px",
+            overflow: "hidden",
             flexShrink: 0,
-            width: 44,
-            height: 44,
-            borderRadius: "50%",
-            background: isActive && isPlaying ? "var(--primary)" : "var(--accent)",
-            color: isActive && isPlaying ? "var(--primary-fg)" : "var(--primary)",
-            border: "1px solid var(--border)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
             cursor: "pointer",
-            transition: "transform 0.15s, background 0.15s",
+            background: "var(--accent)",
+            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.12)",
+            border: "1px solid var(--border)",
           }}
         >
-          {isActive && isPlaying ? (
-            <Pause size={20} weight="fill" />
-          ) : (
-            <Play size={20} weight="fill" style={{ marginLeft: 2 }} />
-          )}
-        </button>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={coverUrl}
+            alt={`Portada de ${episode.title}`}
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              display: "block",
+            }}
+          />
 
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.25rem" }}>
+          {/* Overlay de estado o reproducción */}
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              background: isActive && isPlaying ? "rgba(37, 99, 235, 0.45)" : "rgba(0, 0, 0, 0.25)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              transition: "background 0.2s",
+            }}
+          >
+            <div
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: "50%",
+                background: isActive && isPlaying ? "#ffffff" : "rgba(255, 255, 255, 0.9)",
+                color: isActive && isPlaying ? "var(--primary)" : "var(--fg)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                boxShadow: "0 2px 6px rgba(0, 0, 0, 0.25)",
+              }}
+            >
+              {isActive && isPlaying ? (
+                <Pause size={16} weight="fill" />
+              ) : (
+                <Play size={16} weight="fill" style={{ marginLeft: 2 }} />
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Información del episodio */}
+        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+          {/* Tags y fecha */}
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
             {episode.formattedDate && (
               <span
                 style={{
@@ -84,10 +146,11 @@ export function EpisodeCard({
                   gap: "0.25rem",
                 }}
               >
-                <CalendarBlank size={13} weight="bold" />
+                <CalendarBlank size={12} weight="bold" />
                 {episode.formattedDate}
               </span>
             )}
+
             {episode.duration && (
               <span
                 style={{
@@ -96,101 +159,136 @@ export function EpisodeCard({
                   display: "inline-flex",
                   alignItems: "center",
                   gap: "0.25rem",
-                  background: "var(--accent)",
-                  padding: "0.1rem 0.4rem",
-                  borderRadius: "4px",
                 }}
               >
-                <Clock size={13} weight="bold" />
+                <Clock size={12} weight="bold" />
                 {episode.duration}
               </span>
             )}
+
             {isActive && (
               <span
                 style={{
                   fontSize: "0.6875rem",
                   fontWeight: 700,
-                  color: "var(--primary)",
-                  background: "rgba(37, 99, 235, 0.1)",
-                  padding: "0.1rem 0.45rem",
+                  color: isPlaying ? "#059669" : "var(--primary)",
+                  background: isPlaying ? "rgba(16, 185, 129, 0.12)" : "rgba(37, 99, 235, 0.1)",
+                  padding: "0.15rem 0.5rem",
                   borderRadius: "999px",
-                  letterSpacing: "0.02em",
+                  letterSpacing: "0.03em",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.3rem",
                 }}
               >
+                <Radio size={12} weight="bold" />
                 {isPlaying ? "EN REPRODUCCIÓN" : "EN PAUSA"}
               </span>
             )}
           </div>
 
+          {/* Nombre del capítulo */}
           <h3
+            onClick={handleTogglePlay}
             style={{
-              fontSize: "0.9375rem",
-              fontWeight: 600,
+              fontSize: "clamp(0.9375rem, 2vw, 1.0625rem)",
+              fontWeight: 700,
               lineHeight: 1.35,
-              color: "var(--fg)",
+              color: isActive ? "var(--primary)" : "var(--fg)",
               margin: 0,
+              cursor: "pointer",
             }}
           >
             {episode.title}
           </h3>
+
+          {/* Resumen / Descripción clamped */}
+          {episode.cleanDescription && (
+            <div style={{ marginTop: "0.25rem" }}>
+              <p
+                style={{
+                  fontSize: "0.8125rem",
+                  color: "var(--muted)",
+                  lineHeight: 1.5,
+                  margin: 0,
+                  display: expanded ? "block" : "-webkit-box",
+                  WebkitLineClamp: expanded ? undefined : 2,
+                  WebkitBoxOrient: "vertical",
+                  overflow: expanded ? "visible" : "hidden",
+                }}
+              >
+                {episode.cleanDescription}
+              </p>
+
+              {hasLongDescription && (
+                <button
+                  type="button"
+                  onClick={() => setExpanded(!expanded)}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "var(--primary)",
+                    fontSize: "0.75rem",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    padding: "0.25rem 0 0",
+                    display: "inline-block",
+                  }}
+                >
+                  {expanded ? "Mostrar menos" : "Leer descripción completa"}
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
-      {episode.cleanDescription && (
-        <div style={{ fontSize: "0.8125rem", color: "var(--muted)", lineHeight: 1.5, paddingLeft: "3.625rem" }}>
-          <p style={{ margin: 0 }}>
-            {expanded || !hasLongDescription
-              ? episode.cleanDescription
-              : `${episode.cleanDescription.slice(0, 180)}...`}
-          </p>
-          {hasLongDescription && (
-            <button
-              onClick={() => setExpanded(!expanded)}
-              style={{
-                background: "none",
-                border: "none",
-                color: "var(--primary)",
-                fontSize: "0.75rem",
-                fontWeight: 600,
-                cursor: "pointer",
-                padding: "0.25rem 0 0",
-              }}
-            >
-              {expanded ? "Mostrar menos" : "Leer descripción completa"}
-            </button>
-          )}
-        </div>
-      )}
-
+      {/* =====================================================================
+          Fila de acciones: Botón Reproducir / Pausar + Abrir en Spotify
+         ===================================================================== */}
       <div
         style={{
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          paddingTop: "0.5rem",
+          paddingTop: "0.625rem",
           borderTop: "1px solid var(--border)",
-          paddingLeft: "3.625rem",
-          gap: "0.5rem",
+          gap: "0.625rem",
           flexWrap: "wrap",
         }}
       >
-        <Button
-          variant={isActive && isPlaying ? "secondary" : "primary"}
-          size="sm"
+        <button
+          type="button"
           onClick={handleTogglePlay}
+          aria-label={isActive && isPlaying ? "Pausar episodio" : "Reproducir episodio"}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "0.45rem",
+            background: isActive && isPlaying ? "var(--accent)" : "var(--primary)",
+            color: isActive && isPlaying ? "var(--fg)" : "var(--primary-fg)",
+            border: isActive && isPlaying ? "1px solid var(--border)" : "none",
+            borderRadius: "999px",
+            padding: "0.45rem 1rem",
+            fontSize: "0.8125rem",
+            fontWeight: 700,
+            cursor: "pointer",
+            transition: "all 0.15s ease",
+            boxShadow: isActive && isPlaying ? "none" : "0 2px 6px rgba(37, 99, 235, 0.25)",
+          }}
         >
           {isActive && isPlaying ? (
             <>
-              <Pause size={14} weight="bold" />
-              Pausar
+              <Pause size={14} weight="fill" />
+              <span>Pausar</span>
             </>
           ) : (
             <>
-              <Play size={14} weight="bold" />
-              {isActive ? "Reanudar" : "Reproducir en La 20"}
+              <Play size={14} weight="fill" />
+              <span>{isActive ? "Reanudar" : "Reproducir episodio"}</span>
             </>
           )}
-        </Button>
+        </button>
 
         {episode.link && (
           <a
@@ -200,18 +298,20 @@ export function EpisodeCard({
             style={{
               display: "inline-flex",
               alignItems: "center",
-              gap: "0.375rem",
+              gap: "0.35rem",
               fontSize: "0.75rem",
-              color: "var(--muted)",
+              fontWeight: 600,
+              color: "#1DB954",
+              background: "rgba(29, 185, 84, 0.08)",
+              border: "1px solid rgba(29, 185, 84, 0.2)",
+              padding: "0.4rem 0.75rem",
+              borderRadius: "8px",
               textDecoration: "none",
-              padding: "0.35rem 0.6rem",
-              borderRadius: "6px",
-              background: "var(--accent)",
-              transition: "color 0.15s",
+              transition: "background 0.15s",
             }}
           >
-            <SpotifyLogo size={14} weight="fill" color="#1DB954" />
-            <span>Abrir en Spotify</span>
+            <SpotifyLogo size={15} weight="fill" />
+            <span>Escuchar en Spotify</span>
             <ArrowSquareOut size={12} />
           </a>
         )}

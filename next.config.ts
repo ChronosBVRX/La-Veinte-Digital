@@ -15,13 +15,34 @@ const connectSources = [
   "https://tessdata.projectnaptha.com",
   "https://cdn.jsdelivr.net",
   turnstileOrigin,
+  "https://d3ctxlq1ktw2nl.cloudfront.net",
+  "https://anchor.fm",
+].join(" ");
+
+const mediaSources = [
+  "'self'",
+  "data:",
+  "blob:",
+  "https://d3ctxlq1ktw2nl.cloudfront.net",
+  "https://anchor.fm",
+].join(" ");
+
+const imageSources = [
+  "'self'",
+  "data:",
+  "blob:",
+  supabaseUrl,
+  "https://lh3.googleusercontent.com",
+  "https://d3t3ozftmdmh3i.cloudfront.net",
+  "https://i.scdn.co",
 ].join(" ");
 
 const cspDirectives = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' ${turnstileOrigin}`,
   "style-src 'self' 'unsafe-inline'",
-  `img-src 'self' data: blob: ${supabaseUrl} https://lh3.googleusercontent.com`,
+  `img-src ${imageSources}`,
+  `media-src ${mediaSources}`,
   "font-src 'self' data:",
   `connect-src ${connectSources}`,
   "worker-src 'self' blob: https://cdn.jsdelivr.net",

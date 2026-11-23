@@ -44,16 +44,40 @@ export function RadioProvider({ children }: { children: ReactNode }) {
   const [isMuted, setIsMuted] = useState(false)
   const [isVisible, setIsVisible] = useState(false)
 
-  const playEpisode = useCallback((episode: PodcastEpisode) => {
-    setCurrentEpisode(episode)
-    setIsVisible(true)
+  // Etapa de intento de reproducción para tolerancia a fallos:
+  // 0: URL directa CDN CloudFront
+  // 1: Proxy interno Same-Origin (/api/radio/stream?url=...)
+  // 2: URL de respaldo Anchor original
+  const attemptStageRef = useRef<number>(0)
+  const tryPlayStageRef = useRef<(episode: PodcastEpisode, stage: number) => void>(() => {})
 
+  const getSourceForStage = useCallback((episode: PodcastEpisode, stage: number): string | null => {
+    if (stage === 0) {
+      return episode.audioUrl
+    }
+    if (stage === 1) {
+      return `/api/radio/stream?url=${encodeURIComponent(episode.audioUrl)}`
+    }
+    if (stage === 2 && episode.fallbackAudioUrl) {
+      return episode.fallbackAudioUrl
+    }
+    return null
+  }, [])
+
+  const tryPlayStage = useCallback((episode: PodcastEpisode, stage: number) => {
     const audio = audioRef.current
     if (!audio) return
 
-    if (audio.src !== episode.audioUrl) {
-      audio.src = episode.audioUrl
-      audio.currentTime = 0
+    const source = getSourceForStage(episode, stage)
+    if (!source) {
+      console.warn("No hay más fuentes disponibles para reproducir el episodio:", episode.id)
+      setIsPlaying(false)
+      return
+    }
+
+    attemptStageRef.current = stage
+    if (audio.src !== source) {
+      audio.src = source
     }
 
     try {
@@ -64,26 +88,29 @@ export function RadioProvider({ children }: { children: ReactNode }) {
             setIsPlaying(true)
           })
           .catch((err: unknown) => {
-            console.warn("Primary audio play rejected:", err)
-            // Si la URL directa falla o es bloqueada, intentar URL de respaldo
-            if (episode.fallbackAudioUrl && audio.src !== episode.fallbackAudioUrl) {
-              console.log("Intentando fallback audio URL:", episode.fallbackAudioUrl)
-              audio.src = episode.fallbackAudioUrl
-              audio.play().then(() => setIsPlaying(true)).catch((err2) => {
-                console.error("Fallback audio play failed:", err2)
-                setIsPlaying(false)
-              })
-            } else {
-              setIsPlaying(false)
-            }
+            console.warn(`Etapa ${stage} de audio rechazada:`, err)
+            // Reintentar en la siguiente etapa
+            tryPlayStageRef.current(episode, stage + 1)
           })
       } else {
         setIsPlaying(true)
       }
-    } catch {
-      setIsPlaying(false)
+    } catch (e) {
+      console.warn(`Error al intentar etapa ${stage}:`, e)
+      tryPlayStageRef.current(episode, stage + 1)
     }
-  }, [])
+  }, [getSourceForStage])
+
+  useEffect(() => {
+    tryPlayStageRef.current = tryPlayStage
+  }, [tryPlayStage])
+
+  const playEpisode = useCallback((episode: PodcastEpisode) => {
+    setCurrentEpisode(episode)
+    setIsVisible(true)
+    attemptStageRef.current = 0
+    tryPlayStage(episode, 0)
+  }, [tryPlayStage])
 
   const pause = useCallback(() => {
     if (audioRef.current) {
@@ -186,10 +213,10 @@ export function RadioProvider({ children }: { children: ReactNode }) {
     const audio = audioRef.current
     const err = audio?.error
     console.warn("Audio element error:", err?.code, err?.message, "Source:", audio?.src)
-    if (currentEpisode?.fallbackAudioUrl && audio && audio.src !== currentEpisode.fallbackAudioUrl) {
-      console.log("Recuperando con URL de respaldo:", currentEpisode.fallbackAudioUrl)
-      audio.src = currentEpisode.fallbackAudioUrl
-      audio.play().then(() => setIsPlaying(true)).catch(console.error)
+    if (currentEpisode) {
+      const nextStage = attemptStageRef.current + 1
+      console.log(`Error detectado en fuente actual. Avanzando a etapa ${nextStage}...`)
+      tryPlayStage(currentEpisode, nextStage)
     } else {
       setIsPlaying(false)
     }

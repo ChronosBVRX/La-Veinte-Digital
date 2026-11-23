@@ -11,6 +11,8 @@ import {
   Rss,
   Check,
   Copy,
+  Play,
+  Pause,
 } from "@phosphor-icons/react"
 import { Card } from "@/shared/components/ui/Card"
 import { Input } from "@/shared/components/ui/Input"
@@ -61,7 +63,7 @@ export function RadioPage({ initialShow }: RadioPageProps) {
         display: "flex",
         flexDirection: "column",
         gap: "1.5rem",
-        paddingBottom: currentEpisode ? "96px" : "2rem",
+        paddingBottom: currentEpisode ? "112px" : "2.5rem",
       }}
     >
       {/* Header Banner */}
@@ -171,6 +173,48 @@ export function RadioPage({ initialShow }: RadioPageProps) {
 
             {/* External Links & Actions */}
             <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
+              {show.episodes.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isPlaying) {
+                      handlePause()
+                    } else if (currentEpisode) {
+                      playEpisode(currentEpisode)
+                    } else {
+                      handlePlayEpisode(show.episodes[0])
+                    }
+                  }}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "0.45rem",
+                    background: "var(--primary)",
+                    color: "var(--primary-fg)",
+                    fontWeight: 700,
+                    fontSize: "0.8125rem",
+                    padding: "0.5rem 1.1rem",
+                    borderRadius: "999px",
+                    border: "none",
+                    cursor: "pointer",
+                    boxShadow: "0 2px 8px rgba(37, 99, 235, 0.35)",
+                    transition: "transform 0.15s, opacity 0.15s",
+                  }}
+                >
+                  {isPlaying ? (
+                    <>
+                      <Pause size={16} weight="fill" />
+                      <span>Pausar</span>
+                    </>
+                  ) : (
+                    <>
+                      <Play size={16} weight="fill" />
+                      <span>{currentEpisode ? "Reanudar" : "Escuchar último episodio"}</span>
+                    </>
+                  )}
+                </button>
+              )}
+
               <a
                 href={show.link}
                 target="_blank"
@@ -183,8 +227,8 @@ export function RadioPage({ initialShow }: RadioPageProps) {
                   color: "#ffffff",
                   fontWeight: 700,
                   fontSize: "0.8125rem",
-                  padding: "0.45rem 0.9rem",
-                  borderRadius: "8px",
+                  padding: "0.5rem 1rem",
+                  borderRadius: "999px",
                   textDecoration: "none",
                   boxShadow: "0 2px 8px rgba(29, 185, 84, 0.3)",
                   transition: "opacity 0.15s",
