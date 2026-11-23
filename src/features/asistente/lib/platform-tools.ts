@@ -188,10 +188,10 @@ export function recommendPlatformTools(question: string): PlatformToolRecommenda
   }
 
   // Conceptos, Recibo o Tarjetón
-  if (/(mi quincena|desglose quincenal|revisar mi recibo|cu[aá]nto me depositaron|descuentos en recibo)/i.test(q)) {
+  if (/(mi quincena|desglose quincenal|revisar mi recibo|cu[aá]nto me depositaron|descuentos en recibo|percepciones y deducciones|mi cobro|cu[aá]nto cobr[eé]|mi neto|sueldo neto)/i.test(q)) {
     tools.push(PLATFORM_TOOLS.MI_QUINCENA)
     tools.push(PLATFORM_TOOLS.TARJETON)
-  } else if (/(concepto\s*\d{2,3}|clave\s*\d{2,3}|qu[eé] significa el concepto|mi tarjet[oó]n|desglose)/i.test(q)) {
+  } else if (/(concepto\s*\d{2,3}|clave\s*\d{2,3}|qu[eé] significa el concepto|mi tarjet[oó]n|tarjet[oó]n|desglose|marcas? de asistencia|sin retardo|asistencia puntual|marca de continuidad)/i.test(q)) {
     tools.push(PLATFORM_TOOLS.GUIA_CONCEPTOS)
     tools.push(PLATFORM_TOOLS.TARJETON)
   }

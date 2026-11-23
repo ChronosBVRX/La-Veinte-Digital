@@ -21,6 +21,11 @@ import {
   formatWorkerProfilePrompt,
   type SanitizedWorkerProfile,
 } from "@/features/asistente/lib/worker-context-adapter"
+import {
+  isWorkerContextQuery,
+  buildTarjetonSource,
+  findTarjetonGuideSource,
+} from "@/features/asistente/lib/tarjeton-knowledge"
 import { normalizeForRetrieval } from "@/features/asistente/lib/canonical-dictionary"
 import { recommendPlatformTools } from "@/features/asistente/lib/platform-tools"
 import { APP_COMMIT_SHA, RAG_BACKEND, LLM_PROVIDER } from "@/features/asistente/lib/app-version"
@@ -163,8 +168,41 @@ async function respondDirect(
     obs.embeddingMs = emb.ms
 
     // ── 3. RETRIEVAL HÍBRIDO (1 RPC con RRF / fallback) ──
-    const { sources, rpcMs } = await retrieveHybrid(ftsQuery, emb.embedding, intent, refs, 8, question)
+    const { sources: rawSources, rpcMs } = await retrieveHybrid(ftsQuery, emb.embedding, intent, refs, 8, question)
     obs.retrievalMs = rpcMs
+
+    // ── 3.1 ENRIQUECIMIENTO CON EXPEDIENTE/TARJETÓN Y GUÍA DE CONCEPTOS ──
+    const isPersonalTarjetonQuery = isWorkerContextQuery(question)
+
+    // Si el usuario pregunta expresamente por su tarjetón o cobro pero aún no ha subido tarjetón
+    if (
+      isPersonalTarjetonQuery &&
+      !workerProfile?.hasTarjeton &&
+      /\b(tarjet[oó]n|recibo|n[oó]mina|cu[aá]nto\s+(?:me\s+)?(?:gano|cobro|cobr[eé]|lleg[oó]|pagan|pagaron|depositan|descontaron)|mis\s+(?:deducciones|percepciones|marcas))\b/i.test(question)
+    ) {
+      obs.totalMs = performance.now() - t0
+      const nombrePila = workerProfile?.nombre ? ` ${workerProfile.nombre.trim().split(" ")[0]}` : ""
+      const puestoDesc = workerProfile?.categoria ? ` como **${workerProfile.categoria}**` : ""
+      const respuesta = `¡Hola, compañero${nombrePila}! 😊 Veo que estás registrado en la plataforma${puestoDesc}, pero aún no cuentas con un tarjetón IMSS digital subido a tu expediente.\n\nPara que pueda decirte con total certeza cuánto cobraste, cuáles fueron tus percepciones y deducciones exactas o qué significan tus marcas, sube tu recibo en PDF aquí:\n\n📄 **[Subir mi Tarjetón IMSS](/profile/mi-informacion-laboral)**\n\nEn cuanto lo subas, podré responderte cualquier duda de tu pago al centavo.`
+      return privateJson({
+        respuesta,
+        fuentes: [],
+        chips: ["📄 Subir mi Tarjetón", "📊 Guía de conceptos", "🧮 Calculadoras"],
+      })
+    }
+
+    const contextualSources: RetrievedSource[] = []
+    if (workerProfile?.tarjeton && (isPersonalTarjetonQuery || Boolean(workerProfile.tarjeton.periodo))) {
+      const tarjetonSrc = buildTarjetonSource(workerProfile)
+      if (tarjetonSrc) contextualSources.push(tarjetonSrc)
+    }
+
+    const guideSrc = findTarjetonGuideSource(question)
+    if (guideSrc) contextualSources.push(guideSrc)
+
+    const sources = [...contextualSources, ...rawSources]
+    sources.forEach((s, i) => (s.id = `S${i + 1}`))
+
     obs.evidenceCount = sources.length
     obs.evidenceChars = sources.reduce((a, s) => a + s.fragmento.length, 0)
 
