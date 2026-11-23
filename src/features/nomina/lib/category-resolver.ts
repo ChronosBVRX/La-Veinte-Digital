@@ -1,5 +1,6 @@
 import type { ResolvedSalaryCategory } from "./types"
 import { SALARY_DATA, LEGACY_CATEGORY_ID_MAP, isRecordActiveAt, type SalaryDataRecord } from "../data/salaries"
+import { CATEGORY_CANONICAL_ALIASES } from "@/shared/lib/catalogo-categorias"
 
 export interface CategoryMatch {
   category: ResolvedSalaryCategory
@@ -147,6 +148,37 @@ export function resolveCategory(
     }
   }
 
+  const aliasTarget = CATEGORY_CANONICAL_ALIASES[normInput]
+  if (aliasTarget) {
+    const aliasRecord = activeRecords.find(
+      (s) => normalizeCategoryText(s.categoryName) === normalizeCategoryText(aliasTarget)
+    )
+    if (aliasRecord) {
+      return {
+        resolved: true,
+        category: toResolvedCategory(aliasRecord),
+        resolutionMethod: "alias",
+        status: "resolved",
+      }
+    }
+  }
+
+  // Coincidencia quitando el sufijo de jornada (p. ej. "AUX LIMPIEZA E HIGIENE UM Y NO MED" sin 80)
+  const stripJornada = (s: string) => s.replace(/\s+(80|65|60|40|20)$/, "").trim()
+  const inputWithoutJornada = stripJornada(normInput)
+  const matchedWithoutJornada = activeRecords.filter(
+    (s) => stripJornada(normalizeCategoryText(s.categoryName)) === inputWithoutJornada
+  )
+  if (matchedWithoutJornada.length === 1) {
+    return {
+      resolved: true,
+      category: toResolvedCategory(matchedWithoutJornada[0]),
+      resolutionMethod: "alias",
+      status: "resolved",
+    }
+  }
+
+
   // Una entrada puramente numérica sin coincidencia exacta (ni ID ni ID
   // anterior) es una falsa coincidencia: "5" o "10" no deben matchear por
   // similitud contra nombres de categorías.
@@ -200,6 +232,17 @@ export function resolveCategory(
       resolutionMethod: "fuzzy",
       status: "resolved",
       message: "Se encontró una posible coincidencia. Verifica que sea correcta.",
+    }
+  }
+
+  if (scored.length > 1 && scored[0].score >= 0.85 && scored[0].score - scored[1].score >= 0.10) {
+    return {
+      resolved: true,
+      category: scored[0].category,
+      matches: scored,
+      resolutionMethod: "fuzzy",
+      status: "resolved",
+      message: "Se encontró una coincidencia probable. Verifica que sea correcta.",
     }
   }
 

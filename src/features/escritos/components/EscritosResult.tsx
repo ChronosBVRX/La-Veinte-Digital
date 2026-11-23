@@ -16,6 +16,7 @@ import { DestinatarioResumen } from "./DestinatarioResumen"
 import { shareGeneratedPdf } from "@/shared/services/pdfShareBridge"
 import { AiContentReport } from "@/shared/components/ui/AiContentReport"
 import { SourceAttribution } from "@/shared/components/ui/SourceAttribution"
+import { paginateEscritoForPreview } from "../lib/escrito-pagination"
 
 export interface EscritosResultProps {
   userId: string
@@ -46,6 +47,9 @@ export function EscritosResult({
   const [isPrinting, setIsPrinting] = useState(false)
   const [isSharing, setIsSharing] = useState(false)
   const [shareFeedback, setShareFeedback] = useState<string | null>(null)
+
+  const textSheets = paginateEscritoForPreview(draft.cuerpo)
+  const totalSheets = textSheets.length + draft.anexos.length
 
   const handleSaveSignature = (firmaRef: string, previewUrl: string) => {
     onUpdateDraft({
@@ -207,179 +211,280 @@ export function EscritosResult({
         </div>
       </div>
 
-      {/* Renderizado Vista Hoja Carta (Formato Oficio Fiel al PDF) */}
-      {viewMode === "sheet" ? (
+      {/* Banner informativo de paginación oficial */}
+      {viewMode === "sheet" && (
         <div
           style={{
-            background: "#ffffff",
-            color: "#0f172a",
-            borderRadius: "0.75rem",
-            padding: "clamp(1.25rem, 4vw, 2.5rem) clamp(0.875rem, 3vw, 2rem)",
-            boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1)",
+            background: "var(--card)",
             border: "1px solid var(--border)",
-            fontFamily: "Times New Roman, Times, serif",
-            fontSize: "clamp(0.875rem, 2.5vw, 1rem)",
-            lineHeight: 1.5,
-            maxWidth: "700px",
-            margin: "0 auto",
-            width: "100%",
-            minWidth: 0,
-            boxSizing: "border-box",
-            overflowWrap: "break-word",
-            wordBreak: "break-word",
+            borderRadius: "0.5rem",
+            padding: "0.625rem 0.875rem",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: "0.5rem",
+            fontSize: "0.8125rem",
           }}
         >
-          {/* Lugar y Fecha */}
-          <div style={{ textAlign: "right", marginBottom: "0.75rem", fontSize: "0.9375rem" }}>
-            {draft.ciudad ? `${draft.ciudad}, ` : ""}
-            {draft.fecha}
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "var(--fg)" }}>
+            <span>📄</span>
+            <span>
+              <strong>Formato Carta Oficio</strong> • {totalSheets === 1 ? "1 página" : `${totalSheets} páginas (${textSheets.length} de oficio${draft.anexos.length > 0 ? ` + ${draft.anexos.length} de anexos` : ""})`}
+            </span>
           </div>
+          <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
+            {totalSheets > 1
+              ? "Paginación 'Página X de Y', márgenes y encabezados protegidos"
+              : "Cabe completamente en una sola hoja"}
+          </span>
+        </div>
+      )}
 
-          {/* Asunto */}
-          {draft.asunto && (
-            <div style={{ textAlign: "right", fontWeight: "bold", marginBottom: "1.5rem", fontSize: "0.9375rem" }}>
-              ASUNTO: {draft.asunto}
-            </div>
-          )}
-
-          {/* Destinatario Principal */}
-          <div style={{ marginBottom: "1.25rem" }}>
-            {draft.destino.nombre && (
-              <div style={{ fontWeight: "bold", textTransform: "uppercase", fontSize: "1rem" }}>
-                {draft.destino.nombre}
-              </div>
-            )}
-            {draft.destino.cargo && (
-              <div style={{ fontSize: "0.9375rem" }}>
-                {draft.destino.cargo}
-              </div>
-            )}
-
-            {/* Atenciones Múltiples */}
-            {draft.atencion.length > 0 && (
-              <div style={{ marginTop: "0.5rem", fontStyle: "italic", fontSize: "0.875rem" }}>
-                {draft.atencion.map((at) => (
-                  <div key={at.id}>
-                    AT&apos;N: {at.nombre} {at.cargo ? `(${at.cargo})` : ""}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div style={{ fontWeight: "bold", marginTop: "0.75rem", letterSpacing: "1px" }}>
-              P R E S E N T E .
-            </div>
-          </div>
-
-          {/* Cuerpo del Documento */}
-          <div style={{ textAlign: "justify", marginBottom: "2rem" }}>
-            {draft.cuerpo.split(/\n\s*\n/).map((para, idx) => (
-              <p key={idx} style={{ margin: "0 0 1rem", textIndent: "clamp(0.75rem, 3vw, 1.5rem)" }}>
-                {para}
-              </p>
-            ))}
-          </div>
-
-          {/* Bloque de Despedida y Firma */}
-          <div style={{ textAlign: "center", marginTop: "2rem", pageBreakInside: "avoid" }}>
-            <div style={{ fontWeight: "bold", marginBottom: "0.5rem", letterSpacing: "1px" }}>
-              A T E N T A M E N T E
-            </div>
-
-            {/* Firma Gráfica */}
-            <div style={{ minHeight: "60px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", margin: "0.75rem 0" }}>
-              {draft.firmaPreviewUrl ? (
-                <div>
-                  <img
-                    src={draft.firmaPreviewUrl}
-                    alt="Firma del trabajador"
-                    style={{ maxHeight: "60px", maxWidth: "160px", objectFit: "contain" }}
-                  />
-                  <div style={{ marginTop: "0.25rem", display: "flex", gap: "0.25rem", justifyContent: "center" }}>
-                    <Button variant="ghost" size="sm" onClick={() => setIsSignatureModalOpen(true)}>
-                      Cambiar firma
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={handleRemoveSignature}>
-                      Quitar
-                    </Button>
-                  </div>
+      {/* Renderizado Vista Hoja Carta (Formato Oficio Fiel al PDF y Paginado) */}
+      {viewMode === "sheet" ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: "1.75rem", width: "100%", maxWidth: "700px", margin: "0 auto", boxSizing: "border-box" }}>
+          {textSheets.map((sheet) => (
+            <div key={sheet.sheetNumber} style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
+              {totalSheets > 1 && (
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 0.5rem", fontSize: "0.75rem", color: "var(--muted)", fontWeight: 600 }}>
+                  <span>
+                    Hoja {sheet.sheetNumber} de {totalSheets} {sheet.isFirst ? "• Inicio de oficio" : "• Continuación"}
+                  </span>
+                  <span>Formato Carta (8.5&quot; x 11&quot;)</span>
                 </div>
-              ) : (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setIsSignatureModalOpen(true)}
-                  style={{ border: "1px dashed var(--border)" }}
-                >
-                  ✍️ Insertar firma digitalizada
-                </Button>
               )}
-            </div>
 
-            {/* Línea de firma */}
-            <div style={{ width: "clamp(160px, 45vw, 220px)", borderTop: "1px solid #0f172a", margin: "0 auto 0.5rem" }} />
+              <div
+                style={{
+                  background: "#ffffff",
+                  color: "#0f172a",
+                  borderRadius: "0.75rem",
+                  padding: "clamp(1.5rem, 4vw, 2.75rem) clamp(1rem, 3.5vw, 2.5rem)",
+                  boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06)",
+                  border: "1px solid var(--border)",
+                  fontFamily: "Times New Roman, Times, serif",
+                  fontSize: "clamp(0.875rem, 2.5vw, 1rem)",
+                  lineHeight: 1.55,
+                  width: "100%",
+                  minWidth: 0,
+                  boxSizing: "border-box",
+                  overflowWrap: "break-word",
+                  wordBreak: "break-word",
+                  display: "flex",
+                  flexDirection: "column",
+                  minHeight: totalSheets > 1 ? "680px" : "auto",
+                  justifyContent: "space-between",
+                }}
+              >
+                <div>
+                  {sheet.isFirst ? (
+                    <>
+                      {/* Lugar y Fecha */}
+                      <div style={{ textAlign: "right", marginBottom: "0.75rem", fontSize: "0.9375rem" }}>
+                        {draft.ciudad ? `${draft.ciudad}, ` : ""}
+                        {draft.fecha}
+                      </div>
 
-            <div style={{ fontWeight: "bold", fontSize: "0.9375rem", textTransform: "uppercase" }}>
-              {workerProfile?.nombre || "NOMBRE DEL TRABAJADOR"}
-            </div>
-            {workerProfile?.matricula && (
-              <div style={{ fontSize: "0.8125rem", color: "#475569" }}>
-                Matrícula: {workerProfile.matricula}
-              </div>
-            )}
-            {workerProfile?.categoria && (
-              <div style={{ fontSize: "0.8125rem", color: "#475569" }}>
-                Categoría: {workerProfile.categoria}
-              </div>
-            )}
-            {workerProfile?.adscripcion && (
-              <div style={{ fontSize: "0.8125rem", color: "#475569" }}>
-                Adscripción: {workerProfile.adscripcion}
-              </div>
-            )}
-          </div>
+                      {/* Asunto */}
+                      {draft.asunto && (
+                        <div style={{ textAlign: "right", fontWeight: "bold", marginBottom: "1.5rem", fontSize: "0.9375rem" }}>
+                          ASUNTO: {draft.asunto}
+                        </div>
+                      )}
 
-          {/* Copias (c.c.p.) */}
-          {draft.copias.length > 0 && (
-            <div style={{ marginTop: "2rem", borderTop: "1px solid #e2e8f0", paddingTop: "0.75rem", fontSize: "0.75rem", color: "#64748b", fontStyle: "italic" }}>
-              <div>c.c.p.</div>
-              {draft.copias.map((cp) => (
-                <div key={cp.id}>
-                  - {cp.nombre} {cp.cargo ? `(${cp.cargo})` : ""}
+                      {/* Destinatario Principal */}
+                      <div style={{ marginBottom: "1.25rem" }}>
+                        {draft.destino.nombre && (
+                          <div style={{ fontWeight: "bold", textTransform: "uppercase", fontSize: "1rem" }}>
+                            {draft.destino.nombre}
+                          </div>
+                        )}
+                        {draft.destino.cargo && (
+                          <div style={{ fontSize: "0.9375rem" }}>
+                            {draft.destino.cargo}
+                          </div>
+                        )}
+
+                        {/* Atenciones Múltiples */}
+                        {draft.atencion.length > 0 && (
+                          <div style={{ marginTop: "0.5rem", fontStyle: "italic", fontSize: "0.875rem" }}>
+                            {draft.atencion.map((at) => (
+                              <div key={at.id}>
+                                AT&apos;N: {at.nombre} {at.cargo ? `(${at.cargo})` : ""}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        <div style={{ fontWeight: "bold", marginTop: "0.75rem", letterSpacing: "1px" }}>
+                          P R E S E N T E .
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    /* Encabezado de continuidad en Hoja 2+ */
+                    <div style={{ borderBottom: "1px solid #cbd5e1", paddingBottom: "0.5rem", marginBottom: "1.5rem", display: "flex", justifyContent: "space-between", fontSize: "0.8125rem", color: "#64748b", fontStyle: "italic" }}>
+                      <span>
+                        Continuación {draft.asunto ? `- ASUNTO: ${draft.asunto}` : "de oficio formal"}
+                      </span>
+                      <span>Hoja {sheet.sheetNumber}</span>
+                    </div>
+                  )}
+
+                  {/* Párrafos de esta hoja */}
+                  <div style={{ textAlign: "justify", marginBottom: "1.5rem" }}>
+                    {sheet.paragraphs.map((para, idx) => (
+                      <p key={idx} style={{ margin: "0 0 1rem", textIndent: "clamp(0.75rem, 3vw, 1.5rem)" }}>
+                        {para}
+                      </p>
+                    ))}
+                  </div>
+
+                  {/* Bloque de Despedida y Firma (solo en la última hoja de texto) */}
+                  {sheet.isLastText && (
+                    <div style={{ textAlign: "center", marginTop: "2rem", pageBreakInside: "avoid" }}>
+                      <div style={{ fontWeight: "bold", marginBottom: "0.5rem", letterSpacing: "1px" }}>
+                        A T E N T A M E N T E
+                      </div>
+
+                      {/* Firma Gráfica */}
+                      <div style={{ minHeight: "60px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", margin: "0.75rem 0" }}>
+                        {draft.firmaPreviewUrl ? (
+                          <div>
+                            <img
+                              src={draft.firmaPreviewUrl}
+                              alt="Firma del trabajador"
+                              style={{ maxHeight: "60px", maxWidth: "160px", objectFit: "contain" }}
+                            />
+                            <div style={{ marginTop: "0.25rem", display: "flex", gap: "0.25rem", justifyContent: "center" }}>
+                              <Button variant="ghost" size="sm" onClick={() => setIsSignatureModalOpen(true)}>
+                                Cambiar firma
+                              </Button>
+                              <Button variant="ghost" size="sm" onClick={handleRemoveSignature}>
+                                Quitar
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => setIsSignatureModalOpen(true)}
+                            style={{ border: "1px dashed var(--border)" }}
+                          >
+                            ✍️ Insertar firma digitalizada
+                          </Button>
+                        )}
+                      </div>
+
+                      {/* Línea de firma */}
+                      <div style={{ width: "clamp(160px, 45vw, 220px)", borderTop: "1px solid #0f172a", margin: "0 auto 0.5rem" }} />
+
+                      <div style={{ fontWeight: "bold", fontSize: "0.9375rem", textTransform: "uppercase" }}>
+                        {workerProfile?.nombre || "NOMBRE DEL TRABAJADOR"}
+                      </div>
+                      {workerProfile?.matricula && (
+                        <div style={{ fontSize: "0.8125rem", color: "#475569" }}>
+                          Matrícula: {workerProfile.matricula}
+                        </div>
+                      )}
+                      {workerProfile?.categoria && (
+                        <div style={{ fontSize: "0.8125rem", color: "#475569" }}>
+                          Categoría: {workerProfile.categoria}
+                        </div>
+                      )}
+                      {workerProfile?.adscripcion && (
+                        <div style={{ fontSize: "0.8125rem", color: "#475569" }}>
+                          Adscripción: {workerProfile.adscripcion}
+                        </div>
+                      )}
+
+                      {/* Copias (c.c.p.) */}
+                      {draft.copias.length > 0 && (
+                        <div style={{ marginTop: "1.75rem", borderTop: "1px solid #e2e8f0", paddingTop: "0.75rem", textAlign: "left", fontSize: "0.75rem", color: "#64748b", fontStyle: "italic" }}>
+                          <div>c.c.p.</div>
+                          {draft.copias.map((cp) => (
+                            <div key={cp.id}>
+                              - {cp.nombre} {cp.cargo ? `(${cp.cargo})` : ""}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-              ))}
-            </div>
-          )}
 
-          {/* Galería de Anexos Adjuntos */}
-          {draft.anexos.length > 0 && (
-            <div style={{ marginTop: "2.5rem", borderTop: "2px dashed #cbd5e1", paddingTop: "1.5rem", width: "100%", boxSizing: "border-box" }}>
-              <div style={{ fontWeight: "bold", fontSize: "0.875rem", textTransform: "uppercase", marginBottom: "1rem", color: "#334155" }}>
-                Anexos adjuntos ({draft.anexos.length})
+                {/* Pie de página oficial de la hoja */}
+                <div style={{ borderTop: "1px solid #f1f5f9", paddingTop: "0.625rem", marginTop: "1.5rem", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.75rem", color: "#94a3b8" }}>
+                  <span>
+                    {!sheet.isLastText ? "Continúa en la siguiente hoja..." : ""}
+                  </span>
+                  <span>
+                    {totalSheets > 1 ? `Página ${sheet.sheetNumber} de ${totalSheets}` : "Página 1 de 1"}
+                  </span>
+                </div>
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", width: "100%", boxSizing: "border-box" }}>
-                {draft.anexos.map((anx, i) => (
-                  <div key={anx.id} style={{ background: "#f8fafc", padding: "0.875rem", borderRadius: "0.5rem", border: "1px solid #e2e8f0", width: "100%", boxSizing: "border-box" }}>
-                    <div style={{ fontWeight: 600, fontSize: "0.875rem", marginBottom: "0.25rem", overflowWrap: "break-word" }}>
-                      Anexo {i + 1}: {anx.nombre}
+            </div>
+          ))}
+
+          {/* Hojas dedicadas para anexos */}
+          {draft.anexos.map((anx, i) => {
+            const anexoPageNum = textSheets.length + i + 1
+            return (
+              <div key={anx.id} style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 0.5rem", fontSize: "0.75rem", color: "var(--muted)", fontWeight: 600 }}>
+                  <span>
+                    Hoja {anexoPageNum} de {totalSheets} • Anexo {i + 1}
+                  </span>
+                  <span>Evidencia documental</span>
+                </div>
+
+                <div
+                  style={{
+                    background: "#ffffff",
+                    color: "#0f172a",
+                    borderRadius: "0.75rem",
+                    padding: "clamp(1.5rem, 4vw, 2.75rem) clamp(1rem, 3.5vw, 2.5rem)",
+                    boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06)",
+                    border: "1px solid var(--border)",
+                    fontFamily: "Times New Roman, Times, serif",
+                    width: "100%",
+                    minWidth: 0,
+                    boxSizing: "border-box",
+                    display: "flex",
+                    flexDirection: "column",
+                    minHeight: "500px",
+                    justifyContent: "space-between",
+                  }}
+                >
+                  <div>
+                    <div style={{ fontWeight: "bold", fontSize: "1rem", textTransform: "uppercase", marginBottom: "0.5rem", color: "#0f172a" }}>
+                      ANEXO {i + 1}: {anx.nombre.toUpperCase()}
                     </div>
                     {anx.descripcion && (
-                      <div style={{ fontSize: "0.8125rem", color: "#64748b", fontStyle: "italic", marginBottom: "0.75rem", overflowWrap: "break-word" }}>
+                      <div style={{ fontSize: "0.875rem", color: "#475569", fontStyle: "italic", marginBottom: "1.25rem" }}>
                         {anx.descripcion}
                       </div>
                     )}
                     {anx.previewUrl && (
-                      <img
-                        src={anx.previewUrl}
-                        alt={anx.nombre}
-                        style={{ maxWidth: "100%", maxHeight: "350px", height: "auto", objectFit: "contain", borderRadius: "0.375rem", border: "1px solid #cbd5e1", display: "block" }}
-                      />
+                      <div style={{ textAlign: "center", marginTop: "1rem" }}>
+                        <img
+                          src={anx.previewUrl}
+                          alt={anx.nombre}
+                          style={{ maxWidth: "100%", maxHeight: "500px", height: "auto", objectFit: "contain", borderRadius: "0.375rem", border: "1px solid #cbd5e1" }}
+                        />
+                      </div>
                     )}
                   </div>
-                ))}
+
+                  <div style={{ borderTop: "1px solid #f1f5f9", paddingTop: "0.625rem", marginTop: "1.5rem", textAlign: "right", fontSize: "0.75rem", color: "#94a3b8" }}>
+                    Página {anexoPageNum} de {totalSheets}
+                  </div>
+                </div>
               </div>
-            </div>
-          )}
+            )
+          })}
         </div>
       ) : (
         /* Renderizado Vista Lectura Móvil */

@@ -322,6 +322,7 @@ export function useTarjetonImporter(profile: TarjetonProfileSnapshot | null, use
         deductionsTotal: dTotal,
         netAmount: net,
         concepts,
+        observations: safeParsed.payroll.observations,
         status: "ready",
         analyzedAt: new Date().toISOString(),
         errorCode: null,

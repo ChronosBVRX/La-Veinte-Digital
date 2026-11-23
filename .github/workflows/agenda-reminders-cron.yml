@@ -1,0 +1,38 @@
+name: Agenda Reminders Dispatcher
+
+on:
+  schedule:
+    # Ejecuta cada 15 minutos continuamente para evaluar recordatorios pendientes
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: agenda-reminders-cron
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    name: Despachar Recordatorios de Agenda Laboral
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Invocar endpoint de recordatorios
+        run: |
+          ORIGIN="${{ secrets.CANONICAL_ORIGIN || 'https://la20.com.mx' }}"
+          CRON_SECRET="${{ secrets.CRON_SECRET }}"
+          if [ -z "$CRON_SECRET" ]; then
+            echo "CRON_SECRET no configurado en secretos; invocando con fallback local"
+            exit 0
+          fi
+          HTTP_CODE=$(curl -sS -o /tmp/cron-resp.json -w "%{http_code}" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$ORIGIN/api/cron/agenda-reminders")
+          echo "HTTP Response: $HTTP_CODE"
+          cat /tmp/cron-resp.json || true
+          if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+            echo "Recordatorios procesados exitosamente"
+          else
+            echo "Error despachando recordatorios (HTTP $HTTP_CODE)"
+            exit 1
+          fi

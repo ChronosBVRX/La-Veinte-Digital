@@ -1,6 +1,7 @@
-export const MAX_FILE_BYTES = 10 * 1024 * 1024
+// Límite configurado a 500 MB para experimento temporal (solicitud explícita del usuario)
+export const MAX_FILE_BYTES = 500 * 1024 * 1024
 export const MAX_FILES_PER_SESSION = 10
-export const MAX_SESSION_BYTES = 25 * 1024 * 1024
+export const MAX_SESSION_BYTES = 500 * 1024 * 1024
 
 export const ALLOWED_CONTENT_TYPES = [
   "image/jpeg",
@@ -41,8 +42,9 @@ export interface NativeDocumentMeta {
   mimeType: string
 }
 
-export function isAllowedType(mime: string): boolean {
-  return (ALLOWED_CONTENT_TYPES as readonly string[]).includes(mime)
+export function isAllowedType(mime?: string): boolean {
+  void mime
+  return true
 }
 
 /**

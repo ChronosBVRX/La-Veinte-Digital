@@ -197,10 +197,10 @@ export function mapJsonToPrestamoRecord(raw: Record<string, unknown>): PrestamoC
       Number(raw["SDO PLAZA"] ?? raw["sueldoPlaza"] ?? raw["SUELDO PLAZA"] ?? raw["sueldo_plaza"] ?? 0) ||
       undefined,
     sueldoQuincenal:
-      Number(raw["sdo ap 16 1025"] ?? raw["sdo qnal"] ?? raw["sueldoQuincenal"] ?? raw["SUELDO QUINCENAL"] ?? 0) ||
+      Number(raw["sdo ap 16 1026"] ?? raw["sdo ap 16 1025"] ?? raw["sdo qnal"] ?? raw["sueldoQuincenal"] ?? raw["SUELDO QUINCENAL"] ?? 0) ||
       undefined,
     concepto011:
-      Number(raw["cpto 11 ap 1610"] ?? raw["cpto 11"] ?? raw["concepto011"] ?? raw["CONCEPTO 011"] ?? 0) ||
+      Number(raw["cpto 11 ap 1626"] ?? raw["cpto 11 ap 1610"] ?? raw["cpto 11"] ?? raw["concepto011"] ?? raw["CONCEPTO 011"] ?? 0) ||
       undefined,
     smtabMas011:
       Number(raw["SMTAB+11"] ?? raw["smtabMas011"] ?? raw["SMTAB + 011"] ?? raw["smtab_mas_011"] ?? 0) ||

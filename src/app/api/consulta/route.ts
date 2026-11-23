@@ -21,10 +21,16 @@ import {
   formatWorkerProfilePrompt,
   type SanitizedWorkerProfile,
 } from "@/features/asistente/lib/worker-context-adapter"
+import {
+  isWorkerContextQuery,
+  buildTarjetonSource,
+  findTarjetonGuideSource,
+} from "@/features/asistente/lib/tarjeton-knowledge"
 import { normalizeForRetrieval } from "@/features/asistente/lib/canonical-dictionary"
 import { recommendPlatformTools } from "@/features/asistente/lib/platform-tools"
 import { APP_COMMIT_SHA, RAG_BACKEND, LLM_PROVIDER } from "@/features/asistente/lib/app-version"
 import { ASSISTANT_POLICY, withAbortTimeout } from "@/features/asistente/lib/assistant-policy"
+import { checkAssistantRateLimit } from "@/features/asistente/lib/rate-limit"
 import {
   embedQueryLru,
   retrieveHybrid,
@@ -53,13 +59,16 @@ function newRequestId(): string {
   return `con-${crypto.randomUUID()}`
 }
 
-async function consumeQuotaOnce(userId: string): Promise<QuotaResult> {
+async function consumeQuotaOnce(
+  userId: string,
+  limit: number = ASSISTANT_POLICY.dailyQuotaPerUser,
+): Promise<QuotaResult> {
   try {
     const supabase = await createClient()
     const { data, error } = await supabase.rpc("increment_api_usage", {
       p_user: userId,
       p_route: "consulta",
-      p_limit: ASSISTANT_POLICY.dailyQuotaPerUser,
+      p_limit: limit,
     })
     if (error) {
       console.error("[consulta] error de cuota:", error.message)
@@ -159,8 +168,41 @@ async function respondDirect(
     obs.embeddingMs = emb.ms
 
     // ── 3. RETRIEVAL HÍBRIDO (1 RPC con RRF / fallback) ──
-    const { sources, rpcMs } = await retrieveHybrid(ftsQuery, emb.embedding, intent, refs, 8, question)
+    const { sources: rawSources, rpcMs } = await retrieveHybrid(ftsQuery, emb.embedding, intent, refs, 8, question)
     obs.retrievalMs = rpcMs
+
+    // ── 3.1 ENRIQUECIMIENTO CON EXPEDIENTE/TARJETÓN Y GUÍA DE CONCEPTOS ──
+    const isPersonalTarjetonQuery = isWorkerContextQuery(question)
+
+    // Si el usuario pregunta expresamente por su tarjetón o cobro pero aún no ha subido tarjetón
+    if (
+      isPersonalTarjetonQuery &&
+      !workerProfile?.hasTarjeton &&
+      /\b(tarjet[oó]n|recibo|n[oó]mina|cu[aá]nto\s+(?:me\s+)?(?:gano|cobro|cobr[eé]|lleg[oó]|pagan|pagaron|depositan|descontaron)|mis\s+(?:deducciones|percepciones|marcas))\b/i.test(question)
+    ) {
+      obs.totalMs = performance.now() - t0
+      const nombrePila = workerProfile?.nombre ? ` ${workerProfile.nombre.trim().split(" ")[0]}` : ""
+      const puestoDesc = workerProfile?.categoria ? ` como **${workerProfile.categoria}**` : ""
+      const respuesta = `¡Hola, compañero${nombrePila}! 😊 Veo que estás registrado en la plataforma${puestoDesc}, pero aún no cuentas con un tarjetón IMSS digital subido a tu expediente.\n\nPara que pueda decirte con total certeza cuánto cobraste, cuáles fueron tus percepciones y deducciones exactas o qué significan tus marcas, sube tu recibo en PDF aquí:\n\n📄 **[Subir mi Tarjetón IMSS](/profile/mi-informacion-laboral)**\n\nEn cuanto lo subas, podré responderte cualquier duda de tu pago al centavo.`
+      return privateJson({
+        respuesta,
+        fuentes: [],
+        chips: ["📄 Subir mi Tarjetón", "📊 Guía de conceptos", "🧮 Calculadoras"],
+      })
+    }
+
+    const contextualSources: RetrievedSource[] = []
+    if (workerProfile?.tarjeton && (isPersonalTarjetonQuery || Boolean(workerProfile.tarjeton.periodo))) {
+      const tarjetonSrc = buildTarjetonSource(workerProfile)
+      if (tarjetonSrc) contextualSources.push(tarjetonSrc)
+    }
+
+    const guideSrc = findTarjetonGuideSource(question)
+    if (guideSrc) contextualSources.push(guideSrc)
+
+    const sources = [...contextualSources, ...rawSources]
+    sources.forEach((s, i) => (s.id = `S${i + 1}`))
+
     obs.evidenceCount = sources.length
     obs.evidenceChars = sources.reduce((a, s) => a + s.fragmento.length, 0)
 
@@ -392,22 +434,43 @@ export async function POST(req: Request) {
     return privateJsonError(400, `La pregunta excede los ${ASSISTANT_POLICY.maxQuestionChars} caracteres.`, requestId, "invalid_request")
   }
 
-  // Cuota: UNA sola unidad por mensaje, aunque exista retry interno (punto 19).
-  const quota = await consumeQuotaOnce(user.id)
-  if (quota === "exceeded") return privateJsonError(429, "Cuota diaria alcanzada. Intenta mañana.", requestId, "quota_exceeded")
-  if (quota === "error") {
-    const classified = classifyAssistantError(new Error("No se pudo verificar la cuota"), "quota")
-    logAssistantError({ requestId, userId: user.id, code: classified.code, retryable: classified.retryable, message: classified.internalMessage })
-    return privateJsonError(classified.httpStatus, classified.publicMessage, requestId, classified.code)
+  // ── Rate-limiting por ráfagas para evitar saturación y escaneos automatizados ──
+  const rateCheck = checkAssistantRateLimit(user.id)
+  if (!rateCheck.allowed) {
+    return privateJsonError(
+      429,
+      `Has enviado demasiadas consultas seguidas. Espera ${rateCheck.retryAfter ?? 60} segundos antes de continuar.`,
+      requestId,
+      "rate_limited",
+    )
   }
 
-  // ── Perfil no sensible del trabajador para personalización ──
+  // ── Perfil no sensible del trabajador para personalización y cuota ──
   let workerProfile: SanitizedWorkerProfile | undefined
   try {
     const supabase = await createClient()
     workerProfile = await fetchSanitizedWorkerProfile(user, supabase, requestId)
   } catch (err) {
     console.warn("[consulta] no se pudo cargar perfil de trabajador:", err instanceof Error ? err.message : err)
+  }
+
+  const hasLaborProfile = Boolean(workerProfile?.hasProfile)
+  const dailyLimit = hasLaborProfile
+    ? ASSISTANT_POLICY.dailyQuotaPerUser
+    : ASSISTANT_POLICY.guestDailyQuotaPerUser
+
+  // Cuota: UNA sola unidad por mensaje, aunque exista retry interno (punto 19).
+  const quota = await consumeQuotaOnce(user.id, dailyLimit)
+  if (quota === "exceeded") {
+    const errorMsg = hasLaborProfile
+      ? "Cuota diaria alcanzada. Intenta mañana."
+      : "Has alcanzado la cuota de cortesía (5 consultas) para cuentas sin perfil laboral registrado. Para continuar consultando, completa tu información laboral en tu perfil."
+    return privateJsonError(429, errorMsg, requestId, "quota_exceeded")
+  }
+  if (quota === "error") {
+    const classified = classifyAssistantError(new Error("No se pudo verificar la cuota"), "quota")
+    logAssistantError({ requestId, userId: user.id, code: classified.code, retryable: classified.retryable, message: classified.internalMessage })
+    return privateJsonError(classified.httpStatus, classified.publicMessage, requestId, classified.code)
   }
 
   return await respondDirect(history, question, requestId, user.id, workerProfile)

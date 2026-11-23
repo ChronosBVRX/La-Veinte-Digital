@@ -362,7 +362,26 @@ export function TarjetonHistorySection({
                 </div>
 
                 {/* Acciones para el tarjetón */}
-                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                  <Link
+                    href={`/guia/mi-quincena?id=${imp.id}`}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "0.25rem",
+                      padding: "0.375rem 0.625rem",
+                      borderRadius: "var(--radius-sm)",
+                      background: isCurrentActive ? "var(--primary)" : "var(--accent)",
+                      color: isCurrentActive ? "var(--primary-fg)" : "var(--fg)",
+                      fontSize: "var(--text-xs)",
+                      fontWeight: 600,
+                      textDecoration: "none",
+                      border: isCurrentActive ? "none" : "1px solid var(--border)",
+                    }}
+                    title="Ver explicación detallada de este pago"
+                  >
+                    ✨ Explicar pago
+                  </Link>
                   {!isCurrentActive && (
                     <Button
                       variant="secondary"

@@ -80,6 +80,7 @@ fun TuPerfilLoginDialog(
     failedAttempts: Int = 0,
     onLogin: (username: String, password: String, remember: Boolean) -> Unit,
     onSwitchToTarjetonDigital: (() -> Unit)? = null,
+    onOpenRegister: (() -> Unit)? = null,
     onDismiss: () -> Unit,
 ) {
     var username by remember { mutableStateOf(savedUsername ?: "") }
@@ -91,14 +92,20 @@ fun TuPerfilLoginDialog(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(LvdColors.Scrim)
-            .windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime))
-            .clickable(
-                indication = null,
-                interactionSource = remember { MutableInteractionSource() },
-                onClick = onDismiss,
-            ),
+            .windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime)),
     ) {
+        // Scrim independiente de fondo: captura clics fuera del sheet para cerrar
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(LvdColors.Scrim)
+                .clickable(
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() },
+                    onClick = onDismiss,
+                ),
+        )
+
         AnimatedVisibility(
             visible = true,
             enter = fadeIn(LvdMotion.StateTransition) +
@@ -292,6 +299,21 @@ fun TuPerfilLoginDialog(
                             onLogin(u, p, rememberMe)
                         },
                     )
+
+                    if (onOpenRegister != null) {
+                        Spacer(Modifier.height(6.dp))
+                        TextButton(
+                            onClick = onOpenRegister,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(
+                                "¿No tienes cuenta en Tu Perfil? Regístrate aquí",
+                                color = LvdColors.Navy,
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
+                    }
 
                     if (onSwitchToTarjetonDigital != null) {
                         Spacer(Modifier.height(4.dp))

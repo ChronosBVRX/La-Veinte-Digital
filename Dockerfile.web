@@ -12,11 +12,11 @@ ENV HOSTNAME="0.0.0.0"
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
 
+# Ensure runtime directories exist and have proper permissions BEFORE copy
+RUN mkdir -p /app/data/normativa && chown -R nextjs:nodejs /app
+
 # Copy all pre-built standalone assets from staging
 COPY --chown=nextjs:nodejs . ./
-
-# Ensure runtime directories exist and have proper permissions
-RUN mkdir -p /app/data/normativa && chown -R nextjs:nodejs /app
 
 USER nextjs
 

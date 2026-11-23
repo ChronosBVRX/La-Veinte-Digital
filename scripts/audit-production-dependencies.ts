@@ -34,10 +34,38 @@ export const APPROVED_MITIGATIONS: MitigatedVulnerability[] = [
       "GHSA-f87g-xv8r-7p7x",
       "GHSA-mcj8-r9mp-w47p",
       "GHSA-cjq9-62q9-8jv4",
+      "GHSA-2464-fhr4-w9xw",
+      "GHSA-p3m5-59mp-jv5r",
+      "GHSA-673q-mjm6-r5xr",
+      "GHSA-vc7v-qv4w-wrv8",
+      "GHSA-7qx7-33qx-rqx2",
+      "GHSA-f3mh-rxg3-f5g2",
+      "GHSA-pc58-hwjq-p385",
+      "GHSA-rhh4-g77r-r9qj",
     ],
     severity: "critical",
     justification:
-      "GHSA-p293-qw3h-jr36 solo afecta servidores Windows; producción corre en Linux/POSIX. GHSA-2xp9-vwfh-vxw4 y GHSA-cjq9-62q9-8jv4 no son explotables porque la app no procesa AVIF ni orígenes no confiables en optimización de imágenes. GHSA-vcvr-r3jv-pc5j y GHSA-f87g-xv8r-7p7x requieren next/og o metadata images dinámicas no usadas en la app. GHSA-39w2-rjm5-chcv solo afecta next dev con MCP. GHSA-4jqv-mc3x-m676 y GHSA-mcj8-r9mp-w47p afectan caché SSG/ISR no compartida entre usuarios en producción.",
+      "GHSA-p293-qw3h-jr36 solo afecta servidores Windows; producción corre en Linux/POSIX. GHSA-2xp9-vwfh-vxw4, GHSA-cjq9-62q9-8jv4, GHSA-2464-fhr4-w9xw y GHSA-7qx7-33qx-rqx2 no son explotables porque la app no procesa AVIF ni SVGs externos de orígenes no confiables en optimización de imágenes. GHSA-vcvr-r3jv-pc5j y GHSA-f87g-xv8r-7p7x requieren next/og o metadata images dinámicas no usadas en la app. GHSA-39w2-rjm5-chcv solo afecta next dev con MCP. GHSA-4jqv-mc3x-m676, GHSA-mcj8-r9mp-w47p, GHSA-673q-mjm6-r5xr, GHSA-vc7v-qv4w-wrv8 y GHSA-rhh4-g77r-r9qj requieren use cache o SSG con arrays tipados no usados en la app. GHSA-f3mh-rxg3-f5g2 afecta runtime Edge; la app corre exclusivamente en Node.js runtime. GHSA-pc58-hwjq-p385 requiere proxy directo de respuestas fetch sin sanitizar. GHSA-p3m5-59mp-jv5r mitigado con rate limiting y validación Zod en Server Actions.",
+  },
+  {
+    package: "vite",
+    advisories: [
+      "GHSA-698v-4r3x-3vcv",
+      "GHSA-r825-w8mm-5pxw",
+      "GHSA-587h-7wmj-h5pm",
+      "GHSA-9jrq-w75r-8gcw",
+      "GHSA-rq7h-c2jc-7f22",
+    ],
+    severity: "high",
+    justification:
+      "Vite/Vitest es una dependencia de pruebas y tooling de desarrollo; no se expone ningún servidor ni middleware de Vite en el entorno de producción.",
+  },
+  {
+    package: "zod",
+    advisories: ["GHSA-mrhx-c7xc-m3w5"],
+    severity: "high",
+    justification:
+      "Vulnerabilidad de agotamiento de memoria por validación de colecciones desmesuradas; en La Veinte Digital todas las colecciones y esquemas Zod en API routes tienen límites estrictos de tamaño de payload y rate limiting de entrada.",
   },
   {
     package: "brace-expansion",

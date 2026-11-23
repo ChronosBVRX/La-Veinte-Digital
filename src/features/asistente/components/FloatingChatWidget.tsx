@@ -174,6 +174,14 @@ export function FloatingChatWidget() {
   return (
     <>
       <style>{`
+        @keyframes chatBackdropFadeIn {
+          0% {
+            opacity: 0;
+          }
+          100% {
+            opacity: 1;
+          }
+        }
         @keyframes messengerBubblePop {
           0% {
             opacity: 0;
@@ -185,6 +193,24 @@ export function FloatingChatWidget() {
           }
         }
       `}</style>
+
+      {/* 0. Backdrop con desenfoque suave para enfatizar el foco en el chat */}
+      {isOpen && !isMinimized && (
+        <div
+          data-testid="chat-backdrop"
+          onClick={closeChat}
+          aria-hidden="true"
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: Z_INDEX.sheet + 5,
+            background: "rgba(0, 0, 0, 0.22)",
+            backdropFilter: "blur(5px)",
+            WebkitBackdropFilter: "blur(5px)",
+            animation: "chatBackdropFadeIn 0.2s ease-out",
+          }}
+        />
+      )}
 
       {/* 1. Ventana Flotante del Asistente (abierta) */}
       {isOpen && !isMinimized && (

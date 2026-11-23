@@ -190,7 +190,9 @@ export function CommitmentForm({ open, onClose, onSave, userId }: CommitmentForm
           ? { dayBefore: false, hoursBefore: false, atStart: false }
           : nextType === "vacaciones"
             ? { dayBefore: true, hoursBefore: false, atStart: true }
-            : DEFAULT_REMINDER,
+            : nextType === "general_reminder"
+              ? { dayBefore: true, hoursBefore: false, atStart: false }
+              : DEFAULT_REMINDER,
     )
     setStep("details")
   }
@@ -405,13 +407,11 @@ export function CommitmentForm({ open, onClose, onSave, userId }: CommitmentForm
         ? { dayBefore: false, hoursBefore: false, atStart: false }
         : type === "general_reminder"
           ? {
-              dayBefore: notificationsEnabled,
-              hoursBefore: false,
-              atStart: notificationsEnabled && !details.reminderAt,
+              dayBefore: notificationsEnabled ? reminder.dayBefore : false,
+              hoursBefore: notificationsEnabled ? reminder.hoursBefore : false,
+              atStart: notificationsEnabled ? (details.reminderAt ? false : reminder.atStart) : false,
             }
-          : type === "no_pagado"
-            ? { dayBefore: true, hoursBefore: false, atStart: true }
-            : reminder
+          : reminder
 
     onSave({
       userId,

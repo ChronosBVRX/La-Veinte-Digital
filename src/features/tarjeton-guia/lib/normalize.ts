@@ -16,7 +16,8 @@ export function normalizeText(raw: string): string {
 }
 
 /** Convierte un código libre a su forma canónica de 3 dígitos ("33" → "033"). */
-export function normalizeCode(raw: string): string | null {
+export function normalizeCode(raw?: string | null): string | null {
+  if (!raw) return null
   const digits = raw.replace(/\D/g, "")
   if (digits.length === 0 || digits.length > 3) return null
   return digits.padStart(3, "0")

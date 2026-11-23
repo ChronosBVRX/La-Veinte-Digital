@@ -31,4 +31,24 @@ describe("platform-tools", () => {
     expect(tools.some((t) => t.id === PLATFORM_TOOLS.GUIA_CONCEPTOS.id)).toBe(true)
     expect(tools.some((t) => t.id === PLATFORM_TOOLS.TARJETON.id)).toBe(true)
   })
+
+  it("recomienda la calculadora de Cláusula 97 ante solicitudes de anticipo de sueldo", () => {
+    const tools = recommendPlatformTools("¿Cómo pido un anticipo de sueldo de 3 meses bajo la cláusula 97?")
+    expect(tools.some((t) => t.id === PLATFORM_TOOLS.CLAUSULA_97.id)).toBe(true)
+  })
+
+  it("recomienda el calendario ante consultas de días festivos o inhábiles", () => {
+    const tools = recommendPlatformTools("¿Qué días festivos o de descanso obligatorio tenemos según el calendario IMSS?")
+    expect(tools.some((t) => t.id === PLATFORM_TOOLS.CALENDARIO.id)).toBe(true)
+  })
+
+  it("recomienda análisis de quincena ante dudas del recibo de nómina", () => {
+    const tools = recommendPlatformTools("Quiero revisar mi quincena y entender el desglose quincenal de mi pago")
+    expect(tools.some((t) => t.id === PLATFORM_TOOLS.MI_QUINCENA.id)).toBe(true)
+  })
+
+  it("recomienda el centro de calculadoras ante peticiones generales", () => {
+    const tools = recommendPlatformTools("¿Dónde puedo ver todas las calculadoras y simuladores?")
+    expect(tools.some((t) => t.id === PLATFORM_TOOLS.CALCULADORAS_HUB.id)).toBe(true)
+  })
 })

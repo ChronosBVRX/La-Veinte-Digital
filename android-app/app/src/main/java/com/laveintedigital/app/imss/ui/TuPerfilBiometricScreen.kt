@@ -53,6 +53,7 @@ import com.laveintedigital.app.imss.portal.TuPerfilBiometricFlowController
 import com.laveintedigital.app.imss.portal.TuPerfilBiometricFlowState
 import com.laveintedigital.app.imss.portal.TuPerfilSessionController
 import com.laveintedigital.app.imss.portal.ImssPdfCaptureCoordinator
+import com.laveintedigital.app.imss.register.TuPerfilRegisterController
 import com.laveintedigital.app.ui.lvd.LvdColors
 import com.laveintedigital.app.ui.lvd.LvdLoadingState
 import com.laveintedigital.app.ui.lvd.LvdSpacing
@@ -86,6 +87,7 @@ fun TuPerfilBiometricScreen(
 
     var webView by remember { mutableStateOf<WebView?>(null) }
     var showLoginDialog by remember { mutableStateOf(false) }
+    var showRegisterDialog by remember { mutableStateOf(false) }
     var showManualFallback by remember { mutableStateOf(false) }
     var rawFormVisible by remember { mutableStateOf(false) }
 
@@ -94,6 +96,7 @@ fun TuPerfilBiometricScreen(
     var selectedPeriod by remember { mutableStateOf<com.laveintedigital.app.imss.biometric.BiometricPeriod?>(null) }
 
     val controller = remember { TuPerfilBiometricFlowController(scope, context) }
+    val registerController = remember { TuPerfilRegisterController(scope, context) }
     val flowState by controller.state.collectAsState()
 
     val isQuincenaAuditMode = remember(initialMode) {
@@ -205,6 +208,7 @@ fun TuPerfilBiometricScreen(
                     }.also { wv ->
                         webView = wv
                         controller.attachWebView(wv)
+                        registerController.attachWebView(wv)
                     }
                 },
                 modifier = Modifier.fillMaxSize(),
@@ -464,7 +468,31 @@ fun TuPerfilBiometricScreen(
                 showLoginDialog = false
                 controller.loginWithCredentials(username, password, remember)
             },
+            onOpenRegister = {
+                showLoginDialog = false
+                showRegisterDialog = true
+            },
             onDismiss = { showLoginDialog = false },
+        )
+    }
+
+    // Registro asistido para Tu Perfil IMSS
+    if (showRegisterDialog) {
+        TuPerfilRegisterDialog(
+            controller = registerController,
+            onDismiss = {
+                showRegisterDialog = false
+                registerController.reset()
+            },
+            onSuccess = {
+                showRegisterDialog = false
+                controller.retryLogin()
+            },
+            onSwitchToLogin = {
+                showRegisterDialog = false
+                registerController.reset()
+                showLoginDialog = true
+            },
         )
     }
 }

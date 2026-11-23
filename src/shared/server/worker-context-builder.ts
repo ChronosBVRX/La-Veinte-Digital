@@ -66,6 +66,7 @@ export interface WorkerContext {
     }
     recurringConcepts: unknown[]
     payrollFacts: unknown[]
+    lines?: PayslipLineRow[]
   } | null
   vacations: {
     enjoyedDays?: number | null
@@ -101,6 +102,25 @@ export interface WorkerContext {
     radiologicalExposureUpdatedAt?: string | null
     weeklyRestDays: number[] | null
     contractEndDate: string | null
+  } | null
+  attendance?: {
+    delays?: number | null
+    exitPasses?: number | null
+    absences?: number | null
+    noDelayDays?: number | null
+    attendanceScore?: number | null
+    incidentFortnight?: number | null
+    generalIllnessLeave?: number | null
+    occupationalRiskLeave?: number | null
+    maternityLeave?: number | null
+    license140Bis?: number | null
+    paidLicenses?: number | null
+    unpaidLicenses?: number | null
+    trainingCommissions?: number | null
+    commissions?: number | null
+    scholarshipWithPay?: number | null
+    scholarshipWithoutPay?: number | null
+    concept033Days?: number | null
   } | null
 }
 
@@ -236,8 +256,17 @@ export function resolveIntegratedMonthlySalary(
   }
 
   // Reconstrucción normativa oficial (Suma quincenal de 002 + 011 + 014 + 016 + 022 + 023 + 054 + 057 + 058 + 061 + 063 + 020 + 050 * 2)
-  const SMI_INTEGRATING_CONCEPTS = new Set(["002", "011", "014", "016", "022", "023", "054", "057", "058", "061", "063", "020", "050"])
-  const baseSalaryLine = payslipLines.find((l) => l.concept_code === "002" && l.kind === "earning" && l.amount > 0)
+  const SMI_INTEGRATING_CONCEPTS = new Set(["002", "008", "08", "001", "003", "011", "014", "016", "022", "023", "054", "057", "058", "061", "063", "020", "050"])
+  const baseSalaryLine = payslipLines.find(
+    (l) =>
+      (l.concept_code === "002" ||
+        l.concept_code === "008" ||
+        l.concept_code === "08" ||
+        l.concept_code === "001" ||
+        l.concept_code === "003") &&
+      l.kind === "earning" &&
+      l.amount > 0
+  )
 
   if (baseSalaryLine) {
     let fortnightSum = 0
@@ -413,6 +442,7 @@ export function buildWorkerContextPayroll(
       latest?.id,
     ),
     payrollFacts: parseJsonArraySafe(ctxFacts),
+    lines: payslipLines,
   }
 }
 
@@ -447,6 +477,7 @@ export interface BuildWorkerContextParams {
     payroll_totals?: unknown
     employee_data?: unknown
     vacations?: unknown
+    attendance?: unknown
     employee_number?: string | null
   } | null
   payslipLines?: PayslipLineRow[]
@@ -706,6 +737,29 @@ export function buildWorkerContext(params: BuildWorkerContextParams): WorkerCont
       }
     : null
 
+  const attendanceData = parseJsonIfString<Record<string, unknown>>(latest?.attendance)
+  const attendance = attendanceData
+    ? {
+        delays: typeof attendanceData.delays === "number" ? attendanceData.delays : null,
+        exitPasses: typeof attendanceData.exitPasses === "number" ? attendanceData.exitPasses : null,
+        absences: typeof attendanceData.absences === "number" ? attendanceData.absences : null,
+        noDelayDays: typeof attendanceData.noDelayDays === "number" ? attendanceData.noDelayDays : null,
+        attendanceScore: typeof attendanceData.attendanceScore === "number" ? attendanceData.attendanceScore : null,
+        incidentFortnight: typeof attendanceData.incidentFortnight === "number" ? attendanceData.incidentFortnight : null,
+        generalIllnessLeave: typeof attendanceData.generalIllnessLeave === "number" ? attendanceData.generalIllnessLeave : null,
+        occupationalRiskLeave: typeof attendanceData.occupationalRiskLeave === "number" ? attendanceData.occupationalRiskLeave : null,
+        maternityLeave: typeof attendanceData.maternityLeave === "number" ? attendanceData.maternityLeave : null,
+        license140Bis: typeof attendanceData.license140Bis === "number" ? attendanceData.license140Bis : null,
+        paidLicenses: typeof attendanceData.paidLicenses === "number" ? attendanceData.paidLicenses : null,
+        unpaidLicenses: typeof attendanceData.unpaidLicenses === "number" ? attendanceData.unpaidLicenses : null,
+        trainingCommissions: typeof attendanceData.trainingCommissions === "number" ? attendanceData.trainingCommissions : null,
+        commissions: typeof attendanceData.commissions === "number" ? attendanceData.commissions : null,
+        scholarshipWithPay: typeof attendanceData.scholarshipWithPay === "number" ? attendanceData.scholarshipWithPay : null,
+        scholarshipWithoutPay: typeof attendanceData.scholarshipWithoutPay === "number" ? attendanceData.scholarshipWithoutPay : null,
+        concept033Days: typeof attendanceData.concept033Days === "number" ? attendanceData.concept033Days : null,
+      }
+    : null
+
   const resolvedUserId = params.userId ?? params.meta?.userId ?? null
   const meta = params.meta
     ? {
@@ -722,6 +776,7 @@ export function buildWorkerContext(params: BuildWorkerContextParams): WorkerCont
     payroll,
     vacations,
     vacationProfile,
+    attendance,
   }
 }
 

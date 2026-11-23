@@ -21,6 +21,7 @@ import { buildImssLayoutRegions } from "@/features/tarjeton/lib/imss-layout-regi
 import { sanitizeTarjetonForPersistence } from "@/features/tarjeton/lib/safe-values"
 import { saveTarjetonPdfBlob, findTarjetonPdfBlob } from "@/shared/services/tarjeton-blob-storage"
 import { getPayslips, savePayslip } from "@/shared/services/local-storage"
+import { savePayslipAnalysis, CURRENT_PARSER_VERSION } from "@/features/tarjeton/services/payslip-analysis-store"
 import { getPayPeriod } from "@/features/nomina/lib/periods"
 import { institutionalToday } from "@/shared/lib/dates"
 import type { AnalysisStatus, ImportedPayslip, ImportedPayslipLine } from "@/features/nomina/lib/types"
@@ -254,6 +255,7 @@ export async function analyzeAndPersistPayslip(
         earnings: earningsLines,
         deductions: deductionsLines,
         perceptions: earningsLines,
+        observations: safeParsed.payroll.observations,
         totalEarnings,
         totalDeductions,
         netPay,
@@ -264,6 +266,32 @@ export async function analyzeAndPersistPayslip(
       }
 
       savePayslip(options.userId, updatedSlip)
+
+      const pYear = safeParsed.document.year || 2026
+      const pMonth = safeParsed.document.month || 1
+      const pHalf = safeParsed.document.half || 1
+      const pRank = pYear * 24 + (pMonth - 1) * 2 + pHalf
+
+      void computeFileSha256(sourceBytes.slice().buffer).then((sHash) => {
+        savePayslipAnalysis(options.userId, {
+          documentId: updatedSlipId,
+          documentHash: sHash,
+          parserVersion: CURRENT_PARSER_VERSION,
+          period: targetPeriodRaw || `${pHalf}A-${pMonth}-${pYear}`,
+          periodRank: pRank,
+          perceptionsTotal: totalEarnings,
+          deductionsTotal: totalDeductions,
+          netAmount: netPay,
+          concepts: [
+            ...earningsLines.map((e) => ({ code: e.code || null, description: e.description, amount: e.amount, kind: "perception" as const })),
+            ...deductionsLines.map((d) => ({ code: d.code || null, description: d.description, amount: Math.abs(d.amount), kind: "deduction" as const })),
+          ],
+          observations: safeParsed.payroll.observations,
+          status: "ready",
+          analyzedAt: new Date().toISOString(),
+          errorCode: null,
+        })
+      }).catch(() => {})
 
       // 8. Sincronización en servidor si hay sesión activa
       try {

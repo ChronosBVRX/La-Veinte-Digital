@@ -35,6 +35,16 @@ export function formatTipoDocumento(type: string): string {
       return "Manual de Procedimientos"
     case "agreement":
       return "Acuerdo Institucional"
+    case "index":
+      return "Compendio Normativo"
+    case "portal":
+      return "Portal de Consulta"
+    case "labor_protocol":
+      return "Protocolo Laboral"
+    case "employment_statute":
+      return "Estatuto Laboral"
+    case "institutional_guidance":
+      return "Guía Institucional"
     case "criteria":
       return "Criterio Técnico"
     default:
@@ -64,6 +74,23 @@ export function getOrSynthesizePreambulo(doc: LibraryDocumentEntry): PreambuloNo
   let enUnaFrase = "Documento oficial del marco regulatorio para fundamentar procedimientos y proteger tus derechos."
   let preambulo = `Este documento es un ${tipo.toLowerCase()} oficial aplicable en el Instituto Mexicano del Seguro Social. Contiene los lineamientos técnicos, operativos y jurídicos que regulan las actividades en las unidades y centros de trabajo.`
   const aQuienAplica: string[] = ["Personal del Instituto", "Ramas de salud, técnicas y administrativas"]
+
+  if (doc.type === "index" || /compendio|portal|índice|indice/i.test(lowerTitle)) {
+    enUnaFrase = "Compendio y portal oficial de consulta para fundamentar procedimientos y derechos laborales."
+    preambulo = `Compendio oficial y marco de referencia normativo. Reúne los ordenamientos jurídicos y disposiciones aplicables para consulta directa y respaldo legal en el ejercicio de tus labores.`
+    aQuienAplica.length = 0
+    aQuienAplica.push("Personal institucional y representaciones", "Ramas de salud, técnicas y administrativas")
+  } else if (doc.category === "federal") {
+    enUnaFrase = "Ordenamiento legal federal de observancia obligatoria emitido por el Congreso de la Unión."
+    preambulo = `Marco jurídico federal aplicable en toda la República Mexicana. Establece las garantías, derechos mínimos y obligaciones legales que rigen las relaciones laborales y de seguridad social.`
+    aQuienAplica.length = 0
+    aQuienAplica.push("Población trabajadora en general", "Instituciones públicas y organismos de seguridad social")
+  } else if (doc.category === "sntss") {
+    enUnaFrase = "Ordenamiento sindical oficial del Sindicato Nacional de Trabajadores del Seguro Social."
+    preambulo = `Disposiciones estatutarias y normativas que regulan la vida sindical interna, así como los derechos y deberes de la base agremiada del SNTSS.`
+    aQuienAplica.length = 0
+    aQuienAplica.push("Trabajadores agremiados al SNTSS", "Representaciones y comisiones sindicales")
+  }
   const aquiPuedesEncontrar: string[] = [
     "Criterios técnicos y requisitos obligatorios del servicio.",
     "Límites de responsabilidad y alcance funcional de las áreas.",
@@ -136,4 +163,45 @@ export function getOrSynthesizePreambulo(doc: LibraryDocumentEntry): PreambuloNo
     ojoConEsto,
     vigenciaTexto: doc.versionLabel ?? "Documento oficial del acervo",
   }
+}
+
+
+export const PORTAL_DOC_IDS = new Set([
+  "camara-leyes",
+  "imss-marco-normativo",
+  "sntss-documentos",
+  "sntss-leyes-reglamentos",
+  "imss-consejo-tecnico",
+  "imss-guiando-denuncia",
+  "imss-index-legal",
+])
+
+export function isExternalPortalDoc(
+  doc?: { id?: string | null; url?: string | null; type?: string | null } | null
+): boolean {
+  if (!doc) return false
+  const lowId = (doc.id || "").trim().toLowerCase()
+  if (PORTAL_DOC_IDS.has(lowId)) return true
+  const lowType = (doc.type || "").trim().toLowerCase()
+  if (lowType === "portal" || lowType === "compendio" || lowType === "index") return true
+  const url = (doc.url || "").trim().toLowerCase()
+  if (url.includes("index.htm") || url.includes("conoce-al-imss") || url.includes("acuerdospublicos.imss.gob.mx")) {
+    return true
+  }
+  return false
+}
+
+export function openOfficialPortal(url: string) {
+  if (typeof window === "undefined" || !url) return
+  if (window.LaVeinteApp && typeof window.LaVeinteApp.openExternal === "function") {
+    window.LaVeinteApp.openExternal(url)
+    return
+  }
+  const a = document.createElement("a")
+  a.href = url
+  a.target = "_blank"
+  a.rel = "noopener noreferrer"
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
 }

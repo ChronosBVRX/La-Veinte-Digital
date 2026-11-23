@@ -1,3 +1,5 @@
+import type { TarjetonObservation } from "@/shared/contracts/tarjeton-import"
+
 export type EmploymentType =
   | "base"
   | "sustituto"
@@ -501,6 +503,7 @@ export interface ImportedPayslip {
   earnings: ImportedPayslipLine[]
   deductions: ImportedPayslipLine[]
   perceptions?: ImportedPayslipLine[]
+  observations?: TarjetonObservation[]
   totalEarnings: number
   totalDeductions: number
   netPay: number

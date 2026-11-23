@@ -103,7 +103,8 @@ export function deleteNativeEscritoCopies(escritoId: string): void {
       try {
         const docs = await window.LaVeinteApp!.listNativeDocuments()
         const copies = (docs ?? []).filter(
-          (d) => d.source === "ESCRITO" && (d as { escritoId?: string }).escritoId === escritoId
+          (d: { source?: string; id: number; localPath: string; escritoId?: string | null }) =>
+            d.source === "ESCRITO" && d.escritoId === escritoId
         )
         for (const copy of copies) {
           try {

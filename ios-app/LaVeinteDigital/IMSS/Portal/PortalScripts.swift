@@ -248,17 +248,28 @@ try{
 (function(){
 try{
   var iframe=document.getElementById('ifrPaginaSecundaria');if(!iframe)return;
-  var win=iframe.contentWindow;if(!win||win.__LVD_OPEN_HOOKED__)return;
-  win.__LVD_OPEN_HOOKED__=true;
-  var orig=win.open;
-  win.open=function(url,name,features){
-    if(typeof url==='string'&&url.indexOf('wfrReporteTarjeton')>=0){
-      var abs=url;try{abs=new URL(url,win.location.href).href;}catch(e){}
-      try{if(window.TarjetonDigitalBridge)window.TarjetonDigitalBridge.onReport(abs);}catch(e){}
-      return null;
-    }
-    return orig.apply(this,arguments);
-  };
+  function hook(w){
+    if(!w||w.__LVD_OPEN_HOOKED__)return;
+    w.__LVD_OPEN_HOOKED__=true;
+    var orig=w.open;
+    w.open=function(url,name,features){
+      if(typeof url==='string'&&(url.indexOf('wfrReporteTarjeton')>=0||url.toLowerCase().indexOf('reporte')>=0)){
+        var abs=url;try{abs=new URL(url,w.location.href).href;}catch(e){}
+        try{
+          var bridge=window.TarjetonDigitalBridge||(w&&w.TarjetonDigitalBridge)||(window.parent&&window.parent.TarjetonDigitalBridge);
+          if(bridge&&typeof bridge.onReport==='function'){bridge.onReport(abs);}
+        }catch(e){}
+        return null;
+      }
+      return orig?orig.apply(this,arguments):null;
+    };
+    try{if(window.TarjetonDigitalBridge)w.TarjetonDigitalBridge=window.TarjetonDigitalBridge;}catch(e){}
+  }
+  hook(iframe.contentWindow);
+  if(!iframe.__LVD_LOAD_ATTACHED__){
+    iframe.__LVD_LOAD_ATTACHED__=true;
+    iframe.addEventListener('load',function(){try{hook(iframe.contentWindow);}catch(e){}});
+  }
 }catch(e){}
 })()
 """#
@@ -439,20 +450,75 @@ try{
   if(win&&win.jQuery){
     var grid=win.jQuery('#jqGridTarjetones');
     var ids=grid.jqGrid('getDataIDs')||[];
-    for(var i=0;i<ids.length;i++){var id=String(ids[i]);if(id.replace(/^grid_/,'')===\#(jsQuote(code))){rowId=id;break;}}
-    if(rowId){var rd=grid.jqGrid('getRowData',rowId);obs=(rd.Observaciones||'').trim();contr=(rd.TipoContrato||'').trim();}
+    for(var i=0;i<ids.length;i++){
+      var id=String(ids[i]);
+      if(id.replace(/^grid_/,'')===\#(jsQuote(code))){rowId=id;break;}
+      try{
+        var rd=grid.jqGrid('getRowData',id);
+        var p=rd?(rd.Periodo||''):'';
+        if(String(p).trim()===\#(jsQuote(code)) || String(p).replace(/^grid_/,'').trim()===\#(jsQuote(code))){
+          rowId=id;
+          break;
+        }
+      }catch(e3){}
+    }
+    if(rowId){
+      var rd=grid.jqGrid('getRowData',rowId);
+      obs=(rd.Observaciones||'').trim();
+      contr=(rd.TipoContrato||'').trim();
+      try{grid.jqGrid('setSelection',rowId,true);}catch(e5){}
+    }
   }
 }catch(e){}
-if(!rowId)return JSON.stringify({ok:false,reason:'PERIOD_NOT_FOUND'});
-try{if(win)win.strObservaciones=obs;}catch(e){}
+if(!rowId){
+  try{
+    var rows=doc.querySelectorAll('#jqGridTarjetones tr.jqgrow');
+    for(var j=0;j<rows.length;j++){
+      var rId=String(rows[j].id||'');
+      if(rId.replace(/^grid_/,'')===\#(jsQuote(code)) || (rows[j].textContent||'').indexOf(\#(jsQuote(code)))>=0){
+        rowId=rId;
+        break;
+      }
+    }
+  }catch(e4){}
+}
+try{if(win&&obs)win.strObservaciones=obs;}catch(e){}
 var hdnP=doc.getElementById('hdnPeriodo');if(!hdnP)return JSON.stringify({ok:false,reason:'HDN_PERIODO_MISSING'});
 hdnP.value=\#(jsQuote(code));
 var hdnC=doc.getElementById('hdnContratacion');if(hdnC)hdnC.value=contr;
-var rdoA=doc.getElementById('rdoArchivo');if(rdoA)rdoA.checked=true;
-var tipo=doc.getElementById('\#(tipoId)');if(!tipo)return JSON.stringify({ok:false,reason:'TIPO_NOT_FOUND'});
-tipo.checked=true;
+var rdoA=doc.getElementById('rdoArchivo');
+if(rdoA){
+  rdoA.checked=true;
+  try{rdoA.click();}catch(e){}
+  try{rdoA.dispatchEvent(new Event('change',{bubbles:true}));}catch(e){}
+}
+var tipo=doc.getElementById('\#(tipoId)');
+if(tipo){
+  tipo.checked=true;
+  try{tipo.click();}catch(e){}
+  try{tipo.dispatchEvent(new Event('change',{bubbles:true}));}catch(e){}
+}
+try{
+  if(win){
+    var orig=win.open;
+    win.__LVD_OPEN_HOOKED__=true;
+    win.open=function(url,name,features){
+      if(typeof url==='string'&&(url.indexOf('wfrReporteTarjeton')>=0||url.toLowerCase().indexOf('reporte')>=0)){
+        var abs=url;try{abs=new URL(url,win.location.href).href;}catch(e){}
+        try{
+          var bridge=window.TarjetonDigitalBridge||(win&&win.TarjetonDigitalBridge)||(window.parent&&window.parent.TarjetonDigitalBridge);
+          if(bridge&&typeof bridge.onReport==='function'){bridge.onReport(abs);}
+        }catch(e){}
+        return null;
+      }
+      return orig?orig.apply(this,arguments):null;
+    };
+    try{if(window.TarjetonDigitalBridge)win.TarjetonDigitalBridge=window.TarjetonDigitalBridge;}catch(e){}
+  }
+}catch(e){}
 var btn=doc.getElementById('btnAceptar');if(!btn)return JSON.stringify({ok:false,reason:'BUTTON_MISSING'});
-btn.click();return JSON.stringify({ok:true})})()
+btn.click();
+return JSON.stringify({ok:true,rowId:rowId||'fallback'})})()
 """#
     }
 

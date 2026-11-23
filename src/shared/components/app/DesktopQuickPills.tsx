@@ -7,6 +7,7 @@ import { useFloatingChat } from "@/features/asistente/context/FloatingChatContex
 import { shouldPrefetchRoute } from "./navigation"
 
 const PILLS = [
+  { href: "/guia/mi-quincena", label: "Explícame mi tarjetón" },
   { href: "/bitacora", label: "Registrar incidencia" },
   { href: "/asistente", label: "Pregunta sobre tus derechos" },
 ]

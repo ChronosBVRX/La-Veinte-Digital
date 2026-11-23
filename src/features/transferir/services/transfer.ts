@@ -1,6 +1,5 @@
 import { createClient } from "@/lib/supabase/client"
 import {
-  ALLOWED_CONTENT_TYPES,
   MAX_FILE_BYTES,
   isAllowedType,
 } from "@/features/transferir/lib/transfer"
@@ -73,6 +72,8 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 
 async function compressImage(file: File): Promise<Blob> {
   if (!file.type.startsWith("image/")) return file
+  // Para el experimento temporal de archivos grandes hasta 500 MB, conservar imágenes > 10 MB intactas
+  if (file.size > 10 * 1024 * 1024) return file
   try {
     const url = URL.createObjectURL(file)
     const img = await loadImage(url)
@@ -110,16 +111,16 @@ function translateServerError(message: string): string {
     return "Ya se alcanzó el límite de 10 archivos por transferencia."
   }
   if (message.includes("session_size_exceeded")) {
-    return "Se alcanzó el límite de 25 MB por transferencia."
+    return "Se alcanzó el límite de 500 MB por transferencia."
   }
   if (message.includes("capacity_full")) {
     return "El servicio está temporalmente lleno. Inténtalo en unos minutos."
   }
   if (message.includes("file_too_large") || message.includes("invalid_size")) {
-    return "El archivo supera el límite de 10 MB."
+    return "El archivo supera el límite de 500 MB."
   }
   if (message.includes("invalid_content_type")) {
-    return "Tipo de archivo no permitido. Usa una foto o un PDF."
+    return "Tipo de archivo no permitido."
   }
   if (message.includes("empty_file")) {
     return "El archivo está vacío."
@@ -133,17 +134,15 @@ export async function uploadTransferFile(
 ): Promise<TransferFileMeta> {
   if (!isAllowedType(file.type)) {
     throw new Error(
-      `Tipo de archivo no permitido (${file.type || "desconocido"}). Usa una foto o un PDF.`,
+      `Tipo de archivo no permitido (${file.type || "desconocido"}).`,
     )
   }
   if (file.size > MAX_FILE_BYTES) {
-    throw new Error("El archivo supera el límite de 10 MB.")
+    throw new Error("El archivo supera el límite de 500 MB.")
   }
 
   const blob = await compressImage(file)
-  const contentType = (ALLOWED_CONTENT_TYPES as readonly string[]).includes(blob.type)
-    ? blob.type
-    : file.type
+  const contentType = file.type || blob.type || "application/octet-stream"
 
   const data = await blobToBase64(blob)
 
@@ -159,12 +158,18 @@ export async function uploadTransferFile(
 }
 
 function base64ToBlob(data: string, contentType: string): Blob {
-  const binary = atob(data)
-  const bytes = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i += 1) {
-    bytes[i] = binary.charCodeAt(i)
+  const sliceSize = 1024 * 512
+  const byteArrays: BlobPart[] = []
+  for (let offset = 0; offset < data.length; offset += sliceSize) {
+    const slice = data.slice(offset, offset + sliceSize)
+    const binary = atob(slice)
+    const bytes = new Uint8Array(binary.length)
+    for (let i = 0; i < binary.length; i += 1) {
+      bytes[i] = binary.charCodeAt(i)
+    }
+    byteArrays.push(bytes)
   }
-  return new Blob([bytes], { type: contentType })
+  return new Blob(byteArrays, { type: contentType || "application/octet-stream" })
 }
 
 /**
@@ -179,10 +184,10 @@ export async function readNativeDocumentAsFile(
 ): Promise<File | null> {
   if (typeof window === "undefined" || !window.LaVeinteApp?.readNativeDocument) return null
   try {
-    const content = await withTimeout(
+    const content = (await withTimeout(
       window.LaVeinteApp.readNativeDocument(meta.localPath),
       timeoutMs,
-    )
+    )) as { name?: string; mimeType?: string; data?: string } | null
     if (!content?.data) return null
     const blob = base64ToBlob(content.data, content.mimeType || meta.mimeType || "application/pdf")
     return new File([blob], content.name || meta.name || "documento", {
@@ -221,9 +226,11 @@ export async function deleteNativeDocumentById(
   // 2. Fallback de compatibilidad con APK anterior por ruta
   if (expectedLocalPath && typeof window.LaVeinteApp.deleteNativeDocument === "function") {
     try {
-      const ok = await withTimeout(
-        window.LaVeinteApp.deleteNativeDocument(expectedLocalPath),
-        timeoutMs,
+      const ok = Boolean(
+        await withTimeout(
+          window.LaVeinteApp.deleteNativeDocument(expectedLocalPath),
+          timeoutMs,
+        ),
       )
       return { ok, reason: ok ? undefined : "delete_failed" }
     } catch {
@@ -273,7 +280,8 @@ export function downloadTransferFile(file: TransferFile): void {
   document.body.appendChild(a)
   a.click()
   a.remove()
-  setTimeout(() => URL.revokeObjectURL(url), 1000)
+  // Margen de 2 minutos para que el navegador complete la descarga a disco
+  setTimeout(() => URL.revokeObjectURL(url), 120_000)
 }
 
 export function openTransferFile(file: TransferFile): void {

@@ -618,7 +618,8 @@ function CalendarGrid({ year, month, prevMonth, nextMonth, startOffset, daysInMo
   return (
     <div style={{
       background: "var(--card)", border: "1px solid var(--border)",
-      borderRadius: "var(--radius-lg)", padding: compact ? "0.75rem" : "1.25rem",
+      borderRadius: "var(--radius-lg)", padding: compact ? "0.75rem" : "clamp(0.5rem, 2.5vw, 1.25rem)",
+      width: "100%", maxWidth: "100%", boxSizing: "border-box", minWidth: 0,
     }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.75rem" }}>
         <button onClick={prevMonth} aria-label="Mes anterior" style={{ background: "none", border: "none", cursor: "pointer", padding: "0.25rem", borderRadius: "var(--radius-sm)", color: "var(--fg)" }}>
@@ -632,7 +633,7 @@ function CalendarGrid({ year, month, prevMonth, nextMonth, startOffset, daysInMo
         </button>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "2px", marginBottom: "2px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "2px", marginBottom: "2px", width: "100%", boxSizing: "border-box" }}>
         {DAY_HEADERS.map((d, idx) => (
           <div key={`day-${idx}`} style={{ textAlign: "center", fontSize: "0.625rem", fontWeight: 600, color: "var(--muted)", padding: "0.25rem 0", textTransform: "uppercase" }}>
             {d}
@@ -640,9 +641,9 @@ function CalendarGrid({ year, month, prevMonth, nextMonth, startOffset, daysInMo
         ))}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "2px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "2px", width: "100%", boxSizing: "border-box" }}>
         {Array.from({ length: startOffset }).map((_, i) => (
-          <div key={`empty-${i}`} style={{ aspectRatio: "1", minHeight: compact ? 36 : 44 }} />
+          <div key={`empty-${i}`} style={{ aspectRatio: "1", minHeight: 0 }} />
         ))}
         {Array.from({ length: daysInMonth }).map((_, i) => {
           const d = i + 1
@@ -674,7 +675,8 @@ function CalendarGrid({ year, month, prevMonth, nextMonth, startOffset, daysInMo
               style={{
                 display: "flex", flexDirection: "column", alignItems: "center",
                 justifyContent: "center", gap: "1px",
-                aspectRatio: "1", minHeight: compact ? 36 : 44,
+                aspectRatio: "1", minHeight: 0,
+                width: "100%",
                 background: bg,
                 border: today
                   ? "2px solid var(--primary)"
@@ -689,7 +691,7 @@ function CalendarGrid({ year, month, prevMonth, nextMonth, startOffset, daysInMo
                   : "1px solid transparent",
                 borderRadius: "var(--radius-sm)", cursor: "pointer",
                 color: today ? "var(--primary)" : "var(--fg)",
-                fontFamily: "inherit", fontSize: compact ? "0.75rem" : "0.8125rem",
+                fontFamily: "inherit", fontSize: compact ? "0.75rem" : "clamp(0.7rem, 2.5vw, 0.8125rem)",
                 fontWeight: today || hasMandatoryRest ? 700 : 400,
                 position: "relative",
                 padding: "2px",

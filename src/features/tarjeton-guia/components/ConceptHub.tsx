@@ -13,7 +13,7 @@ import { guideConcepts } from "@/data/guia-tarjeton/concepts"
 import { conceptDetails } from "@/features/tarjeton-guia/data/concept-details"
 import type { GuideConceptCategory, GuideSearchResult } from "@/features/tarjeton-guia/lib/types"
 
-const FREQUENT_CONCEPTS = ["002", "011", "022", "029", "032", "033", "037"]
+const FREQUENT_CONCEPTS = ["002", "008", "011", "022", "029", "032", "033", "035", "037"]
 const FREQUENT_DEDUCTIONS = ["151", "152", "154", "107", "180", "190", "192"]
 
 export function ConceptHub({ initialTab }: { initialTab?: string }) {

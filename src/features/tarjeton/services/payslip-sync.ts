@@ -68,6 +68,7 @@ export function buildImportedPayslip(
     earnings: earningsLines,
     deductions: deductionsLines,
     perceptions: earningsLines,
+    observations: payroll.observations,
     totalEarnings: payroll.totalEarnings ?? fallbackEarnings,
     totalDeductions: payroll.totalDeductions ?? fallbackDeductions,
     netPay: finalNet,

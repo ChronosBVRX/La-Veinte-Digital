@@ -69,6 +69,17 @@ export const TABULADOR_2025_2026_VIGENCIA: NormativaVigencia = {
   verifiedAt: "2026-08-13",
 }
 
+export const TABULADOR_2026_2027_VIGENCIA: NormativaVigencia = {
+  id: "tabulador-2026-2027",
+  title: "Tabulador de Sueldos para Personal de Base 2026-2027",
+  desde: "2026-10-16",
+  hasta: "2027-10-15",
+  version: "2026-2027",
+  source: "Convenio de Revisión Salarial 2026 IMSS-SNTSS (aumento 4.0% a 002 y 011 al 86.15%)",
+  status: "verified",
+  verifiedAt: "2026-10-16",
+}
+
 export const NORMA_1000_001_020: NormativaVigencia = {
   id: "norma-1000-001-020",
   title:
@@ -142,6 +153,7 @@ export const NORMATIVA_VIGENCIAS: NormativaVigencia[] = [
   CCT_2025_2027,
   TABULADOR_2024_2025_VIGENCIA,
   TABULADOR_2025_2026_VIGENCIA,
+  TABULADOR_2026_2027_VIGENCIA,
   NORMA_1000_001_020,
   PROC_1A74_003_031,
   PROC_1A74_003_024,

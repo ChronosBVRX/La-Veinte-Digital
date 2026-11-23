@@ -301,6 +301,7 @@ fun InternalWebScreen(
             }
         }
         BridgeHandler.onOpenAppSettings = { PermissionCoordinator.openAppSettings(activity) }
+        BridgeHandler.onOpenExternal = { targetUrl -> handleCustomTab(targetUrl) }
         BridgeHandler.onRequestCameraPermission = cameraPermissionResolver
         BridgeHandler.onListNativeDocuments = { wv, req ->
             scope.launch {
@@ -347,6 +348,13 @@ fun InternalWebScreen(
         BridgeHandler.onGetFcmToken = { wv, req ->
             val token = com.laveintedigital.app.push.PushTokenStore.getToken(context) ?: ""
             org.json.JSONObject().put("token", token).let { pushBridgeResult(wv, req, it.toString()) }
+        }
+        BridgeHandler.onSyncAgendaReminders = { wv, req, dataJson ->
+            scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                val result = com.laveintedigital.app.agenda.AgendaAlarmScheduler.syncFromWeb(context, dataJson)
+                val json = org.json.JSONObject().put("ok", true).put("scheduled", result.first).put("cancelled", result.second)
+                pushBridgeResult(wv, req, json.toString())
+            }
         }
         BridgeHandler.onShare = { title, text ->
             runCatching {
@@ -534,8 +542,10 @@ fun InternalWebScreen(
             BridgeHandler.onGetFcmToken = null
             BridgeHandler.onGetPendingPrintDoc = null
             BridgeHandler.onScanDocument = null
+            BridgeHandler.onOpenExternal = null
             BridgeHandler.onShare = null
             BridgeHandler.onShareNativeDocument = null
+            BridgeHandler.onSyncAgendaReminders = null
         }
     }
 

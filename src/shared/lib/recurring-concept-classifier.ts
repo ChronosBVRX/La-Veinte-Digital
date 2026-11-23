@@ -27,7 +27,7 @@ export const PAYSLIP_FACT_CODES = new Set([
  * - unknown: conceptos no clasificados (horas extra, retroactivos, etc.).
  */
 export function classifyOccurrence(code: string): ConceptOccurrenceType {
-  const recurring = new Set(["002", "011", "020", "050", "023", "063"])
+  const recurring = new Set(["002", "008", "08", "001", "003", "011", "020", "050", "023", "063"])
   if (recurring.has(code)) return "recurring"
 
   const periodic = new Set(["055"])
@@ -45,7 +45,7 @@ export function classifyOccurrence(code: string): ConceptOccurrenceType {
  * Clasifica la persistencia de elegibilidad según el código del concepto.
  */
 export function classifyPersistence(code: string): EligibilityPersistence {
-  const persistent = new Set(["002", "011", "020"])
+  const persistent = new Set(["002", "008", "08", "001", "003", "011", "020"])
   if (persistent.has(code)) return "persistent"
   const periodScoped = new Set(["055"])
   if (periodScoped.has(code)) return "period_scoped"

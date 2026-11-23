@@ -11,6 +11,7 @@ import {
   AirplaneTilt,
   Briefcase,
   Wrench,
+  Radio,
 } from "@phosphor-icons/react"
 import type { IconProps } from "@phosphor-icons/react"
 
@@ -74,6 +75,7 @@ const COMMUNITY_NAV_GROUP: NavGroup = {
   area: "community",
   color: "var(--area-community)",
   items: [
+    { href: "/radio", label: "La 20 Radio", icon: Radio },
     { href: "/facebook", label: "Noticias SNTSS", icon: Newspaper },
   ],
 }

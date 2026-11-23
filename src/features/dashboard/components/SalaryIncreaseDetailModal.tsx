@@ -1,10 +1,12 @@
 "use client"
 
+import { useState } from "react"
 import Link from "next/link"
-import { TrendUp, Info } from "@phosphor-icons/react"
+import { TrendUp, Info, Calculator } from "@phosphor-icons/react"
 import { ResponsiveDialog } from "@/shared/components/ui/ResponsiveDialog"
 import type { SalaryEstimateResult } from "@/features/salary-estimate/lib/calculate-salary-increase"
 import { formatCurrency } from "@/features/calculators/lib/money"
+import { CategorySalarySimulator } from "@/features/salary-estimate/components/CategorySalarySimulator"
 
 interface SalaryIncreaseDetailModalProps {
   open: boolean
@@ -19,6 +21,7 @@ export function SalaryIncreaseDetailModal({
   result,
   activePeriod,
 }: SalaryIncreaseDetailModalProps) {
+  const [showSimulator, setShowSimulator] = useState(false)
   if (!open) return null
 
   const formattedIncrease = formatCurrency(result.estimatedFortnightlyIncrease)
@@ -150,6 +153,77 @@ export function SalaryIncreaseDetailModal({
           )}
         </div>
 
+        {/* Comparativa entre negociaciones */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+            gap: "0.625rem",
+          }}
+        >
+          <div
+            style={{
+              padding: "0.75rem 0.85rem",
+              borderRadius: "0.5rem",
+              background: "var(--accent, #f1f5f9)",
+              border: "1px solid var(--border, #e2e8f0)",
+            }}
+          >
+            <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--muted, #64748b)" }}>
+              Propuesta anterior (2.9% + 86.05%)
+            </span>
+            <div
+              style={{
+                fontSize: "1.125rem",
+                fontWeight: 700,
+                color: "var(--muted, #64748b)",
+                textDecoration: "line-through",
+                marginTop: "0.25rem",
+              }}
+            >
+              +{formatCurrency(result.previousProposalIncrease ?? 0)}
+            </div>
+          </div>
+
+          <div
+            style={{
+              padding: "0.75rem 0.85rem",
+              borderRadius: "0.5rem",
+              background: "rgba(34, 197, 94, 0.08)",
+              border: "1px solid rgba(34, 197, 94, 0.3)",
+            }}
+          >
+            <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "#15803d" }}>
+              Nueva negociación (4.0% + 86.15%)
+            </span>
+            <div
+              style={{
+                fontSize: "1.125rem",
+                fontWeight: 800,
+                color: "#16a34a",
+                marginTop: "0.25rem",
+              }}
+            >
+              +{formattedIncrease}
+            </div>
+          </div>
+        </div>
+
+        {(result.differentialGain ?? 0) > 0 && (
+          <div
+            style={{
+              padding: "0.5rem 0.75rem",
+              borderRadius: "0.5rem",
+              background: "rgba(34, 197, 94, 0.12)",
+              color: "#166534",
+              fontSize: "0.8125rem",
+              fontWeight: 700,
+            }}
+          >
+            ▲ Ganancia adicional lograda: +{formatCurrency(result.differentialGain ?? 0)} por quincena
+          </div>
+        )}
+
         {/* Desglose explicativo */}
         <div
           style={{
@@ -189,9 +263,41 @@ export function SalaryIncreaseDetailModal({
               }}
             >
               <Info size={16} weight="bold" />
-              <span>Hipótesis de estimación preliminar:</span>
+              <span>Convenio Salarial 2026:</span>
             </div>
-            Sueldo base +2.9% y factor Concepto 11 del 86.05% (hipótesis de cálculo frente al 82.15% contractual vigente según Cláusula 63 Bis, hasta contar con el documento oficial definitivo del Convenio Salarial 2026).
+            Sueldo base +4.0% y factor Concepto 11 del 86.15% (incremento frente al 82.15% contractual vigente según Cláusula 63 Bis Inciso B del CCT).
+          </div>
+
+          {/* Simulador de otras categorías */}
+          <div style={{ marginTop: "0.25rem", paddingTop: "0.75rem", borderTop: "1px solid var(--border, #e2e8f0)" }}>
+            <button
+              type="button"
+              data-testid="toggle-modal-category-simulator"
+              onClick={() => setShowSimulator((prev) => !prev)}
+              style={{
+                background: "var(--accent, #f1f5f9)",
+                border: "1px solid var(--border, #e2e8f0)",
+                color: "var(--fg, #0f172a)",
+                borderRadius: "0.5rem",
+                padding: "0.5rem 0.85rem",
+                fontSize: "0.8125rem",
+                fontWeight: 700,
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.45rem",
+                width: "100%",
+                justifyContent: "center",
+              }}
+            >
+              <Calculator size={16} weight="bold" color="var(--primary, #2563eb)" />
+              <span>{showSimulator ? "Ocultar simulador de otras categorías" : "Simular aumento para otras categorías"}</span>
+            </button>
+            {showSimulator && (
+              <div style={{ marginTop: "0.75rem" }}>
+                <CategorySalarySimulator theme="light" />
+              </div>
+            )}
           </div>
         </div>
       </div>

@@ -33,6 +33,13 @@ export const PLATFORM_TOOLS: Record<string, PlatformToolRecommendation> = {
     ruta: "/calculadoras/prestamos",
     chipLabel: "💰 Simulador de Préstamos",
   },
+  CLAUSULA_97: {
+    id: "clausula-97",
+    titulo: "Préstamo de Anticipo de Sueldo (Cláusula 97)",
+    descripcion: "Calcula el anticipo de hasta 3 meses de sueldo tabular sin intereses ni comisiones.",
+    ruta: "/calculadoras/clausula-97",
+    chipLabel: "💵 Préstamo Cláusula 97",
+  },
   VACACIONES: {
     id: "vacaciones",
     titulo: "Control y Calendario de Vacaciones",
@@ -53,6 +60,34 @@ export const PLATFORM_TOOLS: Record<string, PlatformToolRecommendation> = {
     descripcion: "Estima la prestación de la segunda quincena de julio según tu categoría.",
     ruta: "/calculadoras/segunda-julio",
     chipLabel: "💵 Calculadora Segunda de Julio",
+  },
+  SEGUNDA_JULIO_PROP: {
+    id: "segunda-julio-proporcional",
+    titulo: "Segunda de Julio Proporcional",
+    descripcion: "Calcula el importe proporcional de la segunda de julio según tus meses laborados.",
+    ruta: "/calculadoras/segunda-julio-proporcional",
+    chipLabel: "📊 Segunda de Julio Proporcional",
+  },
+  CALENDARIO: {
+    id: "calendario",
+    titulo: "Calendario Laboral IMSS",
+    descripcion: "Consulta descansos obligatorios, guardias y días festivos contractuales del CCT.",
+    ruta: "/calendario",
+    chipLabel: "🗓️ Calendario IMSS y Descansos",
+  },
+  MI_QUINCENA: {
+    id: "mi-quincena",
+    titulo: "Análisis de Mi Quincena",
+    descripcion: "Desglose claro de percepciones, deducciones y conceptos de tu pago quincenal.",
+    ruta: "/guia/mi-quincena",
+    chipLabel: "📊 Analizar mi Quincena",
+  },
+  CALCULADORAS_HUB: {
+    id: "calculadoras-hub",
+    titulo: "Centro de Calculadoras CCT",
+    descripcion: "Accede a todas las calculadoras y simuladores oficiales del Contrato Colectivo.",
+    ruta: "/calculadoras",
+    chipLabel: "🧮 Ver Todas las Calculadoras",
   },
   ESCRITOS: {
     id: "escritos",
@@ -98,8 +133,13 @@ export function recommendPlatformTools(question: string): PlatformToolRecommenda
   const q = question.toLowerCase()
   const tools: PlatformToolRecommendation[] = []
 
+  // Cláusula 97 / Anticipo de sueldo
+  if (/(cl[aá]usula\s*97|anticipo.*sueldo|anticipo.*3 meses|pr[eé]stamo.*sin inter[eé]s)/i.test(q)) {
+    tools.push(PLATFORM_TOOLS.CLAUSULA_97)
+  }
+
   // Horas extra
-  if (/(horas? extra|tiempo extraordinario|guardia|doblar turno|tiempo extra)/i.test(q)) {
+  if (/(horas? extra|tiempo extraordinario|guardia festiva|doblar turno|tiempo extra)/i.test(q)) {
     tools.push(PLATFORM_TOOLS.TIEMPO_EXTRA)
   }
 
@@ -110,7 +150,11 @@ export function recommendPlatformTools(question: string): PlatformToolRecommenda
 
   // Préstamos o fondo de ahorro
   if (/(pr[eé]stamo|fondo de ahorro|anticipo|caja de ahorro)/i.test(q)) {
-    tools.push(PLATFORM_TOOLS.PRESTAMOS)
+    if (/(cl[aá]usula\s*97|3 meses|sin inter[eé]s)/i.test(q)) {
+      tools.push(PLATFORM_TOOLS.CLAUSULA_97)
+    } else {
+      tools.push(PLATFORM_TOOLS.PRESTAMOS)
+    }
   }
 
   // Vacaciones / Regreso
@@ -120,13 +164,22 @@ export function recommendPlatformTools(question: string): PlatformToolRecommenda
     tools.push(PLATFORM_TOOLS.VACACIONES)
   }
 
-  // Segunda de julio
-  if (/(segunda.*julio|quincena.*julio|bono de julio)/i.test(q)) {
-    tools.push(PLATFORM_TOOLS.SEGUNDA_JULIO)
+  // Calendario / Festivos / Guardias / Inhábiles
+  if (/(calendario|d[ií]as? festivo|d[ií]a inh[aá]bil|descanso obligatorio|descansos obligatorios|puente)/i.test(q)) {
+    tools.push(PLATFORM_TOOLS.CALENDARIO)
   }
 
-  // Conflictos / Actas / Sanciones / Escritos
-  if (/(acta|sanci[oó]n|disciplin|inconform|queja|oficio|redactar|escrito|carta)/i.test(q)) {
+  // Segunda de julio
+  if (/(segunda.*julio|quincena.*julio|bono de julio)/i.test(q)) {
+    if (/(proporcional|meses trabajados|menos de un a[ñn]o)/i.test(q)) {
+      tools.push(PLATFORM_TOOLS.SEGUNDA_JULIO_PROP)
+    } else {
+      tools.push(PLATFORM_TOOLS.SEGUNDA_JULIO)
+    }
+  }
+
+  // Conflictos / Actas / Sanciones / Inconformidades / Escritos
+  if (/(acta|sanci[oó]n|disciplin|inconform|queja|oficio|redactar|escrito|carta|hostig|acoso|fuera de categor|descuento indebido|negar.*vacacion|negativa.*vacacion|reclam)/i.test(q)) {
     tools.push(PLATFORM_TOOLS.ESCRITOS)
   }
 
@@ -134,10 +187,18 @@ export function recommendPlatformTools(question: string): PlatformToolRecommenda
     tools.push(PLATFORM_TOOLS.BITACORA)
   }
 
-  // Conceptos o Tarjetón
-  if (/(concepto\s*\d{2,3}|clave\s*\d{2,3}|qu[eé] significa el concepto|mi tarjet[oó]n|desglose)/i.test(q)) {
+  // Conceptos, Recibo o Tarjetón
+  if (/(mi quincena|desglose quincenal|revisar mi recibo|cu[aá]nto me depositaron|descuentos en recibo|percepciones y deducciones|mi cobro|cu[aá]nto cobr[eé]|mi neto|sueldo neto)/i.test(q)) {
+    tools.push(PLATFORM_TOOLS.MI_QUINCENA)
+    tools.push(PLATFORM_TOOLS.TARJETON)
+  } else if (/(concepto\s*\d{2,3}|clave\s*\d{2,3}|qu[eé] significa el concepto|mi tarjet[oó]n|tarjet[oó]n|desglose|marcas? de asistencia|sin retardo|asistencia puntual|marca de continuidad)/i.test(q)) {
     tools.push(PLATFORM_TOOLS.GUIA_CONCEPTOS)
     tools.push(PLATFORM_TOOLS.TARJETON)
+  }
+
+  // Calculadoras en general
+  if (/(calculadora|simulador|todas las calculadoras|calcular)/i.test(q) && tools.length === 0) {
+    tools.push(PLATFORM_TOOLS.CALCULADORAS_HUB)
   }
 
   // Normativa completa

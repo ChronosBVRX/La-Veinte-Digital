@@ -16,6 +16,10 @@ import android.webkit.WebView
 fun WebSettings.configureForLaVeinte(appVersion: String) {
     javaScriptEnabled = true
     domStorageEnabled = true
+    // Bloquear zoom a nivel nativo en la app para evitar comportamiento tipo web.
+    setSupportZoom(false)
+    builtInZoomControls = false
+    displayZoomControls = false
     // The internal app only loads https:// resources from our own domains and trusted gov portals.
     // File access from the WebView is not required (the PDF/document picker uses the Storage Access
     // Framework, and documents are stored in app-private storage), so we disable it. This also

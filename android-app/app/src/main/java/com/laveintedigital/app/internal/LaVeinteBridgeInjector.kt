@@ -183,6 +183,14 @@ object LaVeinteBridgeInjector {
         window.location.href = 'laveinte://bridge/getPendingPrintDoc?req=' + id;
       });
     },
+    syncAgendaReminders: function(dataJson) {
+      return new Promise(function(resolve) {
+        var id = 'req' + (++__seq);
+        __pending[id] = function(p) { try { resolve(JSON.parse(p || '{"ok":true}')); } catch(e) { resolve({ok:false}); } };
+        var payload = encodeURIComponent(dataJson || '[]');
+        window.location.href = 'laveinte://bridge/syncAgendaReminders?req=' + id + '&data=' + payload;
+      });
+    },
     clearPendingPrintDoc: function() {
       window.location.href = 'laveinte://bridge/clearPendingPrintDoc';
     },
@@ -272,10 +280,19 @@ fun handleBridgeUrl(url: String, webView: WebView?): Boolean {
             val req = parsed.queryParams["req"] ?: return true
             BridgeHandler.onGetPendingPrintDoc?.invoke(webView, req)
         }
+        "/syncAgendaReminders" -> {
+            val req = parsed.queryParams["req"] ?: return true
+            val data = parsed.queryParams["data"] ?: "[]"
+            BridgeHandler.onSyncAgendaReminders?.invoke(webView, req, data)
+        }
         "/clearPendingPrintDoc" -> {
             com.laveintedigital.app.imss.payslips.NativeDocuments.PendingPrint.clear()
         }
         "/openAppSettings" -> BridgeHandler.onOpenAppSettings?.invoke()
+        "/openExternal" -> {
+            val targetUrl = parsed.queryParams["url"] ?: return true
+            BridgeHandler.onOpenExternal?.invoke(targetUrl)
+        }
         "/share" -> {
             val title = parsed.queryParams["title"]
             val text = parsed.queryParams["text"]
@@ -357,6 +374,8 @@ object BridgeHandler {
     /** Escaneo de documentos con ML Kit: (webView, reqId, optionsJson). */
     var onScanDocument: ((WebView?, String, String) -> Unit)? = null
     var onOpenAppSettings: (() -> Unit)? = null
+    var onOpenExternal: ((String) -> Unit)? = null
     var onShare: ((String?, String?) -> Unit)? = null
     var onShareNativeDocument: ((String, String?) -> Unit)? = null
+    var onSyncAgendaReminders: ((WebView?, String, String) -> Unit)? = null
 }

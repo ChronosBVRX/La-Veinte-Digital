@@ -11,8 +11,9 @@
  */
 
 import { scopedStorageKey } from "@/shared/services/scoped-storage"
+import type { TarjetonObservation } from "@/shared/contracts/tarjeton-import"
 
-export const CURRENT_PARSER_VERSION = "2026.09.v1"
+export const CURRENT_PARSER_VERSION = "2026.10.v2"
 const STORAGE_KEY_PREFIX = "la_veinte_payslip_analyses"
 
 /**
@@ -42,6 +43,7 @@ export interface PayslipAnalysis {
   deductionsTotal: number
   netAmount: number
   concepts: PayslipConcept[]
+  observations?: TarjetonObservation[]
   status: PayslipAnalysisStatus
   analyzedAt: string | null
   errorCode: string | null

@@ -59,6 +59,17 @@ export function useCommitments(userId: string, initialRows?: CommitmentRow[]) {
 
   useCommitmentsListener(refresh)
 
+  // Sincronización automática de recordatorios locales con el teléfono (AlarmManager nativo)
+  useEffect(() => {
+    if (loading || fetchError) return
+    if (typeof window === "undefined" || !window.LaVeinteApp?.syncAgendaReminders) return
+
+    const active = commitments.filter((c) => c.status === "active")
+    window.LaVeinteApp.syncAgendaReminders(JSON.stringify(active)).catch((e: unknown) => {
+      console.warn("[useCommitments] Fallo sincronizando alarmas locales:", e)
+    })
+  }, [commitments, loading, fetchError])
+
   useEffect(() => {
     if (fetchError || migration !== "pending" || loading) return
 
