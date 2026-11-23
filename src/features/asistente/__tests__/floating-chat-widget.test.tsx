@@ -105,6 +105,24 @@ describe("FloatingChatWidget y FloatingChatContext", () => {
     expect(screen.getByLabelText("Abrir asistente de derechos")).toBeTruthy()
   })
 
+  it("al abrir el chat muestra el backdrop con blur y se cierra al hacer clic en él", () => {
+    render(
+      <FloatingChatProvider>
+        <FloatingChatWidget />
+      </FloatingChatProvider>
+    )
+
+    fireEvent.click(screen.getByLabelText("Abrir asistente de derechos"))
+    const backdrop = screen.getByTestId("chat-backdrop")
+    expect(backdrop).toBeTruthy()
+    expect(backdrop.style.backdropFilter).toContain("blur")
+
+    // Al hacer clic en el backdrop se cierra el chat
+    fireEvent.click(backdrop)
+    expect(screen.queryByTestId("chat-backdrop")).toBeNull()
+    expect(screen.queryByTestId("chat-assistant-body")).toBeNull()
+  })
+
   it("los controladores externos del contexto pueden manipular el chat", () => {
     render(
       <FloatingChatProvider>
