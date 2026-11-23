@@ -49,6 +49,9 @@ vi.mock("@/features/salary-estimate/components/SalaryIncreaseCard", () => ({ Sal
 vi.mock("@/features/vacations/components/Vacation2027AnnouncementCard", () => ({
   Vacation2027AnnouncementCard: () => <div data-testid="vacation-2027-announcement" />,
 }))
+vi.mock("@/features/escritos/server/escritos-stats-service", () => ({
+  getEscritosStats: vi.fn(async () => ({ totalGenerados: 0, totalCompaneros: 0 })),
+}))
 
 import DashboardPage from "@/app/(dashboard)/page"
 

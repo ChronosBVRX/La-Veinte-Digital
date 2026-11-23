@@ -30,34 +30,46 @@ export async function getEscritosStats(
 ): Promise<EscritosStats> {
   const fallback: EscritosStats = { totalGenerados: 0, totalCompaneros: 0 }
 
-  try {
-    const client = getSupabaseClient(customClient, false)
-    if (!client) return fallback
+  const fetchPromise = async (): Promise<EscritosStats> => {
+    try {
+      const client = getSupabaseClient(customClient, false)
+      if (!client) return fallback
 
-    // Primero intentamos vía RPC get_escritos_stats (optimizado y atómico)
-    const { data: rpcData, error: rpcError } = await client.rpc("get_escritos_stats" as unknown as keyof Database["public"]["Functions"])
+      // Primero intentamos vía RPC get_escritos_stats (optimizado y atómico)
+      const { data: rpcData, error: rpcError } = await client.rpc("get_escritos_stats" as unknown as keyof Database["public"]["Functions"])
 
-    if (!rpcError && rpcData && typeof rpcData === "object") {
-      const parsed = rpcData as { total_generados?: number; total_companeros?: number }
-      return {
-        totalGenerados: Number(parsed.total_generados) || 0,
-        totalCompaneros: Number(parsed.total_companeros) || 0,
+      if (!rpcError && rpcData && typeof rpcData === "object") {
+        const parsed = rpcData as { total_generados?: number; total_companeros?: number }
+        return {
+          totalGenerados: Number(parsed.total_generados) || 0,
+          totalCompaneros: Number(parsed.total_companeros) || 0,
+        }
       }
-    }
 
-    // Fallback: consulta directa a la tabla si el RPC no estuviera disponible
-    const { count: totalGenerados } = await client
-      .from("escritos_generations_log" as unknown as keyof Database["public"]["Tables"])
-      .select("id", { count: "exact", head: true })
+      // Fallback: consulta directa a la tabla si el RPC no estuviera disponible
+      const { count: totalGenerados } = await client
+        .from("escritos_generations_log" as unknown as keyof Database["public"]["Tables"])
+        .select("id", { count: "exact", head: true })
 
-    return {
-      totalGenerados: totalGenerados ?? 0,
-      totalCompaneros: totalGenerados ? 1 : 0,
+      return {
+        totalGenerados: totalGenerados ?? 0,
+        totalCompaneros: totalGenerados ? 1 : 0,
+      }
+    } catch (error) {
+      console.warn("[escritos-stats-service] Error obteniendo estadísticas de escritos:", error)
+      return fallback
     }
-  } catch (error) {
-    console.warn("[escritos-stats-service] Error obteniendo estadísticas de escritos:", error)
-    return fallback
   }
+
+  // Timeout preventivo de 2 segundos para evitar bloquear SSR si la red/base de datos demora
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeoutPromise = new Promise<EscritosStats>((resolve) => {
+    timer = setTimeout(() => resolve(fallback), 2000)
+  })
+
+  return Promise.race([fetchPromise(), timeoutPromise]).finally(() => {
+    if (timer) clearTimeout(timer)
+  })
 }
 
 export interface RecordEscritoGenerationParams {
