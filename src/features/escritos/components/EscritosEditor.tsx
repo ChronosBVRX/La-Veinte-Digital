@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Button } from "@/shared/components/ui/Button"
+import { Input } from "@/shared/components/ui/Input"
 import { Card } from "@/shared/components/ui/Card"
 import type { EscritoDraftV2 } from "@/shared/contracts/escrito-draft"
 import { useEscritoEditorHistory } from "../hooks/useEscritoEditorHistory"
@@ -286,6 +287,16 @@ export function EscritosEditor({
         </div>
       </div>
 
+      {/* Asunto formal del oficio */}
+      <div style={{ width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
+        <Input
+          label="Asunto formal del oficio"
+          placeholder="Ej. Solicitud de cambio de adscripción por motivo de salud"
+          value={draft.asunto}
+          onChange={(e) => onUpdateDraft({ asunto: e.target.value })}
+        />
+      </div>
+
       {/* Área principal de texto enriquecido */}
       <div style={{ position: "relative", width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
         <textarea
@@ -293,6 +304,7 @@ export function EscritosEditor({
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
           rows={12}
+          className="textarea-mobile-font"
           style={{
             width: "100%",
             maxWidth: "100%",

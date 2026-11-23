@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest"
 import { render, screen } from "@testing-library/react"
-import { Input } from "../Input"
+import { Input, Textarea } from "../Input"
 
 describe("Input", () => {
   it("renders an input element", () => {
@@ -13,6 +13,13 @@ describe("Input", () => {
     render(<Input placeholder="Buscar..." />)
     const input = screen.getByPlaceholderText("Buscar...")
     expect(input).toBeTruthy()
+  })
+
+  it("includes placeholder style rule in injected styles", () => {
+    const { container } = render(<Input placeholder="Texto de ejemplo" />)
+    const styleTag = container.querySelector("style")
+    expect(styleTag?.textContent).toContain(".input-mobile-font::placeholder")
+    expect(styleTag?.textContent).toContain("var(--placeholder")
   })
 
   it("passes through value", () => {
@@ -59,5 +66,15 @@ describe("Input", () => {
     expect(id).toBeTruthy()
     const label = screen.getByText("Email")
     expect(label.getAttribute("for")).toBe(id)
+  })
+})
+
+describe("Textarea", () => {
+  it("renders a textarea element with placeholder style rule", () => {
+    const { container } = render(<Textarea placeholder="Ejemplo de hechos..." />)
+    expect(screen.getByPlaceholderText("Ejemplo de hechos...")).toBeTruthy()
+    const styleTag = container.querySelector("style")
+    expect(styleTag?.textContent).toContain(".textarea-mobile-font::placeholder")
+    expect(styleTag?.textContent).toContain("var(--placeholder")
   })
 })

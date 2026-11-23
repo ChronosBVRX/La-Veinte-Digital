@@ -20,7 +20,13 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
 
   return (
     <div style={{ width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
-      <style>{`@media (pointer: coarse) { .input-mobile-font { font-size: 16px !important; } }`}</style>
+      <style>{`
+        @media (pointer: coarse) { .input-mobile-font { font-size: 16px !important; } }
+        .input-mobile-font::placeholder {
+          color: var(--placeholder, rgba(37, 99, 235, 0.7));
+          opacity: 1;
+        }
+      `}</style>
       {label && (
         <label
           htmlFor={inputId}
@@ -107,7 +113,13 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
 
   return (
     <div style={{ width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
-      <style>{`@media (pointer: coarse) { .textarea-mobile-font { font-size: 16px !important; } }`}</style>
+      <style>{`
+        @media (pointer: coarse) { .textarea-mobile-font { font-size: 16px !important; } }
+        .textarea-mobile-font::placeholder {
+          color: var(--placeholder, rgba(37, 99, 235, 0.7));
+          opacity: 1;
+        }
+      `}</style>
       {label && (
         <label
           htmlFor={textareaId}

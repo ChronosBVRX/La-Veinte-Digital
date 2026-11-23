@@ -3,6 +3,7 @@ import {
   type GenerarEscritoRequest,
   type GenerarEscritoResponse,
 } from "@/shared/contracts/escrito-draft"
+import { inferAsuntoFromProblem } from "@/shared/lib/escrito-asunto"
 
 /**
  * Genera un borrador determinista estructurado en párrafos claros sin invocar LLMs.
@@ -12,7 +13,7 @@ export function generateBasicFallbackEscrito(req: GenerarEscritoRequest): Genera
   const tipoDef = TIPOS_ESCRITO[req.tipo as keyof typeof TIPOS_ESCRITO]
   const tipoNombre = tipoDef ? tipoDef.titulo : "Escrito"
 
-  const asunto = req.asunto || `${tipoNombre}: ${req.hechos.slice(0, 60)}...`
+  const asunto = inferAsuntoFromProblem(req.tipo, req.hechos, req.peticion, req.asunto)
   const titulo = `Escrito de ${tipoNombre} - ${req.destino?.nombre || req.destino?.cargo || "Destinatario"}`
 
   const cuerpo =

@@ -112,6 +112,8 @@ export type GenerationMode =
   | "basic_fallback"
   | "manual"
 
+export type AnexosDistributionLayout = "compact" | "individual"
+
 export interface EscritoDraftV2 {
   schemaVersion: 2
   id: string
@@ -128,6 +130,13 @@ export interface EscritoDraftV2 {
   atencion: DestinatarioItem[]
   copias: DestinatarioItem[]
   anexos: AnexoItem[]
+  /**
+   * Distribución de anexos fotográficos al imprimir:
+   * - "compact": varias fotos por hoja (2 por página) para ahorrar papel.
+   * - "individual": una foto por hoja para máximo detalle.
+   * @default "individual"
+   */
+  anexosLayout?: AnexosDistributionLayout
   fuentes: FuenteNormativaVerificada[]
   incluirFundamentos: boolean
   /**
@@ -234,6 +243,7 @@ export function createEmptyEscritoDraftV2(
     atencion: initialValues?.atencion ?? [],
     copias: initialValues?.copias ?? [],
     anexos: initialValues?.anexos ?? [],
+    anexosLayout: initialValues?.anexosLayout,
     fuentes: initialValues?.fuentes ?? [],
     incluirFundamentos: initialValues?.incluirFundamentos ?? true,
     firmaRef: initialValues?.firmaRef,

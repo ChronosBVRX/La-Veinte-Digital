@@ -295,4 +295,35 @@ describe("Renderizador de PDF Vectorial Carta (escrito-pdf-renderer)", () => {
     expect(pdfFile).toBeInstanceOf(File)
     expect(pdfFile.size).toBeGreaterThan(2000)
   })
+
+  it("renderStoredEscritoToPdfFile agrupa anexos en modo 'compact' (2 fotos por página)", async () => {
+    const userId = "usr_pdf_compact_anexos"
+    const photo1 = createValidPngBlob(400, 200)
+    const photo2 = createValidPngBlob(300, 300)
+    const photo3 = createValidPngBlob(200, 400)
+
+    const ref1 = await saveBlobResource(userId, "doc_compact", "anexo", "p1", photo1)
+    const ref2 = await saveBlobResource(userId, "doc_compact", "anexo", "p2", photo2)
+    const ref3 = await saveBlobResource(userId, "doc_compact", "anexo", "p3", photo3)
+
+    const draft = createEmptyEscritoDraftV2(userId, "solicitud", {
+      id: "doc_compact",
+      asunto: "Escrito con 3 anexos en modo compacto",
+      cuerpo: "Cuerpo breve de prueba.",
+      anexosLayout: "compact",
+      anexos: [
+        { id: "a1", nombre: "Foto 1", descripcion: "Desc 1", tipo: "image/png", size: photo1.size, storageRef: ref1 },
+        { id: "a2", nombre: "Foto 2", descripcion: "Desc 2", tipo: "image/png", size: photo2.size, storageRef: ref2 },
+        { id: "a3", nombre: "Foto 3", descripcion: "Desc 3", tipo: "image/png", size: photo3.size, storageRef: ref3 },
+      ],
+    })
+
+    // 1 página de oficio + 2 páginas de anexos (página 1 con anexos 1 y 2, página 2 con anexo 3)
+    const jsDoc = await buildJsPdfDocument(draft, userId)
+    expect(jsDoc.getNumberOfPages()).toBe(3) // en modo individual habrían sido 4 (1 + 3)
+
+    // En modo individual explícito:
+    const jsDocIndividual = await buildJsPdfDocument(draft, userId, { anexosLayout: "individual" })
+    expect(jsDocIndividual.getNumberOfPages()).toBe(4) // 1 principal + 3 anexos
+  })
 })

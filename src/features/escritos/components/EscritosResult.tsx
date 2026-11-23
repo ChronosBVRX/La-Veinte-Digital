@@ -1,8 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/shared/components/ui/Button"
 import { Card } from "@/shared/components/ui/Card"
+import { LoadingSpinner } from "@/shared/components/ui/LoadingSpinner"
 import { SendPrintModal } from "@/shared/components/app/SendPrintModal"
 import type { EscritoDraftV2 } from "@/shared/contracts/escrito-draft"
 import {
@@ -17,6 +18,7 @@ import { shareGeneratedPdf } from "@/shared/services/pdfShareBridge"
 import { AiContentReport } from "@/shared/components/ui/AiContentReport"
 import { SourceAttribution } from "@/shared/components/ui/SourceAttribution"
 import { paginateEscritoForPreview } from "../lib/escrito-pagination"
+import { isGenericAsunto, inferAsuntoFromProblem } from "@/shared/lib/escrito-asunto"
 
 export interface EscritosResultProps {
   userId: string
@@ -49,7 +51,84 @@ export function EscritosResult({
   const [shareFeedback, setShareFeedback] = useState<string | null>(null)
 
   const textSheets = paginateEscritoForPreview(draft.cuerpo)
-  const totalSheets = textSheets.length + draft.anexos.length
+  const isCompactAnexos = (draft.anexosLayout || "compact") === "compact" && draft.anexos.length > 1
+  const anexoSheetsCount = isCompactAnexos ? Math.ceil(draft.anexos.length / 2) : draft.anexos.length
+  const totalSheets = textSheets.length + anexoSheetsCount
+
+  const displayAsunto = isGenericAsunto(draft.asunto)
+    ? draft.hechos || draft.peticion
+      ? inferAsuntoFromProblem(draft.tipo, draft.hechos, draft.peticion, "")
+      : ""
+    : draft.asunto || ""
+
+  const [pdfPages, setPdfPages] = useState<string[]>([])
+  const [isPdfRendering, setIsPdfRendering] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+
+    const renderPdfPreview = async () => {
+      if (typeof window === "undefined" || typeof document === "undefined") {
+        setIsPdfRendering(false)
+        return
+      }
+
+      setIsPdfRendering(true)
+
+      try {
+        const file = await renderStoredEscritoToPdfFile(draft, userId, {
+          nombreTrabajador: workerProfile?.nombre,
+          nombre: workerProfile?.nombre,
+          matricula: workerProfile?.matricula,
+          categoria: workerProfile?.categoria,
+          adscripcion: workerProfile?.adscripcion,
+        })
+        if (cancelled) return
+
+        const buf = await file.arrayBuffer()
+        if (cancelled) return
+
+        const { loadPdfDocument } = await import("@/shared/lib/pdfjs-client")
+        const { pdf } = await loadPdfDocument(buf)
+        if (cancelled) return
+
+        const dpr = window.devicePixelRatio || 2
+        const renderScale = Math.min(Math.max(dpr, 2.0), 2.5)
+
+        const pages: string[] = []
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i)
+          const viewport = page.getViewport({ scale: renderScale })
+          const canvas = document.createElement("canvas")
+          canvas.width = Math.ceil(viewport.width)
+          canvas.height = Math.ceil(viewport.height)
+          const ctx = canvas.getContext("2d")
+          if (ctx) {
+            await page.render({ canvasContext: ctx, viewport, canvas }).promise
+            pages.push(canvas.toDataURL("image/png"))
+          }
+          canvas.width = 0
+          canvas.height = 0
+        }
+
+        if (!cancelled) {
+          setPdfPages(pages)
+          setIsPdfRendering(false)
+        }
+      } catch (err) {
+        console.warn("[EscritosResult] Fallback a vista HTML de papel:", err)
+        if (!cancelled) {
+          setIsPdfRendering(false)
+        }
+      }
+    }
+
+    renderPdfPreview()
+
+    return () => {
+      cancelled = true
+    }
+  }, [draft, userId, workerProfile])
 
   const handleSaveSignature = (firmaRef: string, previewUrl: string) => {
     onUpdateDraft({
@@ -177,7 +256,7 @@ export function EscritosResult({
               whiteSpace: "nowrap",
             }}
           >
-            📄 Hoja Carta (Oficio)
+            🖨 Vista Previa de Impresión (Papel)
           </button>
           <button
             type="button"
@@ -211,7 +290,122 @@ export function EscritosResult({
         </div>
       </div>
 
-      {/* Banner informativo de paginación oficial */}
+      {/* Banner informativo de vista previa de impresión */}
+      {viewMode === "sheet" && (
+        <div
+          style={{
+            background: "var(--card)",
+            border: "1px solid var(--border)",
+            borderRadius: "0.5rem",
+            padding: "0.75rem 1rem",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: "0.75rem",
+            fontSize: "0.8125rem",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "0.625rem", color: "var(--fg)" }}>
+            <span style={{ fontSize: "1.25rem" }}>🖨</span>
+            <div>
+              <div style={{ fontWeight: 700 }}>
+                Vista Previa de Impresión Real • Formato Carta Oficial (8.5&quot; × 11&quot;)
+              </div>
+              <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
+                {pdfPages.length > 0
+                  ? `Mostrando exactamente cómo se verá en papel: ${pdfPages.length} ${pdfPages.length === 1 ? "hoja real" : "hojas reales"} con márgenes, encabezados y firma.`
+                  : totalSheets === 1
+                  ? "1 hoja de oficio carta lista para imprimir."
+                  : `${totalSheets} hojas (${textSheets.length} de oficio${draft.anexos.length > 0 ? ` + ${anexoSheetsCount} de anexos` : ""}).`}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleDirectPrint}
+              loading={isPrinting}
+              title="Abrir vista previa e impresión del sistema"
+            >
+              🖨 Abrir vista del sistema
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Selector de distribución de fotos al imprimir (cuando hay 2 o más fotos) */}
+      {viewMode === "sheet" && draft.anexos.length >= 2 && (
+        <div
+          style={{
+            background: "var(--card)",
+            border: "1px solid var(--border)",
+            borderRadius: "0.5rem",
+            padding: "0.625rem 0.875rem",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: "0.5rem",
+            fontSize: "0.8125rem",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <span>📷</span>
+            <div>
+              <span style={{ fontWeight: 600, color: "var(--fg)" }}>
+                Distribución de fotos ({draft.anexos.length} fotos):{" "}
+              </span>
+              <span style={{ color: "var(--muted)" }}>
+                {isCompactAnexos
+                  ? `Varias por hoja (2 por página, ${anexoSheetsCount} hoja${
+                      anexoSheetsCount > 1 ? "s" : ""
+                    }) para ahorrar papel.`
+                  : `Una foto por hoja (${draft.anexos.length} hojas dedicadas) para máximo detalle.`}
+              </span>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", gap: "0.375rem" }}>
+            <button
+              type="button"
+              onClick={() => onUpdateDraft({ anexosLayout: "compact" })}
+              style={{
+                padding: "0.3125rem 0.625rem",
+                fontSize: "0.75rem",
+                fontWeight: 600,
+                borderRadius: "0.375rem",
+                border: isCompactAnexos ? "1px solid var(--primary)" : "1px solid var(--border)",
+                background: isCompactAnexos ? "var(--primary)" : "var(--accent)",
+                color: isCompactAnexos ? "var(--primary-fg)" : "var(--fg)",
+                cursor: "pointer",
+              }}
+            >
+              📄 Varias por hoja
+            </button>
+            <button
+              type="button"
+              onClick={() => onUpdateDraft({ anexosLayout: "individual" })}
+              style={{
+                padding: "0.3125rem 0.625rem",
+                fontSize: "0.75rem",
+                fontWeight: 600,
+                borderRadius: "0.375rem",
+                border: !isCompactAnexos ? "1px solid var(--primary)" : "1px solid var(--border)",
+                background: !isCompactAnexos ? "var(--primary)" : "var(--accent)",
+                color: !isCompactAnexos ? "var(--primary-fg)" : "var(--fg)",
+                cursor: "pointer",
+              }}
+            >
+              📑 Una por hoja
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Barra de firma digitalizada */}
       {viewMode === "sheet" && (
         <div
           style={{
@@ -220,30 +414,93 @@ export function EscritosResult({
             borderRadius: "0.5rem",
             padding: "0.625rem 0.875rem",
             display: "flex",
-            alignItems: "center",
             justifyContent: "space-between",
+            alignItems: "center",
             flexWrap: "wrap",
             gap: "0.5rem",
             fontSize: "0.8125rem",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "var(--fg)" }}>
-            <span>📄</span>
-            <span>
-              <strong>Formato Carta Oficio</strong> • {totalSheets === 1 ? "1 página" : `${totalSheets} páginas (${textSheets.length} de oficio${draft.anexos.length > 0 ? ` + ${draft.anexos.length} de anexos` : ""})`}
-            </span>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <span>✍️</span>
+            <div>
+              <span style={{ fontWeight: 600, color: "var(--fg)" }}>Firma del escrito: </span>
+              <span style={{ color: "var(--muted)" }}>
+                {draft.firmaPreviewUrl
+                  ? "Firma digitalizada incluida directamente en el documento impreso."
+                  : "Opcional. Si no insertas firma digital, incluye la línea para firmar con bolígrafo al imprimir."}
+              </span>
+            </div>
           </div>
-          <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
-            {totalSheets > 1
-              ? "Paginación 'Página X de Y', márgenes y encabezados protegidos"
-              : "Cabe completamente en una sola hoja"}
-          </span>
+          <div>
+            {draft.firmaPreviewUrl ? (
+              <div style={{ display: "flex", gap: "0.375rem" }}>
+                <Button variant="ghost" size="sm" onClick={() => setIsSignatureModalOpen(true)}>
+                  Cambiar firma
+                </Button>
+                <Button variant="ghost" size="sm" onClick={handleRemoveSignature}>
+                  Quitar
+                </Button>
+              </div>
+            ) : (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setIsSignatureModalOpen(true)}
+                style={{ border: "1px dashed var(--border)" }}
+              >
+                ✍️ Insertar firma digitalizada
+              </Button>
+            )}
+          </div>
         </div>
       )}
 
       {/* Renderizado Vista Hoja Carta (Formato Oficio Fiel al PDF y Paginado) */}
       {viewMode === "sheet" ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: "1.75rem", width: "100%", maxWidth: "700px", margin: "0 auto", boxSizing: "border-box" }}>
+        pdfPages.length > 0 ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: "2rem", width: "100%", maxWidth: "720px", margin: "0 auto", boxSizing: "border-box" }}>
+            {pdfPages.map((pageSrc, pageIdx) => (
+              <div key={pageIdx} style={{ display: "flex", flexDirection: "column", gap: "0.375rem", width: "100%", boxSizing: "border-box" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 0.5rem", fontSize: "0.75rem", color: "var(--muted)", fontWeight: 600 }}>
+                  <span>
+                    Hoja {pageIdx + 1} de {pdfPages.length} {pageIdx === 0 ? "• Inicio de oficio" : pageIdx >= textSheets.length ? `• Anexo ${pageIdx - textSheets.length + 1}` : "• Continuación"}
+                  </span>
+                  <span>Papel Carta (8.5&quot; × 11&quot;)</span>
+                </div>
+
+                <div
+                  style={{
+                    background: "#ffffff",
+                    borderRadius: "2px",
+                    boxShadow: "0 4px 20px rgba(0, 0, 0, 0.16), 0 1px 4px rgba(0, 0, 0, 0.08)",
+                    border: "1px solid rgba(0, 0, 0, 0.1)",
+                    width: "100%",
+                    boxSizing: "border-box",
+                    overflow: "hidden",
+                  }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={pageSrc}
+                    alt={`Página ${pageIdx + 1} del escrito impreso`}
+                    style={{
+                      width: "100%",
+                      height: "auto",
+                      display: "block",
+                      maxWidth: "100%",
+                    }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : isPdfRendering ? (
+          <div style={{ textAlign: "center", padding: "3rem 1rem", background: "var(--card)", borderRadius: "0.5rem", border: "1px solid var(--border)" }}>
+            <LoadingSpinner text="Generando vista previa de impresión en papel..." />
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: "1.75rem", width: "100%", maxWidth: "700px", margin: "0 auto", boxSizing: "border-box" }}>
           {textSheets.map((sheet) => (
             <div key={sheet.sheetNumber} style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
               {totalSheets > 1 && (
@@ -287,9 +544,9 @@ export function EscritosResult({
                       </div>
 
                       {/* Asunto */}
-                      {draft.asunto && (
+                      {displayAsunto && (
                         <div style={{ textAlign: "right", fontWeight: "bold", marginBottom: "1.5rem", fontSize: "0.9375rem" }}>
-                          ASUNTO: {draft.asunto}
+                          ASUNTO: {displayAsunto}
                         </div>
                       )}
 
@@ -326,7 +583,7 @@ export function EscritosResult({
                     /* Encabezado de continuidad en Hoja 2+ */
                     <div style={{ borderBottom: "1px solid #cbd5e1", paddingBottom: "0.5rem", marginBottom: "1.5rem", display: "flex", justifyContent: "space-between", fontSize: "0.8125rem", color: "#64748b", fontStyle: "italic" }}>
                       <span>
-                        Continuación {draft.asunto ? `- ASUNTO: ${draft.asunto}` : "de oficio formal"}
+                        Continuación {displayAsunto ? `- ASUNTO: ${displayAsunto}` : "de oficio formal"}
                       </span>
                       <span>Hoja {sheet.sheetNumber}</span>
                     </div>
@@ -428,14 +685,29 @@ export function EscritosResult({
             </div>
           ))}
 
-          {/* Hojas dedicadas para anexos */}
-          {draft.anexos.map((anx, i) => {
-            const anexoPageNum = textSheets.length + i + 1
+          {/* Hojas para anexos (Fallback HTML) */}
+          {(isCompactAnexos
+            ? Array.from({ length: Math.ceil(draft.anexos.length / 2) }, (_, pageIdx) => ({
+                pageIdx,
+                items: draft.anexos.slice(pageIdx * 2, pageIdx * 2 + 2),
+                startIdx: pageIdx * 2,
+              }))
+            : draft.anexos.map((anx, i) => ({
+                pageIdx: i,
+                items: [anx],
+                startIdx: i,
+              }))
+          ).map((page) => {
+            const anexoPageNum = textSheets.length + page.pageIdx + 1
+            const anexoLabels = page.items
+              .map((_, subIdx) => `Anexo ${page.startIdx + subIdx + 1}`)
+              .join(" y ")
+
             return (
-              <div key={anx.id} style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
+              <div key={`anexo_page_${page.pageIdx}`} style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 0.5rem", fontSize: "0.75rem", color: "var(--muted)", fontWeight: 600 }}>
                   <span>
-                    Hoja {anexoPageNum} de {totalSheets} • Anexo {i + 1}
+                    Hoja {anexoPageNum} de {totalSheets} • {anexoLabels}
                   </span>
                   <span>Evidencia documental</span>
                 </div>
@@ -458,24 +730,41 @@ export function EscritosResult({
                     justifyContent: "space-between",
                   }}
                 >
-                  <div>
-                    <div style={{ fontWeight: "bold", fontSize: "1rem", textTransform: "uppercase", marginBottom: "0.5rem", color: "#0f172a" }}>
-                      ANEXO {i + 1}: {anx.nombre.toUpperCase()}
-                    </div>
-                    {anx.descripcion && (
-                      <div style={{ fontSize: "0.875rem", color: "#475569", fontStyle: "italic", marginBottom: "1.25rem" }}>
-                        {anx.descripcion}
-                      </div>
-                    )}
-                    {anx.previewUrl && (
-                      <div style={{ textAlign: "center", marginTop: "1rem" }}>
-                        <img
-                          src={anx.previewUrl}
-                          alt={anx.nombre}
-                          style={{ maxWidth: "100%", maxHeight: "500px", height: "auto", objectFit: "contain", borderRadius: "0.375rem", border: "1px solid #cbd5e1" }}
-                        />
-                      </div>
-                    )}
+                  <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+                    {page.items.map((anx, subIdx) => {
+                      const globalIdx = page.startIdx + subIdx
+                      return (
+                        <div key={anx.id}>
+                          {subIdx > 0 && (
+                            <div style={{ borderTop: "1px dashed #cbd5e1", margin: "1.25rem 0" }} />
+                          )}
+                          <div style={{ fontWeight: "bold", fontSize: isCompactAnexos ? "0.9375rem" : "1rem", textTransform: "uppercase", marginBottom: "0.375rem", color: "#0f172a" }}>
+                            ANEXO {globalIdx + 1}: {anx.nombre.toUpperCase()}
+                          </div>
+                          {anx.descripcion && (
+                            <div style={{ fontSize: isCompactAnexos ? "0.8125rem" : "0.875rem", color: "#475569", fontStyle: "italic", marginBottom: "0.75rem" }}>
+                              {anx.descripcion}
+                            </div>
+                          )}
+                          {anx.previewUrl && (
+                            <div style={{ textAlign: "center", marginTop: "0.5rem" }}>
+                              <img
+                                src={anx.previewUrl}
+                                alt={anx.nombre}
+                                style={{
+                                  maxWidth: "100%",
+                                  maxHeight: isCompactAnexos ? "240px" : "500px",
+                                  height: "auto",
+                                  objectFit: "contain",
+                                  borderRadius: "0.375rem",
+                                  border: "1px solid #cbd5e1",
+                                }}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
                   </div>
 
                   <div style={{ borderTop: "1px solid #f1f5f9", paddingTop: "0.625rem", marginTop: "1.5rem", textAlign: "right", fontSize: "0.75rem", color: "#94a3b8" }}>
@@ -486,6 +775,7 @@ export function EscritosResult({
             )
           })}
         </div>
+        )
       ) : (
         /* Renderizado Vista Lectura Móvil */
         <Card padding="1.25rem" style={{ width: "100%", boxSizing: "border-box" }}>
@@ -501,9 +791,9 @@ export function EscritosResult({
 
             <DestinatarioResumen destino={draft.destino} readOnly />
 
-            {draft.asunto && (
+            {displayAsunto && (
               <div style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--primary)", overflowWrap: "break-word" }}>
-                Asunto: {draft.asunto}
+                Asunto: {displayAsunto}
               </div>
             )}
 
