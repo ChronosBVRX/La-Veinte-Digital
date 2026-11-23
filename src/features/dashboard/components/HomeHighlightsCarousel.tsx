@@ -12,15 +12,12 @@ import {
 import Link from "next/link"
 import {
   CalendarCheck,
-  CopySimple,
   ArrowsLeftRight,
   Calculator,
   BookOpen,
   ArrowRight,
   CaretLeft,
   CaretRight,
-  FileText,
-  IdentificationCard,
   Sparkle,
   Radio,
 } from "@phosphor-icons/react"
@@ -173,26 +170,6 @@ export function HomeHighlightsCarousel({ initialAnnouncements = [] }: HomeHighli
       gradient: "linear-gradient(135deg, #0f172a 0%, #1e3a8a 60%, #2563eb 100%)",
       enabled: true,
       testId: "highlight-biblioteca-normativa",
-    })
-
-    // C. Sacar Copias (System Highlight)
-    list.push({
-      id: "copy-service-highlight",
-      type: "system",
-      priority: HIGHLIGHT_PRIORITIES.COPY_SERVICE,
-      eyebrow: "SERVICIO SINDICAL",
-      title: "Sacar copias",
-      description: "Escanea un documento con tu celular y envíalo a imprimir en la oficina sindical.",
-      ctaText: "Sacar una copia",
-      ctaHref: "/copias",
-      icon: CopySimple,
-      pills: [
-        { label: "Documento", icon: FileText, color: "var(--primary, #2563eb)" },
-        { label: "INE (ambas caras)", icon: IdentificationCard, color: "#b45309" },
-      ],
-      gradient: "linear-gradient(135deg, #1e293b 0%, #334155 100%)",
-      enabled: true,
-      testId: "highlight-copy-service",
     })
 
     // D. Podcast La Veinte Radio (System Highlight)

@@ -111,17 +111,10 @@ describe("HomeHighlightsCarousel", () => {
     expect(screen.queryByText(/por quincena/i)).toBeNull()
   })
 
-  it("4. copias aparece como slide con sus etiquetas", () => {
+  it("4. copias ya no aparece como slide en el carrusel de destacados", () => {
     render(<HomeHighlightsCarousel />)
-    const tab = screen.getByRole("tab", { name: /Sacar copias/i })
-    fireEvent.click(tab)
-
-    expect(screen.getByTestId("highlight-copy-service")).toBeDefined()
-    expect(screen.getByText("SERVICIO SINDICAL")).toBeDefined()
-    expect(screen.getByText("Documento")).toBeDefined()
-    expect(screen.getByText("INE (ambas caras)")).toBeDefined()
-    const cta = screen.getByRole("link", { name: /Sacar una copia/i })
-    expect(cta.getAttribute("href")).toBe("/copias")
+    expect(screen.queryByRole("tab", { name: /Sacar copias/i })).toBeNull()
+    expect(screen.queryByTestId("highlight-copy-service")).toBeNull()
   })
 
   it("5. transferir documentos aparece como slide e invoca el modal QR", () => {
@@ -211,15 +204,13 @@ describe("HomeHighlightsCarousel", () => {
     expect(isExcludedByQuickActions({ id: "guia-tarjeton-highlight", title: "¿Tienes dudas sobre tu tarjetón?", href: "/guia" })).toBe(false)
   })
 
-  it("9. respeta prioridades canónicas (vacaciones > copias > biblioteca normativa > transferir > calculadoras > guía)", () => {
+  it("9. respeta prioridades canónicas (vacaciones > biblioteca normativa > transferir > calculadoras > guía)", () => {
     render(<HomeHighlightsCarousel />)
     const tabs = screen.getAllByRole("tab")
     // El primer tab debe ser vacaciones 2027
     expect(tabs[0].getAttribute("aria-label")).toContain("roles vacacionales 2027")
-    // El segundo tab debe ser copias
-    expect(tabs[1].getAttribute("aria-label")).toContain("copias")
-    // El tercer tab debe ser biblioteca normativa
-    expect(tabs[2].getAttribute("aria-label")).toContain("derechos")
+    // El segundo tab debe ser biblioteca normativa
+    expect(tabs[1].getAttribute("aria-label")).toContain("derechos")
   })
 
   it("10. integra anuncios remotos de administración cuando se reciben", async () => {
@@ -270,7 +261,7 @@ describe("HomeHighlightsCarousel", () => {
 
     const nextBtn = screen.getByRole("button", { name: "Destacado siguiente" })
     fireEvent.click(nextBtn)
-    expect(screen.getByTestId("highlight-copy-service")).toBeDefined()
+    expect(screen.getByTestId("highlight-biblioteca-normativa")).toBeDefined()
 
     const prevBtn = screen.getByRole("button", { name: "Destacado anterior" })
     fireEvent.click(prevBtn)
@@ -284,7 +275,7 @@ describe("HomeHighlightsCarousel", () => {
     // Swipe izquierda (adelante)
     fireEvent.touchStart(carouselRoot, { touches: [{ clientX: 200, clientY: 100 }] })
     fireEvent.touchEnd(carouselRoot, { changedTouches: [{ clientX: 100, clientY: 100 }] })
-    expect(screen.getByTestId("highlight-copy-service")).toBeDefined()
+    expect(screen.getByTestId("highlight-biblioteca-normativa")).toBeDefined()
 
     // Swipe derecha (atrás)
     fireEvent.touchStart(carouselRoot, { touches: [{ clientX: 100, clientY: 100 }] })
