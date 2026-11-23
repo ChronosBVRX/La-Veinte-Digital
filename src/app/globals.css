@@ -82,6 +82,20 @@
 html,
 body {
   touch-action: pan-x pan-y;
+  -webkit-text-size-adjust: 100%;
+}
+
+body * {
+  touch-action: pan-x pan-y;
+}
+
+/* Excepciones de interacción táctil libre para visores de documentos y firmas */
+[data-allow-zoom],
+[data-allow-zoom] *,
+canvas,
+.pdf-canvas,
+[data-testid='document-viewer-canvas'] {
+  touch-action: none !important;
 }
 
 body {
