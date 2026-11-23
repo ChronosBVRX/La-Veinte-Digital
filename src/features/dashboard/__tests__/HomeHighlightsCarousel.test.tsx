@@ -168,6 +168,44 @@ describe("HomeHighlightsCarousel", () => {
     expect(cta.getAttribute("href")).toBe("/radio")
   })
 
+  it("7c. estadística comunitaria de escritos muestra cifras reales de compañeros y escritos generados", () => {
+    render(<HomeHighlightsCarousel initialEscritosStats={{ totalGenerados: 85, totalCompaneros: 42 }} />)
+    const tab = screen.getByRole("tab", { name: /La 20 Digital ha ayudado a 42 compañeros a generar 85 escritos/i })
+    expect(tab).toBeDefined()
+
+    fireEvent.click(tab)
+    expect(screen.getByTestId("highlight-escritos-stats")).toBeDefined()
+    expect(screen.getByText("COMUNIDAD · IMPACTO")).toBeDefined()
+    expect(screen.getByText(/La 20 Digital ha ayudado a 42 compañeros a generar 85 escritos/i)).toBeDefined()
+    expect(screen.getByText(/¿Qué esperas\? Usa el creador de escritos para ayudarte y guiarte/i)).toBeDefined()
+    expect(screen.getByText("85 escritos generados")).toBeDefined()
+    expect(screen.getByText("42 compañeros")).toBeDefined()
+    const cta = screen.getByRole("link", { name: /Crear mi escrito/i })
+    expect(cta.getAttribute("href")).toBe("/escritos")
+  })
+
+  it("7d. estadística comunitaria muestra mensaje de bienvenida guiado cuando el contador inicia en 0", () => {
+    render(<HomeHighlightsCarousel initialEscritosStats={{ totalGenerados: 0, totalCompaneros: 0 }} />)
+    const tab = screen.getByRole("tab", { name: /La 20 Digital te ayuda a realizar tus escritos laborales/i })
+    expect(tab).toBeDefined()
+
+    fireEvent.click(tab)
+    expect(screen.getByTestId("highlight-escritos-stats")).toBeDefined()
+    expect(screen.getByText(/La 20 Digital te ayuda a realizar tus escritos laborales/i)).toBeDefined()
+    expect(screen.getByText("0 escritos generados")).toBeDefined()
+    expect(screen.getByText("Sé de los primeros")).toBeDefined()
+  })
+
+  it("7e. estadística comunitaria acepta cifra personalizada vía prop escritosHelpedCount", () => {
+    render(<HomeHighlightsCarousel escritosHelpedCount={2500} />)
+    const tab = screen.getByRole("tab", { name: /La 20 Digital ha ayudado a 2,500 compañeros a generar 2,500 escritos/i })
+    expect(tab).toBeDefined()
+
+    fireEvent.click(tab)
+    expect(screen.getByText(/La 20 Digital ha ayudado a 2,500 compañeros a generar 2,500 escritos/i)).toBeDefined()
+    expect(screen.getByText("2,500 escritos generados")).toBeDefined()
+  })
+
   it("8. regla de exclusión funcional: las 6 funciones de HomeQuickActions NO se duplican por ID, título ni ruta", () => {
     expect(HOME_QUICK_ACTION_IDS.has("agenda")).toBe(true)
     expect(HOME_QUICK_ACTION_IDS.has("tarjeton")).toBe(true)
@@ -197,6 +235,7 @@ describe("HomeHighlightsCarousel", () => {
 
     // Casos legítimos del carrusel NO deben ser excluidos
     expect(isExcludedByQuickActions({ id: "salary-increase-highlight", title: "Tu aumento estimado", href: "/profile/mi-informacion-laboral" })).toBe(false)
+    expect(isExcludedByQuickActions({ id: "escritos-stats-highlight", title: "La 20 Digital ha ayudado a más de 1,200 compañeros a realizar sus escritos", href: "/escritos" })).toBe(false)
     expect(isExcludedByQuickActions({ id: "vacation-2027-highlight", title: "Ya están disponibles los roles vacacionales 2027", href: "/vacaciones" })).toBe(false)
     expect(isExcludedByQuickActions({ id: "copy-service-highlight", title: "Sacar copias", href: "/copias" })).toBe(false)
     expect(isExcludedByQuickActions({ id: "transfer-docs-highlight", title: "Transferir documentos" })).toBe(false)

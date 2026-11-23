@@ -14,6 +14,7 @@ import {
   validateGenerarEscritoRequest,
 } from "@/features/escritos/server/generar-escrito-service"
 import { checkRateLimit } from "@/features/escritos/server/rate-limit"
+import { recordEscritoGeneration } from "@/features/escritos/server/escritos-stats-service"
 
 export async function POST(req: NextRequest) {
   const { user, response } = await requireUser()
@@ -54,6 +55,14 @@ export async function POST(req: NextRequest) {
 
   try {
     const result = await generarEscritoService(validation.data)
+
+    // Registro de uso atómico para estadísticas reales (sin almacenar contenido ni datos sensibles)
+    void recordEscritoGeneration({
+      userId: user.id,
+      tipoEscrito: validation.data.tipo,
+      modo: validation.data.mode || (validation.data.cuerpoActual ? "revision_ia" : "ia"),
+    }).catch(() => {})
+
     return NextResponse.json(result)
   } catch (error) {
     console.error("[api/escritos/generar] Error:", error)

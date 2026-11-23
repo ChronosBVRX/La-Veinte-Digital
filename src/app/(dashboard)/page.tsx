@@ -9,6 +9,7 @@ import { AgendaCardWrapper } from "@/shared/components/app/AgendaCardWrapper"
 import { HomeHighlightsCarousel } from "@/features/dashboard/components/HomeHighlightsCarousel"
 import { HomeFacebookNewsPreview } from "@/features/facebook/components/HomeFacebookNewsPreview"
 import { RoleModeSwitch } from "@/shared/components/app/RoleModeSwitch"
+import { getEscritosStats } from "@/features/escritos/server/escritos-stats-service"
 import {
   describeSupabaseError,
   resolveDashboardProfile,
@@ -96,6 +97,8 @@ export default async function DashboardPage() {
     .eq("active", true)
   const canAccessUnion = (unionCount ?? 0) > 0
 
+  const escritosStats = await getEscritosStats()
+
   return (
     <div
       className="dashboard-root"
@@ -125,7 +128,7 @@ export default async function DashboardPage() {
         userId={user.id}
       />
 
-      <HomeHighlightsCarousel />
+      <HomeHighlightsCarousel initialEscritosStats={escritosStats} />
 
       <div className="mobile-only">
         <OnboardingCard

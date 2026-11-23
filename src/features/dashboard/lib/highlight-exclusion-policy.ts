@@ -107,10 +107,11 @@ export function isExcludedByQuickActions(slide: {
 }): boolean {
   if (!slide) return false
 
-  // Excepción protegida: el slide de aumento salarial provisional ("salary-increase-highlight")
-  // está expresamente permitido en el carrusel como Slide A aunque enlace a /profile/mi-informacion-laboral
-  // cuando el usuario aún no tiene tarjetón guardado.
-  if (slide.id === "salary-increase-highlight") {
+  // Excepciones protegidas:
+  // - "salary-increase-highlight": el slide de aumento salarial provisional está expresamente permitido en el carrusel
+  //   como Slide A aunque enlace a /profile/mi-informacion-laboral cuando el usuario aún no tiene tarjetón guardado.
+  // - "escritos-stats-highlight": tarjeta estadística comunitaria sobre el impacto del creador de escritos.
+  if (slide.id === "salary-increase-highlight" || slide.id === "escritos-stats-highlight") {
     return false
   }
 
