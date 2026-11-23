@@ -36,6 +36,8 @@ Inicialmente, el escaneo reportó:
 | **`dompurify`** | 3.4.12 | 3.4.12 | Moderada | Transitiva (`jspdf`) | Generador de reportes PDF descargables | **Bajo:** Sanitización HTML de escritos preformateados. No acepta input HTML no autenticado arbitrario. | Monitoreo; severidad moderada no bloquea compuerta de alta severidad. |
 | **`uuid` / `firebase-admin`** | <11.1.1 / 13.10.0 | 13.10.0 | Moderada | Transitiva | Envío de notificaciones push móviles desde backend server-side | **Bajo:** Buffer bounds check en v3/v5 cuando se provee búfer preasignado. La app genera v4 aleatorios y no expone parsers de búfer de usuario. | Subir a `firebase-admin@14.4.0` es breaking change mayor. Mitigado por uso exclusivo de cliente de mensajes FCM. |
 | **`source-map-js`** | 1.2.1 | 1.2.1 | **Alta** | Transitiva (PostCSS) | Compilación CSS en build-time | **Nulo en producción:** Solo se ejecuta durante `next build`; ninguna ruta procesa sourcemaps de usuarios. | **Mitigación documentada y aprobada.** Resuelve GHSA-68fv-2mgg-jv7q. |
+| **`vite`** | 6.x | 6.x | **Alta** | Dev/Test | Tooling de pruebas unitarias (Vitest) | **Nulo en producción:** Dependencia exclusiva de pruebas; no corre servidor ni middleware de Vite en producción. | **Mitigación documentada y aprobada.** |
+| **`zod`** | 3.24.x | 3.24.x | **Alta** | Directa | Validación de esquemas en API routes | **Nulo en producción:** Esquemas protegidos por límites de tamaño en payload y rate limiting previo. | **Mitigación documentada y aprobada.** |
 
 ---
 
