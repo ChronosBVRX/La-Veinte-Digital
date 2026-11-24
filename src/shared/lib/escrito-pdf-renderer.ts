@@ -59,6 +59,19 @@ export function parseImageDimensionsFromBuffer(
         continue
       }
       const marker = uint8[offset + 1]
+      // Saltar relleno 0xFF y marcadores sin longitud (0x00, 0x01, RST0-RST7, SOI, EOI)
+      if (marker === 0xff) {
+        offset++
+        continue
+      }
+      if (marker === 0x00 || marker === 0x01 || (marker >= 0xd0 && marker <= 0xd9)) {
+        offset += 2
+        continue
+      }
+      // Start of Scan (SOS) o End of Image (EOI): fin de cabeceras
+      if (marker === 0xda || marker === 0xd9) {
+        break
+      }
       // SOF0 (Baseline), SOF1 (Extended), SOF2 (Progressive)
       if (marker === 0xc0 || marker === 0xc1 || marker === 0xc2) {
         const height = (uint8[offset + 5] << 8) | uint8[offset + 6]
@@ -68,7 +81,7 @@ export function parseImageDimensionsFromBuffer(
         }
       }
       const length = (uint8[offset + 2] << 8) | uint8[offset + 3]
-      if (length <= 0) break
+      if (length < 2) break
       offset += 2 + length
     }
   }
@@ -130,9 +143,79 @@ export function parseWebpDimensions(
   return null
 }
 
+function uint8ToBase64(uint8: Uint8Array): string {
+  let binary = ""
+  for (let i = 0; i < uint8.byteLength; i++) {
+    binary += String.fromCharCode(uint8[i])
+  }
+  return typeof btoa === "function" ? btoa(binary) : Buffer.from(binary, "binary").toString("base64")
+}
+
+async function convertBlobViaCanvas(
+  rawBlob: Blob,
+  fallbackDataUrl: string,
+  fallbackDims?: { width: number; height: number } | null
+): Promise<ProcessedImage | null> {
+  if (typeof window === "undefined" || typeof document === "undefined") {
+    return null
+  }
+
+  return new Promise<ProcessedImage | null>((resolve) => {
+    const drawAndConvert = (img: CanvasImageSource, width: number, height: number) => {
+      try {
+        const canvas = document.createElement("canvas")
+        canvas.width = width
+        canvas.height = height
+        const ctx = canvas.getContext("2d")
+        if (ctx) {
+          ctx.drawImage(img, 0, 0)
+          const pngDataUrl = canvas.toDataURL("image/png")
+          if (pngDataUrl && pngDataUrl.startsWith("data:image/png;base64,")) {
+            resolve({
+              dataUrl: pngDataUrl,
+              format: "PNG",
+              width,
+              height,
+            })
+            return true
+          }
+        }
+      } catch (err) {
+        console.warn("[escrito-pdf] Error dibujando imagen en canvas:", err)
+      }
+      return false
+    }
+
+    const loadViaImgElement = () => {
+      const img = new Image()
+      img.onload = () => {
+        const w = img.naturalWidth || fallbackDims?.width || 400
+        const h = img.naturalHeight || fallbackDims?.height || 300
+        if (!drawAndConvert(img, w, h)) resolve(null)
+      }
+      img.onerror = () => resolve(null)
+      img.src = fallbackDataUrl
+    }
+
+    if (typeof createImageBitmap === "function") {
+      createImageBitmap(rawBlob)
+        .then((bmp) => {
+          if (!drawAndConvert(bmp, bmp.width, bmp.height)) {
+            resolve(null)
+          }
+        })
+        .catch(() => {
+          loadViaImgElement()
+        })
+    } else {
+      loadViaImgElement()
+    }
+  })
+}
+
 /**
  * Procesa un Blob de imagen para inclusión en jsPDF,
- * midiendo dimensiones binarias reales o mediante canvas si es WebP.
+ * midiendo dimensiones binarias reales o mediante canvas para WebP y otros formatos de imagen.
  */
 export async function processBlobForPdf(blobInput: Blob | unknown): Promise<ProcessedImage | null> {
   if (!blobInput || typeof blobInput !== "object") return null
@@ -152,11 +235,7 @@ export async function processBlobForPdf(blobInput: Blob | unknown): Promise<Proc
     // 1. Si es PNG o JPEG directo: extracción binaria y dataUrl exacto
     const binaryParsed = parseImageDimensionsFromBuffer(uint8)
     if (binaryParsed) {
-      let binary = ""
-      for (let i = 0; i < uint8.byteLength; i++) {
-        binary += String.fromCharCode(uint8[i])
-      }
-      const base64 = typeof btoa === "function" ? btoa(binary) : Buffer.from(binary, "binary").toString("base64")
+      const base64 = uint8ToBase64(uint8)
       return {
         dataUrl: `data:${binaryParsed.format === "JPEG" ? "image/jpeg" : "image/png"};base64,${base64}`,
         format: binaryParsed.format,
@@ -165,7 +244,7 @@ export async function processBlobForPdf(blobInput: Blob | unknown): Promise<Proc
       }
     }
 
-    // 2. Si es WebP
+    // 2. Si es WebP o cualquier otra imagen decodificable por el navegador (AVIF, BMP, GIF, HEIC, etc.)
     const isWebp =
       mimeType.includes("webp") ||
       (uint8.length >= 12 &&
@@ -178,77 +257,16 @@ export async function processBlobForPdf(blobInput: Blob | unknown): Promise<Proc
         uint8[10] === 0x42 &&
         uint8[11] === 0x50)
 
-    if (isWebp) {
-      const webpDims = parseWebpDimensions(uint8)
+    if (isWebp || mimeType.startsWith("image/")) {
+      const dims = isWebp ? parseWebpDimensions(uint8) : null
+      const base64 = uint8ToBase64(uint8)
+      const fallbackMime = isWebp ? "image/webp" : mimeType || "image/png"
+      const converted = await convertBlobViaCanvas(rawBlob, `data:${fallbackMime};base64,${base64}`, dims)
+      if (converted) return converted
 
-      // En entorno de navegador / DOM con canvas: decodificar y convertir a PNG real
-      if (typeof window !== "undefined" && typeof document !== "undefined") {
-        const converted = await new Promise<ProcessedImage | null>((resolve) => {
-          let binary = ""
-          for (let i = 0; i < uint8.byteLength; i++) {
-            binary += String.fromCharCode(uint8[i])
-          }
-          const base64 = typeof btoa === "function" ? btoa(binary) : Buffer.from(binary, "binary").toString("base64")
-          const webpDataUrl = `data:image/webp;base64,${base64}`
-
-          const drawAndConvert = (img: CanvasImageSource, width: number, height: number) => {
-            try {
-              const canvas = document.createElement("canvas")
-              canvas.width = width
-              canvas.height = height
-              const ctx = canvas.getContext("2d")
-              if (ctx) {
-                ctx.drawImage(img, 0, 0)
-                const pngDataUrl = canvas.toDataURL("image/png")
-                if (pngDataUrl && pngDataUrl.startsWith("data:image/png;base64,")) {
-                  resolve({
-                    dataUrl: pngDataUrl,
-                    format: "PNG",
-                    width,
-                    height,
-                  })
-                  return true
-                }
-              }
-            } catch (err) {
-              console.warn("[escrito-pdf] Error dibujando WebP en canvas:", err)
-            }
-            return false
-          }
-
-          if (typeof createImageBitmap === "function") {
-            createImageBitmap(rawBlob)
-              .then((bmp) => {
-                if (!drawAndConvert(bmp, bmp.width, bmp.height)) {
-                  resolve(null)
-                }
-              })
-              .catch(() => {
-                const img = new Image()
-                img.onload = () => {
-                  const w = img.naturalWidth || webpDims?.width || 400
-                  const h = img.naturalHeight || webpDims?.height || 300
-                  if (!drawAndConvert(img, w, h)) resolve(null)
-                }
-                img.onerror = () => resolve(null)
-                img.src = webpDataUrl
-              })
-          } else {
-            const img = new Image()
-            img.onload = () => {
-              const w = img.naturalWidth || webpDims?.width || 400
-              const h = img.naturalHeight || webpDims?.height || 300
-              if (!drawAndConvert(img, w, h)) resolve(null)
-            }
-            img.onerror = () => resolve(null)
-            img.src = webpDataUrl
-          }
-        })
-
-        if (converted) return converted
+      if (isWebp) {
+        console.warn("[escrito-pdf] Formato WebP no convertible en el entorno actual sin canvas.")
       }
-
-      console.warn("[escrito-pdf] Formato WebP no convertible en el entorno actual sin canvas.")
       return null
     }
 
@@ -287,35 +305,48 @@ async function renderAnexoItem(
     curY += descLines.length * (isCompact ? 11 : 13) + (isCompact ? 6 : 15)
   }
 
-  if (anexo.storageRef) {
+  if (anexo.storageRef || anexo.previewUrl) {
     try {
-      const anexoBlob = await getBlobResource(userId, anexo.storageRef)
-      if (anexoBlob) {
-        const processedAnexo = await processBlobForPdf(anexoBlob)
-        if (processedAnexo) {
-          const maxW = contentWidth
-          const maxH = Math.max(50, slotTopY + maxSlotH - curY - (isCompact ? 6 : 20))
-          const aspect = (processedAnexo.width || 1) / (processedAnexo.height || 1)
+      let anexoBlob: Blob | null = null
+      if (anexo.storageRef) {
+        anexoBlob =
+          (await getBlobResource(userId, anexo.storageRef)) ||
+          (userId !== "anonymous" ? await getBlobResource("anonymous", anexo.storageRef) : null)
+      }
+      if (!anexoBlob && anexo.previewUrl && typeof fetch === "function") {
+        anexoBlob = await fetch(anexo.previewUrl)
+          .then((res) => (res.ok ? res.blob() : null))
+          .catch(() => null)
+      }
 
-          let renderWidth = maxW
-          let renderHeight = renderWidth / aspect
+      const processedAnexo = anexoBlob ? await processBlobForPdf(anexoBlob) : null
+      if (processedAnexo) {
+        const maxW = contentWidth
+        const maxH = Math.max(50, slotTopY + maxSlotH - curY - (isCompact ? 6 : 20))
+        const aspect = (processedAnexo.width || 1) / (processedAnexo.height || 1)
 
-          if (renderHeight > maxH) {
-            renderHeight = maxH
-            renderWidth = renderHeight * aspect
-          }
+        let renderWidth = maxW
+        let renderHeight = renderWidth / aspect
 
-          const renderX = margin + (contentWidth - renderWidth) / 2
-
-          doc.addImage(
-            processedAnexo.dataUrl,
-            processedAnexo.format,
-            renderX,
-            curY,
-            renderWidth,
-            renderHeight
-          )
+        if (renderHeight > maxH) {
+          renderHeight = maxH
+          renderWidth = renderHeight * aspect
         }
+
+        const renderX = margin + (contentWidth - renderWidth) / 2
+
+        doc.addImage(
+          processedAnexo.dataUrl,
+          processedAnexo.format,
+          renderX,
+          curY,
+          renderWidth,
+          renderHeight
+        )
+      } else {
+        doc.setFont("times", "italic")
+        doc.setFontSize(isCompact ? 9 : 10)
+        doc.text("[Imagen no disponible para renderizado]", margin, curY)
       }
     } catch {
       doc.setFont("times", "italic")

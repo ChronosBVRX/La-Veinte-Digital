@@ -1,15 +1,16 @@
 /**
  * Servicio compartido de recuperación de fuentes normativas en servidor.
- * Consulta directamente el catálogo SQLite local (catalog.sqlite) sin importar módulos de features/
- * de acuerdo con la Regla 2 de AGENTS.md.
- * Filtra fuentes vigentes y verificadas mediante INNER JOIN con versions (v.status = 'VERIFIED'),
- * cerrando DatabaseSync en bloque finally.
+ * Conecta con el RAG híbrido de producción en Supabase (pgvector + FTS + coincidencia exacta
+ * vía `hybrid_normativa_rrf` / `hybrid_normativa_search`) y usa el catálogo SQLite local
+ * (`catalog.sqlite`) como respaldo cuando no hay conexión o se pasa `customDbPath` en pruebas.
+ * Sin importar módulos de features/ de acuerdo con la Regla 2 de AGENTS.md.
  * La Veinte Digital
  */
 
 import path from "node:path"
 import fs from "node:fs"
 import { DatabaseSync } from "node:sqlite"
+import { createClient } from "@/lib/supabase/server"
 
 export interface RetrievedNormativaSource {
   id: string
@@ -65,15 +66,168 @@ export function extractExactNormativaRefs(text: string): ExactNormativaRefs {
   return refs
 }
 
+interface SupabaseHybridRow {
+  chunk_id?: string | null
+  document_id?: string | null
+  document_title?: string | null
+  version_id?: string | null
+  validity?: string | null
+  section_type?: string | null
+  section_title?: string | null
+  article?: string | null
+  clause?: string | null
+  numeral?: string | null
+  page_start?: number | null
+  page_end?: number | null
+  text?: string | null
+  source_url?: string | null
+  score?: number | null
+}
+
+async function generateQueryEmbedding(query: string): Promise<number[] | null> {
+  const apiKey = process.env.OPENAI_API_KEY
+  if (!apiKey || !query.trim()) return null
+
+  try {
+    const resp = await fetch("https://api.openai.com/v1/embeddings", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "text-embedding-3-small",
+        input: query.slice(0, 4000),
+      }),
+      signal: AbortSignal.timeout(8000),
+    })
+    if (!resp.ok) return null
+    const json = (await resp.json()) as { data?: Array<{ embedding?: number[] }> }
+    const vec = json.data?.[0]?.embedding
+    return Array.isArray(vec) && vec.length === 1536 ? vec : null
+  } catch {
+    return null
+  }
+}
+
+async function retrieveFromSupabaseRag(
+  query: string,
+  limit: number
+): Promise<RetrievedNormativaSource[]> {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return []
+  }
+
+  try {
+    const supabase = await createClient()
+    const refs = extractExactNormativaRefs(query)
+    const embedding = await generateQueryEmbedding(query)
+
+    const call = supabase.rpc as unknown as (
+      this: unknown,
+      fn: string,
+      args: Record<string, unknown>
+    ) => Promise<{ data: unknown; error: { message: string } | null }>
+
+    let rpcRes = await call.call(supabase, "hybrid_normativa_rrf", {
+      p_query: query,
+      p_query_embedding: embedding,
+      p_clause: refs.clause ?? null,
+      p_article: refs.article ?? null,
+      p_key: refs.key ?? null,
+      p_match_count: Math.max(limit * 2, 12),
+    })
+
+    if (rpcRes.error) {
+      rpcRes = await call.call(supabase, "hybrid_normativa_search", {
+        p_query: query,
+        p_query_embedding: embedding,
+        p_clause: refs.clause ?? null,
+        p_article: refs.article ?? null,
+        p_key: refs.key ?? null,
+        p_match_count: Math.max(limit * 2, 12),
+      })
+    }
+
+    if (rpcRes.error || !Array.isArray(rpcRes.data)) {
+      return []
+    }
+
+    const excludedValidity = new Set(["HISTORICAL", "REPEALED", "SUPERSEDED"])
+    const seen = new Set<string>()
+    const results: RetrievedNormativaSource[] = []
+
+    for (const row of rpcRes.data as SupabaseHybridRow[]) {
+      const chunkId = String(row.chunk_id || "").trim()
+      const text = String(row.text || "").trim()
+      if (!chunkId || !text || seen.has(chunkId)) continue
+
+      const validity = String(row.validity || "CURRENT").toUpperCase()
+      if (excludedValidity.has(validity)) continue
+
+      seen.add(chunkId)
+
+      let rawClause = row.clause ? String(row.clause).trim() : null
+      let rawArticle = row.article ? String(row.article).trim() : null
+      if (!rawClause && !rawArticle && row.section_title) {
+        const titleRefs = extractExactNormativaRefs(String(row.section_title))
+        if (titleRefs.clause) rawClause = titleRefs.clause
+        if (titleRefs.article) rawArticle = titleRefs.article
+      }
+
+      const numero = rawClause
+        ? `Cláusula ${rawClause}`
+        : rawArticle
+        ? `Artículo ${rawArticle}`
+        : row.section_title
+        ? String(row.section_title).trim()
+        : null
+
+      results.push({
+        id: chunkId,
+        chunkId,
+        documentId: String(row.document_id || ""),
+        documento: String(row.document_title || "Normativa Institucional"),
+        version: String(row.version_id || "vigente"),
+        tipo: row.section_type ? String(row.section_type) : null,
+        numero,
+        clause: rawClause,
+        article: rawArticle,
+        paginaInicio: typeof row.page_start === "number" ? row.page_start : null,
+        paginaFin: typeof row.page_end === "number" ? row.page_end : null,
+        fragmento: text,
+        sourceUrl: row.source_url ? String(row.source_url) : null,
+        validity,
+        score: typeof row.score === "number" ? row.score : 0,
+      })
+
+      if (results.length >= limit) break
+    }
+
+    return results
+  } catch (err) {
+    console.warn("[normativa-retrieval] Error consultando RAG en Supabase, usando respaldo local:", err)
+    return []
+  }
+}
+
 /**
- * Recupera fuentes normativas vigentes desde catalog.sqlite.
- * Exige INNER JOIN con versions donde status = 'VERIFIED' y documentos con vigencia 'CURRENT' o 'VIGENTE'.
+ * Recupera fuentes normativas vigentes desde el RAG híbrido en Supabase (pgvector + FTS + exacto)
+ * con respaldo al catálogo SQLite local (catalog.sqlite).
+ * Cuando se pasa `customDbPath` (pruebas unitarias), consulta directamente ese SQLite.
  */
 export async function retrieveNormativaSources(
   query: string,
   limit = 5,
   customDbPath?: string
 ): Promise<RetrievedNormativaSource[]> {
+  if (!customDbPath) {
+    const ragResults = await retrieveFromSupabaseRag(query, limit)
+    if (ragResults.length > 0) {
+      return ragResults
+    }
+  }
+
   let db: DatabaseSync | null = null
   try {
     const catalogPath = customDbPath || path.resolve(/*turbopackIgnore: true*/ process.cwd(), "data", "normativa", "catalog.sqlite")
