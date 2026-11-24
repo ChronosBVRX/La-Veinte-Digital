@@ -326,4 +326,28 @@ describe("Renderizador de PDF Vectorial Carta (escrito-pdf-renderer)", () => {
     const jsDocIndividual = await buildJsPdfDocument(draft, userId, { anexosLayout: "individual" })
     expect(jsDocIndividual.getNumberOfPages()).toBe(4) // 1 principal + 3 anexos
   })
+
+  it("renderStoredEscritoToPdfFile recupera anexos guardados como anonymous si userId cambió tras login", async () => {
+    const photo = createValidPngBlob(320, 240)
+    const anonRef = await saveBlobResource("anonymous", "doc_anon_fallback", "anexo", "p1", photo)
+
+    const draft = createEmptyEscritoDraftV2("usr_logged_in", "aclaracion", {
+      id: "doc_anon_fallback",
+      asunto: "Aclaración con foto guardada antes de resolver sesión",
+      cuerpo: "Cuerpo de prueba con anexo recuperado.",
+      anexos: [
+        {
+          id: "a1",
+          nombre: "Evidencia previa",
+          descripcion: "Foto tomada antes de resolver userId",
+          tipo: "image/png",
+          size: photo.size,
+          storageRef: anonRef,
+        },
+      ],
+    })
+
+    const jsDoc = await buildJsPdfDocument(draft, "usr_logged_in")
+    expect(jsDoc.getNumberOfPages()).toBe(2)
+  })
 })

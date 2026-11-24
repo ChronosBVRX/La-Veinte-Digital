@@ -9,6 +9,7 @@ import { useEscritoEditorHistory } from "../hooks/useEscritoEditorHistory"
 import { EscritosProposalModal } from "./EscritosProposalModal"
 import { generarEscrito } from "../services/generarEscrito"
 import { DestinatarioResumen } from "./DestinatarioResumen"
+import { EscritosGroundingCard } from "./EscritosGroundingCard"
 
 export interface EscritosEditorProps {
   draft: EscritoDraftV2
@@ -168,6 +169,12 @@ export function EscritosEditor({
           </span>
         )}
       </div>
+
+      <EscritosGroundingCard
+        fuentes={draft.fuentes}
+        advertencias={draft.advertencias}
+        generationMode={draft.generationMode}
+      />
 
       {/* Cabecera del Editor con Undo/Redo y Estadísticas */}
       <Card padding="1rem" style={{ background: "var(--card)", width: "100%", boxSizing: "border-box" }}>

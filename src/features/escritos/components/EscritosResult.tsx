@@ -19,6 +19,7 @@ import { AiContentReport } from "@/shared/components/ui/AiContentReport"
 import { SourceAttribution } from "@/shared/components/ui/SourceAttribution"
 import { paginateEscritoForPreview } from "../lib/escrito-pagination"
 import { isGenericAsunto, inferAsuntoFromProblem } from "@/shared/lib/escrito-asunto"
+import { EscritosGroundingCard } from "./EscritosGroundingCard"
 
 export interface EscritosResultProps {
   userId: string
@@ -76,12 +77,13 @@ export function EscritosResult({
       setIsPdfRendering(true)
 
       try {
-        const file = await renderStoredEscritoToPdfFile(draft, userId, {
+        const file = await renderStoredEscritoToPdfFile(draft, userId || "anonymous", {
           nombreTrabajador: workerProfile?.nombre,
           nombre: workerProfile?.nombre,
           matricula: workerProfile?.matricula,
           categoria: workerProfile?.categoria,
           adscripcion: workerProfile?.adscripcion,
+          anexosLayout: isCompactAnexos ? "compact" : "individual",
         })
         if (cancelled) return
 
@@ -128,7 +130,7 @@ export function EscritosResult({
     return () => {
       cancelled = true
     }
-  }, [draft, userId, workerProfile])
+  }, [draft, userId, workerProfile, isCompactAnexos])
 
   const handleSaveSignature = (firmaRef: string, previewUrl: string) => {
     onUpdateDraft({
@@ -153,12 +155,13 @@ export function EscritosResult({
   const handleDirectPrint = async () => {
     setIsPrinting(true)
     try {
-      await imprimirEscrito(draft, userId, {
+      await imprimirEscrito(draft, userId || "anonymous", {
         nombreTrabajador: workerProfile?.nombre,
         nombre: workerProfile?.nombre,
         matricula: workerProfile?.matricula,
         categoria: workerProfile?.categoria,
         adscripcion: workerProfile?.adscripcion,
+        anexosLayout: isCompactAnexos ? "compact" : "individual",
       })
     } catch (err) {
       console.error("Error al imprimir:", err)
@@ -175,12 +178,13 @@ export function EscritosResult({
   const handleNativeShare = async () => {
     setIsSharing(true)
     try {
-      const file = await renderStoredEscritoToPdfFile(draft, userId, {
+      const file = await renderStoredEscritoToPdfFile(draft, userId || "anonymous", {
         nombreTrabajador: workerProfile?.nombre,
         nombre: workerProfile?.nombre,
         matricula: workerProfile?.matricula,
         categoria: workerProfile?.categoria,
         adscripcion: workerProfile?.adscripcion,
+        anexosLayout: isCompactAnexos ? "compact" : "individual",
       })
 
       const fileName = draft.titulo || generarNombreArchivoPdf(draft)
@@ -221,6 +225,12 @@ export function EscritosResult({
         <SourceAttribution sourceId="cct-imss-sntss-2025-2027" compact />
         <AiContentReport responseId={draft.id ?? draft.titulo} source="escritos" contentPreview={draft.cuerpo} />
       </div>
+
+      <EscritosGroundingCard
+        fuentes={draft.fuentes}
+        advertencias={draft.advertencias}
+        generationMode={draft.generationMode}
+      />
       {/* Toast de feedback al compartir */}
       {shareFeedback && (
         <div
@@ -841,12 +851,13 @@ export function EscritosResult({
         open={isSendPrintOpen}
         docName={draft.titulo || "Escrito Formal"}
         getFile={async () => {
-          return renderStoredEscritoToPdfFile(draft, userId, {
+          return renderStoredEscritoToPdfFile(draft, userId || "anonymous", {
             nombreTrabajador: workerProfile?.nombre,
             nombre: workerProfile?.nombre,
             matricula: workerProfile?.matricula,
             categoria: workerProfile?.categoria,
             adscripcion: workerProfile?.adscripcion,
+            anexosLayout: isCompactAnexos ? "compact" : "individual",
           })
         }}
         onClose={() => setIsSendPrintOpen(false)}

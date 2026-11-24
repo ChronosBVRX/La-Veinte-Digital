@@ -91,6 +91,40 @@ describe("generar-escrito-service (Seguridad, Prompting, Revisión y Grounding)"
     expect(stripped).toContain("Solicito mi derecho")
   })
 
+  it("buildUserPrompt incluye metadatos completos del contexto RAG en evidencia_normativa_verificada", () => {
+    const req: GenerarEscritoRequest = {
+      tipo: "aclaracion",
+      hechos: "Me descontaron el concepto 054 sin previo aviso.",
+      peticion: "Solicito la devolución conforme a la Cláusula 47.",
+      destino: { cargo: "Jefe de Personal", nombre: "Lic. Pérez" },
+      incluirFundamentos: true,
+    }
+
+    const prompt = buildUserPrompt(req, [
+      {
+        id: "c_47",
+        chunkId: "c_47",
+        documentId: "doc_cct",
+        documento: "Contrato Colectivo de Trabajo",
+        version: "2025-2027",
+        tipo: "Cláusula",
+        numero: "Cláusula 47",
+        clause: "47",
+        article: null,
+        paginaInicio: 32,
+        paginaFin: 32,
+        fragmento: "El trabajador tiene derecho a aclaración previa ante descuentos.",
+        sourceUrl: null,
+        validity: "CURRENT",
+        score: 95,
+      },
+    ])
+
+    expect(prompt).toContain("<evidencia_normativa_verificada>")
+    expect(prompt).toContain("Contrato Colectivo de Trabajo | v.2025-2027 | Cláusula 47 | pág. 32")
+    expect(prompt).toContain("El trabajador tiene derecho a aclaración previa ante descuentos.")
+  })
+
   it("generarEscritoService conserva el texto actual en modo 'revise' si la IA no está disponible", async () => {
     const req: GenerarEscritoRequest = {
       mode: "revise",
