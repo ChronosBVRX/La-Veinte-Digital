@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest"
 import {
   isWorkerContextQuery,
+  isConversationalGreeting,
   buildTarjetonSource,
   findTarjetonGuideSource,
 } from "../lib/tarjeton-knowledge"
@@ -22,10 +23,38 @@ describe("tarjeton-knowledge", () => {
       expect(isWorkerContextQuery("¿Cómo se calcula el fondo de ahorro para un sustituto?")).toBe(true)
     })
 
+    it("detecta preguntas de identidad, expediente, puesto, agenda, bitácora y acompañamiento", () => {
+      expect(isWorkerContextQuery("¿Quién soy y qué puesto tengo?")).toBe(true)
+      expect(isWorkerContextQuery("¿Qué sabes de mí?")).toBe(true)
+      expect(isWorkerContextQuery("¿Cómo me llamo?")).toBe(true)
+      expect(isWorkerContextQuery("cuál es mi nombre")).toBe(true)
+      expect(isWorkerContextQuery("cuál es mi adscripción")).toBe(true)
+      expect(isWorkerContextQuery("qué tengo en mi bitácora")).toBe(true)
+      expect(isWorkerContextQuery("cuáles son mis notas en mi agenda")).toBe(true)
+      expect(isWorkerContextQuery("qué compromisos o guardias tengo")).toBe(true)
+      expect(isWorkerContextQuery("cómo ves mi situación laboral")).toBe(true)
+      expect(isWorkerContextQuery("amigo, acompáñame a revisar mis pendientes")).toBe(true)
+    })
+
     it("no confunde preguntas genéricas sobre leyes o reglamentos", () => {
       expect(isWorkerContextQuery("¿Qué dice la LFT sobre el despido?")).toBe(false)
       expect(isWorkerContextQuery("Explícame el artículo 123 constitucional")).toBe(false)
       expect(isWorkerContextQuery("¿Cuáles son los requisitos de jubilación IMSS?")).toBe(false)
+    })
+  })
+
+  describe("isConversationalGreeting", () => {
+    it("detecta saludos amigables directos", () => {
+      expect(isConversationalGreeting("hola")).toBe(true)
+      expect(isConversationalGreeting("Hola amigo")).toBe(true)
+      expect(isConversationalGreeting("¡Buenas tardes compañero!")).toBe(true)
+      expect(isConversationalGreeting("¿Cómo estás?")).toBe(true)
+      expect(isConversationalGreeting("Qué tal hermano")).toBe(true)
+    })
+
+    it("no clasifica preguntas de contenido normativo como saludos puros", () => {
+      expect(isConversationalGreeting("Hola, ¿cuántos días de aguinaldo me tocan?")).toBe(false)
+      expect(isConversationalGreeting("Buenas tardes, explícame la cláusula 63 Bis")).toBe(false)
     })
   })
 

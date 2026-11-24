@@ -55,6 +55,21 @@ export interface WorkerVacationSummary {
   regimenVacacional?: string | null
 }
 
+export interface WorkerActionSummary {
+  tipo: "agenda" | "bitacora" | "simulacion_vacaciones"
+  titulo: string
+  fecha?: string | null
+  detalle?: string | null
+  estado?: string | null
+}
+
+export function extractNombrePila(fullName: string | null): string | null {
+  if (!fullName) return null
+  const clean = fullName.replace(/^(dr\.|dra\.|lic\.|enf\.|ing\.|prof\.|mtro\.)\s+/i, "").trim()
+  const first = clean.split(/\s+/)[0]
+  return first ? first.charAt(0).toUpperCase() + first.slice(1).toLowerCase() : null
+}
+
 /**
  * Representación no sensible del contexto del trabajador para el Asistente IA.
  * NUNCA incluye: RFC, CURP, NSS, cuentas bancarias, sellos ni folios fiscales.
@@ -63,6 +78,7 @@ export interface SanitizedWorkerProfile {
   hasProfile: boolean
   hasTarjeton?: boolean
   nombre?: string | null
+  nombrePila?: string | null
   categoria?: string | null
   categoriaCodigo?: string | null
   jornadaHoras?: number | null
@@ -71,6 +87,8 @@ export interface SanitizedWorkerProfile {
   tipoPlaza?: string | null
   turno?: string | null
   adscripcion?: string | null
+  unidadOServicio?: string | null
+  fechaIngreso?: string | null
   exposicionRadiologica?: boolean
   conceptosRecurrentes?: string[]
   vacacionesPorVencer?: string | null
@@ -78,6 +96,7 @@ export interface SanitizedWorkerProfile {
   tarjeton?: WorkerLatestPayslipSummary | null
   asistencia?: WorkerAttendanceSummary | null
   vacacionesDetalle?: WorkerVacationSummary | null
+  accionesRecientes?: WorkerActionSummary[]
 }
 
 export async function fetchSanitizedWorkerProfile(
@@ -87,19 +106,67 @@ export async function fetchSanitizedWorkerProfile(
 ): Promise<SanitizedWorkerProfile> {
   try {
     const ctx = await getWorkerContext(user, supabase, requestId)
-    return sanitizeWorkerContext(ctx)
+
+    // Consultar acciones, compromisos de agenda y notas de bitácora recientes
+    const accionesRecientes: WorkerActionSummary[] = []
+    if (supabase && typeof supabase.from === "function") {
+      try {
+        const [commitmentsRes, bitacoraRes] = await Promise.all([
+          supabase
+            .from("worker_commitments")
+            .select("title, type, notes, start_at, status")
+            .eq("user_id", user.id)
+            .order("start_at", { ascending: false })
+            .limit(4),
+          supabase
+            .from("bitacora_entries")
+            .select("entry_type, description, entry_date")
+            .eq("user_id", user.id)
+            .order("entry_date", { ascending: false })
+            .limit(4),
+        ])
+
+        if (commitmentsRes?.data && Array.isArray(commitmentsRes.data)) {
+          for (const c of commitmentsRes.data) {
+            accionesRecientes.push({
+              tipo: "agenda",
+              titulo: c.title || `Compromiso: ${c.type || "General"}`,
+              fecha: c.start_at ? c.start_at.slice(0, 10) : null,
+              detalle: c.notes || null,
+              estado: c.status || null,
+            })
+          }
+        }
+
+        if (bitacoraRes?.data && Array.isArray(bitacoraRes.data)) {
+          for (const b of bitacoraRes.data) {
+            accionesRecientes.push({
+              tipo: "bitacora",
+              titulo: `Incidencia en bitácora (${b.entry_type || "Nota"})`,
+              fecha: b.entry_date || null,
+              detalle: b.description || null,
+            })
+          }
+        }
+      } catch (actErr) {
+        console.warn("[asistente:worker-profile] No se pudieron cargar compromisos o bitácora:", actErr instanceof Error ? actErr.message : actErr)
+      }
+    }
+
+    return sanitizeWorkerContext(ctx, accionesRecientes)
   } catch (err) {
     console.warn("[asistente:worker-profile] Error obteniendo contexto laboral:", err instanceof Error ? err.message : err)
     return { hasProfile: false, hasTarjeton: false }
   }
 }
 
-export function sanitizeWorkerContext(ctx: WorkerContext): SanitizedWorkerProfile {
+export function sanitizeWorkerContext(ctx: WorkerContext, accionesRecientes?: WorkerActionSummary[]): SanitizedWorkerProfile {
   if (!ctx || (!ctx.profile && !ctx.employment && !ctx.payroll && !ctx.attendance && !ctx.vacations)) {
     return { hasProfile: false, hasTarjeton: false }
   }
 
   const nombre = ctx.profile?.fullName?.trim() || null
+  const nombrePila = extractNombrePila(nombre)
   const categoria = ctx.employment?.categoryName?.trim() || ctx.profile?.categoria?.trim() || null
   const categoriaCodigo = ctx.employment?.categoryCode?.trim() || null
   const jornadaHoras = ctx.employment?.workdayHours ?? null
@@ -112,6 +179,8 @@ export function sanitizeWorkerContext(ctx: WorkerContext): SanitizedWorkerProfil
   const tipoPlaza = ctx.employment?.employmentType?.trim() || null
   const turno = ctx.employment?.shift?.trim() || null
   const adscripcion = ctx.employment?.adscripcion?.trim() || ctx.profile?.adscripcion?.trim() || null
+  const unidadOServicio = ctx.vacationProfile?.unit || ctx.vacationProfile?.service || null
+  const fechaIngreso = ctx.employment?.entryDate || ctx.vacationProfile?.entryDate || null
 
   const exposicionRadiologica =
     ctx.employment?.radiologicalExposure === true ||
@@ -285,13 +354,15 @@ export function sanitizeWorkerContext(ctx: WorkerContext): SanitizedWorkerProfil
     tipoPlaza ||
     adscripcion ||
     hasTarjetonData ||
-    hasAttendanceData,
+    hasAttendanceData ||
+    (accionesRecientes && accionesRecientes.length > 0),
   )
 
   return {
     hasProfile: hasAnyData,
     hasTarjeton: hasTarjetonData,
     nombre,
+    nombrePila,
     categoria,
     categoriaCodigo,
     jornadaHoras,
@@ -300,6 +371,8 @@ export function sanitizeWorkerContext(ctx: WorkerContext): SanitizedWorkerProfil
     tipoPlaza,
     turno,
     adscripcion,
+    unidadOServicio,
+    fechaIngreso,
     exposicionRadiologica,
     conceptosRecurrentes,
     vacacionesPorVencer,
@@ -307,6 +380,7 @@ export function sanitizeWorkerContext(ctx: WorkerContext): SanitizedWorkerProfil
     tarjeton,
     asistencia,
     vacacionesDetalle,
+    accionesRecientes: accionesRecientes && accionesRecientes.length > 0 ? accionesRecientes : undefined,
   }
 }
 
@@ -319,13 +393,14 @@ export function formatWorkerProfilePrompt(profile: SanitizedWorkerProfile): stri
   const lineas: string[] = [
     "--- PERFIL DEL TRABAJADOR CONSULTANTE (Datos verificados en expediente) ---",
   ]
-  if (profile.nombre) lineas.push(`- Nombre: ${profile.nombre}`)
+  if (profile.nombre) lineas.push(`- Nombre completo: ${profile.nombre}${profile.nombrePila ? ` (Nombre de pila para trato fraterno: ${profile.nombrePila})` : ""}`)
   if (profile.categoria) lineas.push(`- Categoría / Puesto: ${profile.categoria}${profile.categoriaCodigo ? ` (Código: ${profile.categoriaCodigo})` : ""}`)
   if (profile.jornadaHoras) lineas.push(`- Jornada de trabajo: ${profile.jornadaHoras} horas diarias`)
-  if (profile.antiguedadTexto || profile.antiguedadAnios) lineas.push(`- Antigüedad: ${profile.antiguedadTexto ?? `${profile.antiguedadAnios} años`}`)
+  if (profile.antiguedadTexto || profile.antiguedadAnios) lineas.push(`- Antigüedad: ${profile.antiguedadTexto ?? `${profile.antiguedadAnios} años`}${profile.fechaIngreso ? ` (Fecha de ingreso: ${profile.fechaIngreso})` : ""}`)
   if (profile.tipoPlaza) lineas.push(`- Tipo de contratación: ${profile.tipoPlaza}`)
   if (profile.turno) lineas.push(`- Turno: ${profile.turno}`)
   if (profile.adscripcion) lineas.push(`- Adscripción: ${profile.adscripcion}`)
+  if (profile.unidadOServicio) lineas.push(`- Unidad o servicio: ${profile.unidadOServicio}`)
   if (profile.exposicionRadiologica) lineas.push(`- Exposición a emanaciones radiactivas / infectocontagiosidad: SÍ (Acreditada)`)
   if (profile.conceptosRecurrentes && profile.conceptosRecurrentes.length > 0) {
     lineas.push(`- Conceptos de nómina recurrentes registrados: ${profile.conceptosRecurrentes.join(", ")}`)
@@ -394,9 +469,21 @@ export function formatWorkerProfilePrompt(profile: SanitizedWorkerProfile): stri
     if (v.porVencerFecha) lineas.push(`- Fecha límite / Por vencer: ${v.porVencerFecha}`)
   }
 
+  if (profile.accionesRecientes && profile.accionesRecientes.length > 0) {
+    lineas.push("")
+    lineas.push("ACCIONES RECIENTES, AGENDA Y BITÁCORA DEL TRABAJADOR:")
+    for (const act of profile.accionesRecientes) {
+      const f = act.fecha ? ` (${act.fecha})` : ""
+      const est = act.estado ? ` [Estado: ${act.estado}]` : ""
+      const d = act.detalle ? ` — ${act.detalle}` : ""
+      lineas.push(`- [${act.tipo.toUpperCase()}] ${act.titulo}${f}${est}${d}`)
+    }
+  }
+
   lineas.push("")
+  const nombreParaTrato = profile.nombrePila ?? (profile.nombre ? profile.nombre.trim().split(" ")[0] : "compañero")
   lineas.push(
-    "INSTRUCCIÓN DE PERSONALIZACIÓN: Si la consulta del trabajador atañe a sus propios derechos, percepciones, deducciones, tarjetón, marcas o vacaciones, respóndele de inmediato usando con total exactitud sus datos reales de arriba sin preguntarle su puesto o antigüedad. Si el trabajador es 08 (sustituto/eventual) o no laboró el año completo y pregunta cuánto le van a pagar de aguinaldo o de segunda de julio (fondo de ahorro), CALCÚLALE DIRECTAMENTE SU PARTE PROPORCIONAL con la base de su tarjetón real arriba: explícale su cuota mensual (7.5 días de aguinaldo/mes o 3.83 días de fondo de ahorro/mes), dale los ejemplos exactos o el monto por los meses que mencione, cita la Cláusula 107 (aguinaldo) o Cláusula 144 (fondo de ahorro) y sugiérele las calculadoras [🎁 Calcular mi aguinaldo](/calculadoras/aguinaldo) y [📊 Segunda de julio proporcional](/calculadoras/segunda-julio-proporcional). Háblale con calidez por su nombre de pila si está disponible (ej. '¡Hola, Juan! 😊').",
+    `INSTRUCCIÓN DE PERSONALIZACIÓN Y ACOMPAÑAMIENTO FRATERNAL: Conoces toda la información laboral, expediente, nómina y acciones de este trabajador. Si te pregunta sobre sí mismo, sus datos, su puesto, su sueldo, sus vacaciones, sus marcas, su bitácora o su agenda, responde de inmediato con sus datos exactos de arriba sin pedirle que te repita lo que ya sabes. Trátalo como su asistente personal y un amigo de confianza que lo acompaña hombro con hombro, dirigiéndote a él por su nombre de pila ('${nombreParaTrato}') con calidez, cercanía y fraternidad sincera. Si te cuenta un problema o pide acompañamiento ante un conflicto o sobrecarga, dale contención emocional de amigo, hazle sentir que no está solo, y guíalo en la ruta sindical institucional (anotar en su bitácora, solicitar intervención del delegado de la Sección XX, no firmar actas a solas según Cláusula 22 del CCT). Si el trabajador es 08 (sustituto/eventual) o no laboró el año completo y pregunta cuánto le van a pagar de aguinaldo o de segunda de julio (fondo de ahorro), CALCÚLALE DIRECTAMENTE SU PARTE PROPORCIONAL con la base de su tarjetón real arriba: explícale su cuota mensual (7.5 días de aguinaldo/mes o 3.83 días de fondo de ahorro/mes), dale los ejemplos exactos o el monto por los meses que mencione, cita la Cláusula 107 (aguinaldo) o Cláusula 144 (fondo de ahorro) y sugiérele las calculadoras [🎁 Calcular mi aguinaldo](/calculadoras/aguinaldo) y [📊 Segunda de julio proporcional](/calculadoras/segunda-julio-proporcional). FIDELIDAD NORMATIVA INQUEBRANTABLE: Nunca inventes prestaciones ni cláusulas; cita siempre [S1] para sus datos personales y [S2] para la normativa.`,
   )
   lineas.push("-----------------------------------------------------------------------")
 
@@ -412,10 +499,10 @@ export function formatWorkerTarjetonEvidence(profile: SanitizedWorkerProfile): s
 
   parts.push(`Trabajador: ${profile.nombre ?? "Compañero(a)"}`)
   if (profile.categoria) {
-    parts.push(`Categoría: ${profile.categoria}${profile.categoriaCodigo ? ` (Clave ${profile.categoriaCodigo})` : ""} | Jornada: ${profile.jornadaHoras ?? 8}h | Turno: ${profile.turno ?? "No especificado"} | Adscripción: ${profile.adscripcion ?? "No especificada"}`)
+    parts.push(`Categoría: ${profile.categoria}${profile.categoriaCodigo ? ` (Clave ${profile.categoriaCodigo})` : ""} | Jornada: ${profile.jornadaHoras ?? 8}h | Turno: ${profile.turno ?? "No especificado"} | Adscripción: ${profile.adscripcion ?? "No especificada"}${profile.unidadOServicio ? ` (${profile.unidadOServicio})` : ""}`)
   }
   if (profile.antiguedadTexto || profile.antiguedadAnios) {
-    parts.push(`Antigüedad: ${profile.antiguedadTexto ?? `${profile.antiguedadAnios} años`} | Contratación: ${profile.tipoPlaza ?? "Base"}`)
+    parts.push(`Antigüedad: ${profile.antiguedadTexto ?? `${profile.antiguedadAnios} años`} | Contratación: ${profile.tipoPlaza ?? "Base"}${profile.fechaIngreso ? ` | Fecha ingreso: ${profile.fechaIngreso}` : ""}`)
   }
 
   if (profile.tarjeton) {
@@ -464,6 +551,15 @@ export function formatWorkerTarjetonEvidence(profile: SanitizedWorkerProfile): s
     if (v.diasDisfrutados != null) vac.push(`Días disfrutados: ${v.diasDisfrutados}`)
     if (v.porVencerFecha) vac.push(`Fecha por vencer: ${v.porVencerFecha}`)
     if (vac.length > 0) parts.push(`Vacaciones y marcas: ${vac.join(" | ")}`)
+  }
+
+  if (profile.accionesRecientes && profile.accionesRecientes.length > 0) {
+    const acts = profile.accionesRecientes.map((act) => {
+      const f = act.fecha ? ` (${act.fecha})` : ""
+      const d = act.detalle ? `: ${act.detalle}` : ""
+      return `[${act.tipo}] ${act.titulo}${f}${d}`
+    })
+    parts.push(`Acciones y notas registradas: ${acts.join(" | ")}`)
   }
 
   return parts.join("\n")

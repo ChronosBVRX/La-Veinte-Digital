@@ -11,9 +11,9 @@ import { TypingIndicator } from "./TypingIndicator"
 import { PLATFORM_TOOLS } from "../lib/platform-tools"
 import Link from "next/link"
 
-const INITIAL_MESSAGE = `¡Hola! 👋 Soy tu **asistente laboral**. Pregúntame sobre el **CCT**, **Estatutos**, vacaciones, aguinaldo o cualquier duda laboral.`
+const INITIAL_MESSAGE = `¡Hola! 👋 Soy tu **asistente laboral y compañero**. Conozco tu información de trabajo, tarjetón, agenda y derechos del **CCT**. Pregúntame lo que necesites; aquí estoy para acompañarte.`
 
-const HELP_HINT = `Puedo ayudarte con el Contrato Colectivo, Estatutos SNTSS, prestaciones, vacaciones, aguinaldo, incapacidades y normativa laboral. Escribe tu pregunta como si me la contaras.`
+const HELP_HINT = `Puedo ayudarte con tu información de trabajo, bitácora, agenda, y con el Contrato Colectivo, Estatutos SNTSS, prestaciones y derechos laborales. Escribe tu pregunta con confianza como si me la contaras.`
 
 interface ChatAssistantProps {
   showHeader?: boolean

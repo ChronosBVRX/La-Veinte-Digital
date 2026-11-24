@@ -9,13 +9,37 @@ import { vacationContinuityMarks, occupationMarks } from "@/data/guia-tarjeton/t
 
 /**
  * Patrón robusto para detectar preguntas orientadas a los datos personales,
- * expediente, nómina, tarjetón o marcas del trabajador.
+ * expediente, nómina, tarjetón, marcas, agenda o bitácora del trabajador.
  */
 const WORKER_CONTEXT_QUERY_PATTERN =
-  /\b(tarjet[oó]n|08|sustitut[oa]s?|eventual(?:es)?|segunda\s+de\s+julio|fondo\s+de\s+ahorro|aguinaldo|mi\s+(?:[a-záéíóúñ]+\s+)?(?:tarjet[oó]n|recibo|n[oó]mina|quincena|sueldo|salario|pago|puesto|categor[íi]a|jornada|turno|adscripci[oó]n|antig[üu]edad|aguinaldo|fondo|prima|marca)|mis\s+(?:deducciones|percepciones|conceptos|marcas|faltas|retardos|vacaciones|incidencias)|cu[aá]nto\s+(?:me\s+)?(?:[a-záéíóúñ]+\s+)*(?:gano|cobro|cobr[eé]|lleg[oó]|pagan|pagar[aá]n|pagaron|depositan|depositar[aá]n|descontaron|descuentan|tengo|recib[ií]|recibir[eé]|toca|tocar[íi]a|corresponde|alcanza|es)|cu[aá]nt[ao]s?\s+(?:[a-záéíóúñ]+\s+)*(?:faltas?|retardos?|d[íi]as|marcas?|conceptos?|percepciones|deducciones)|por\s*qu[eé]\s+(?:me\s+)?descontaron|descuento\s+(?:de|en)|concepto\s+\d+|cpto\s+\d+|sin\s+retardo|pases?\s+de\s+salida|asiduidad|marca\s+de\s+continuidad)\b/i
+  /\b(tarjeton|08|sustitut[oa]s?|eventual(?:es)?|segunda\s+de\s+julio|fondo\s+de\s+ahorro|aguinaldo|mi\s+(?:[a-z]+\s+)?(?:tarjeton|recibo|nomina|quincena|sueldo|salario|pago|puesto|categoria|jornada|turno|adscripcion|antiguedad|aguinaldo|fondo|prima|marca|bitacora|agenda|expediente|perfil|situacion|caso)|mis\s+(?:deducciones|percepciones|conceptos|marcas|faltas|retardos|vacaciones|incidencias|datos|notas|compromisos|guardias|pendientes|acciones)|cuanto\s+(?:me\s+)?(?:[a-z]+\s+)*(?:gano|cobro|cobre|llego|pagan|pagaran|pagaron|depositan|depositaran|descontaron|descuentan|tengo|recibi|recibire|toca|tocaria|corresponde|alcanza|es)|cuant[oa]s?\s+(?:[a-z]+\s+)*(?:faltas?|retardos?|dias|marcas?|conceptos?|percepciones|deducciones|anos)|por\s*que\s+(?:me\s+)?descontaron|descuento\s+(?:de|en)|concepto\s+\d+|cpto\s+\d+|sin\s+retardo|pases?\s+de\s+salida|asiduidad|marca\s+de\s+continuidad|quien\s+soy|como\s+me\s+llamo|que\s+sabes\s+de\s+mi|sabes\s+quien\s+soy|cual\s+es\s+mi\s+(?:nombre|puesto|categoria|turno|jornada|adscripcion|sueldo)|que\s+puesto\s+tengo|donde\s+trabajo|en\s+que\s+(?:clinica|hospital|unidad)\b|como\s+estoy\s+registrad[oa]|que\s+tengo\s+en\s+mi\s+(?:bitacora|agenda)|que\s+anote|(?:que|cuales)\s+(?:[a-z]+\s+)*(?:guardias?|compromisos?|notas?|pendientes?)|como\s+ves\s+mi\s+(?:caso|situacion)|amig[oa]|acomp[a]name)\b/i
 
 export function isWorkerContextQuery(question: string): boolean {
-  return WORKER_CONTEXT_QUERY_PATTERN.test(question)
+  const normalized = question
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+  return WORKER_CONTEXT_QUERY_PATTERN.test(normalized)
+}
+
+/**
+ * Detecta si el mensaje es un saludo conversacional fraterno
+ * para responder con calidez y cercanía de asistente personal.
+ */
+export function isConversationalGreeting(question: string): boolean {
+  const stripped = question
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/^[¡¿\s]+|[!?,.\s]+$/g, "")
+    .trim()
+    .toLowerCase()
+
+  return (
+    /^(hola|buen(?:os)?\s*dias|buenas\s*tardes|buenas\s*noches|que\s*tal|como\s*estas|que\s*onda|saludos)(?:\s+(?:amigo|compa|companero|hermano|asistente))?$/i.test(
+      stripped,
+    ) ||
+    /^como\s*te\s*va$/i.test(stripped)
+  )
 }
 
 /**
@@ -27,11 +51,15 @@ export function buildTarjetonSource(profile: SanitizedWorkerProfile): RetrievedS
   const fragmento = formatWorkerTarjetonEvidence(profile)
   if (!fragmento.trim()) return null
 
+  const documento = profile.hasTarjeton
+    ? `Tarjetón IMSS Oficial (${periodo})`
+    : `Expediente Laboral Verificado (${periodo})`
+
   return {
     id: "S1",
     chunkId: `tarjeton@${periodo}`,
-    documentId: "TARJETON-IMSS",
-    documento: `Tarjetón IMSS Oficial (${periodo})`,
+    documentId: profile.hasTarjeton ? "TARJETON-IMSS" : "EXPEDIENTE-LABORAL",
+    documento,
     version: "Expediente Verificado",
     tipo: "expediente",
     numero: periodo,

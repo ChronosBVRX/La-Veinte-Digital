@@ -204,4 +204,49 @@ describe("worker-context-adapter", () => {
     expect(evidence).toContain("sin retardo")
     expect(evidence).toContain("Marca continuidad vacacional: 2")
   })
+
+  it("extrae nombre de pila y formatea acciones recientes de agenda y bitácora", () => {
+    const rawContext: WorkerContext = {
+      userId: "u-act",
+      profile: {
+        fullName: "Dra. Carmen Patricia Salinas",
+        matricula: "12345678",
+        categoria: "MÉDICO FAMILIAR",
+        antiguedad: "10",
+        adscripcion: "HGZ 24",
+      },
+      employment: {
+        categoryName: "MÉDICO FAMILIAR",
+        categoryCode: "10203040",
+        workdayHours: 8,
+        employmentType: "Base",
+        entryDate: "2016-02-01",
+        shift: "Vespertino",
+        adscripcion: "HGZ 24",
+      },
+    } as unknown as WorkerContext
+
+    const acciones = [
+      { tipo: "agenda" as const, titulo: "Guardia fin de semana", fecha: "2026-11-28", detalle: "Servicio de Urgencias", estado: "pendiente" },
+      { tipo: "bitacora" as const, titulo: "Incidencia en bitácora (Nota)", fecha: "2026-11-20", detalle: "Jefe de servicio solicitó cambio verbal sin oficio" },
+    ]
+
+    const sanitized = sanitizeWorkerContext(rawContext, acciones)
+    expect(sanitized.hasProfile).toBe(true)
+    expect(sanitized.nombrePila).toBe("Carmen")
+    expect(sanitized.accionesRecientes).toHaveLength(2)
+
+    const prompt = formatWorkerProfilePrompt(sanitized)
+    expect(prompt).toContain("Dra. Carmen Patricia Salinas")
+    expect(prompt).toContain("Nombre de pila para trato fraterno: Carmen")
+    expect(prompt).toContain("ACCIONES RECIENTES, AGENDA Y BITÁCORA DEL TRABAJADOR")
+    expect(prompt).toContain("Guardia fin de semana")
+    expect(prompt).toContain("Jefe de servicio solicitó cambio verbal sin oficio")
+    expect(prompt).toContain("Trátalo como su asistente personal y un amigo de confianza")
+
+    const evidence = formatWorkerTarjetonEvidence(sanitized)
+    expect(evidence).toContain("Dra. Carmen Patricia Salinas")
+    expect(evidence).toContain("Guardia fin de semana")
+    expect(evidence).toContain("Acciones y notas registradas")
+  })
 })
