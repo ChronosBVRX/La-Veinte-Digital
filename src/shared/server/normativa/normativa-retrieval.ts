@@ -110,6 +110,93 @@ async function generateQueryEmbedding(query: string): Promise<number[] | null> {
   }
 }
 
+export function isGenderSpecificFemaleSource(documentId: string, documento: string): boolean {
+  const combined = `${documentId} ${documento}`
+    .toUpperCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+
+  return (
+    combined.includes("LGAMVLV") ||
+    combined.includes("ACCESO DE LAS MUJERES") ||
+    combined.includes("VIDA LIBRE DE VIOLENCIA")
+  )
+}
+
+export function isExplicitlyFemaleContext(query: string): boolean {
+  const q = query
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+
+  // Si indica explícitamente ser hombre/varón, no aplicar leyes exclusivas de mujeres
+  if (/\b(soy hombre|como hombre|trabajador hombre|varon|masculino)\b/i.test(q)) {
+    return false
+  }
+
+  return /\b(mujer|mujeres|trabajadora|companera|embaraz\w*|maternidad|lactancia|violencia de genero|violencia contra la mujer|femenin\w*)\b/i.test(
+    q
+  )
+}
+
+export function getEscritoNormativePriority(documentId: string, documento: string): number {
+  const combined = `${documentId} ${documento}`
+    .toUpperCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+
+  // Prioridad 1: Contrato Colectivo de Trabajo (base normativa principal)
+  if (
+    combined.includes("CCT") ||
+    combined.includes("CONTRATO COLECTIVO") ||
+    combined.includes("CONTRATO-COLECTIVO")
+  ) {
+    return 1
+  }
+
+  // Prioridad 2: Normativa interna IMSS-SNTSS (Estatutos, Tabulador, Reglamentos, Convenios)
+  if (
+    combined.includes("ESTATUTO") ||
+    combined.includes("SNTSS") ||
+    combined.includes("TABULADOR") ||
+    combined.includes("RIT") ||
+    combined.includes("REGLAMENTO") ||
+    combined.includes("ESCALAFON") ||
+    combined.includes("CAPACITACION") ||
+    combined.includes("BECAS") ||
+    combined.includes("PROFESIOGRAMA") ||
+    combined.includes("CONVENIO") ||
+    combined.includes("INSTRUCTIVO") ||
+    combined.includes("PROCEDIMIENTO") ||
+    combined.includes("CIRCULAR")
+  ) {
+    return 2
+  }
+
+  // Prioridad 3: Leyes federales y normas oficiales externas (LFT, LSS, NOMs, etc.)
+  return 3
+}
+
+export function filterAndPrioritizeNormativaSources<
+  T extends { documentId: string; documento: string; score: number }
+>(sources: T[], query: string): T[] {
+  const allowFemaleSpecific = isExplicitlyFemaleContext(query)
+
+  const filtered = sources.filter((s) => {
+    if (isGenderSpecificFemaleSource(s.documentId, s.documento) && !allowFemaleSpecific) {
+      return false
+    }
+    return true
+  })
+
+  return [...filtered].sort((a, b) => {
+    const pA = getEscritoNormativePriority(a.documentId, a.documento)
+    const pB = getEscritoNormativePriority(b.documentId, b.documento)
+    if (pA !== pB) return pA - pB
+    return b.score - a.score
+  })
+}
+
 async function retrieveFromSupabaseRag(
   query: string,
   limit: number
@@ -135,7 +222,7 @@ async function retrieveFromSupabaseRag(
       p_clause: refs.clause ?? null,
       p_article: refs.article ?? null,
       p_key: refs.key ?? null,
-      p_match_count: Math.max(limit * 2, 12),
+      p_match_count: Math.max(limit * 4, 24),
     })
 
     if (rpcRes.error) {
@@ -145,7 +232,7 @@ async function retrieveFromSupabaseRag(
         p_clause: refs.clause ?? null,
         p_article: refs.article ?? null,
         p_key: refs.key ?? null,
-        p_match_count: Math.max(limit * 2, 12),
+        p_match_count: Math.max(limit * 4, 24),
       })
     }
 
@@ -200,11 +287,9 @@ async function retrieveFromSupabaseRag(
         validity,
         score: typeof row.score === "number" ? row.score : 0,
       })
-
-      if (results.length >= limit) break
     }
 
-    return results
+    return filterAndPrioritizeNormativaSources(results, query).slice(0, limit)
   } catch (err) {
     console.warn("[normativa-retrieval] Error consultando RAG en Supabase, usando respaldo local:", err)
     return []
@@ -266,9 +351,9 @@ export async function retrieveNormativaSources(
       LIMIT ?
     `
 
-    const rows = db.prepare(sql).all(quoted, Math.min(limit, 10)) as Array<Record<string, unknown>>
+    const rows = db.prepare(sql).all(quoted, Math.min(limit * 3, 20)) as Array<Record<string, unknown>>
 
-    return rows.map((r) => {
+    const mapped: RetrievedNormativaSource[] = rows.map((r) => {
       const parsedPrinted = r.printed_page ? parseInt(String(r.printed_page), 10) : null
       const pageNum = !isNaN(Number(parsedPrinted)) && parsedPrinted !== null
         ? parsedPrinted
@@ -298,6 +383,8 @@ export async function retrieveNormativaSources(
         score,
       }
     })
+
+    return filterAndPrioritizeNormativaSources(mapped, query).slice(0, limit)
   } catch (err) {
     console.warn("[normativa-retrieval] Catálogo normativo no disponible o error de consulta:", err)
     return []
