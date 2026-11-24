@@ -7,6 +7,7 @@ import {
   retrieveNormativaSources,
   extractExactNormativaRefs,
   normalizeLegalRef,
+  filterAndPrioritizeNormativaSources,
 } from "@/shared/server/normativa/normativa-retrieval"
 import {
   verifyGrounding,
@@ -178,5 +179,50 @@ describe("Grounding Normativo Estricto y Verificación de Catálogo", () => {
     const groundingSinBis = verifyGrounding("De acuerdo con la Cláusula 47 del CCT...", evidence)
     expect(groundingSinBis.isGrounded).toBe(false)
     expect(groundingSinBis.unsupportedRefs).toContain("Cláusula 47")
+  })
+
+  it("prioriza el Contrato Colectivo de Trabajo sobre LFT/NOMs y excluye leyes exclusivas de mujeres en casos de hombre o generales", () => {
+    const candidates = [
+      {
+        documentId: "lgamvlv-2026",
+        documento: "Ley General de Acceso de las Mujeres a una Vida Libre de Violencia",
+        score: 99,
+      },
+      {
+        documentId: "lft-2026",
+        documento: "Ley Federal del Trabajo",
+        score: 95,
+      },
+      {
+        documentId: "nom-035-stps",
+        documento: "NOM-035-STPS-2018 Factores de riesgo psicosocial",
+        score: 90,
+      },
+      {
+        documentId: "cct-imss-sntss-2025-2027",
+        documento: "Contrato Colectivo de Trabajo IMSS-SNTSS 2025-2027",
+        score: 70,
+      },
+    ]
+
+    const maleCase = filterAndPrioritizeNormativaSources(
+      candidates,
+      "Soy hombre y sufro acoso laboral por parte de mi jefe además de desabasto de material"
+    )
+
+    expect(maleCase.map((s) => s.documentId)).toEqual([
+      "cct-imss-sntss-2025-2027",
+      "lft-2026",
+      "nom-035-stps",
+    ])
+
+    const femaleCase = filterAndPrioritizeNormativaSources(
+      candidates,
+      "Soy trabajadora mujer y sufro violencia de género y acoso por parte de mi jefe"
+    )
+
+    // Incluso en caso explícito de mujer, el CCT sigue yendo primero
+    expect(femaleCase[0].documentId).toBe("cct-imss-sntss-2025-2027")
+    expect(femaleCase.some((s) => s.documentId === "lgamvlv-2026")).toBe(true)
   })
 })
