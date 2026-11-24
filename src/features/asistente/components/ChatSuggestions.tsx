@@ -1,11 +1,12 @@
 "use client"
 
-import { Scale, BookOpen, Sparkles, type LucideIcon } from "lucide-react"
+import { User, Sparkles, BookOpen, Calendar, type LucideIcon } from "lucide-react"
 
 const SUGGESTIONS: { icon: LucideIcon; text: string }[] = [
-  { icon: Scale, text: "¿Cuáles son mis derechos laborales?" },
+  { icon: User, text: "¿Qué sabes de mi puesto y expediente?" },
+  { icon: Sparkles, text: "¿Cuánto me toca de aguinaldo?" },
   { icon: BookOpen, text: "Háblame de mis vacaciones" },
-  { icon: Sparkles, text: "¿Qué dice el CCT sobre aguinaldo?" },
+  { icon: Calendar, text: "¿Qué tengo en mi bitácora o agenda?" },
 ]
 
 interface ChatSuggestionsProps {

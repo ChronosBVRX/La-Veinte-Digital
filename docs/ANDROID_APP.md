@@ -3,7 +3,7 @@
 > Documentación técnica de referencia para agentes futuros.
 > Ámbito: `android-app/` (shell nativo Compose) que embebe el Home web
 > (`https://la20.com.mx`) en un WebView persistente.
-> Última actualización: **2026-09-05 — v1.1.3 (versionCode 203) — Stable Baseline**.
+> Última actualización: **2026-11-24 — v1.2.17 (versionCode 228) — Stable Baseline**.
 > Nota de gobernanza: Cambios estrictamente documentales (`docs-only`) **NO requieren bump de versión** del APK ni regeneración de binarios.
 
 Esta guía describe rutas, APIs, flujos de datos y convenciones del shell
@@ -16,7 +16,7 @@ funcionalidad ni provocar regresiones**. Antes de tocar código, lee también
 ## 1. Resumen
 
 - **Paquete**: `com.laveintedigital.app` (debug: `com.laveintedigital.app.debug`).
-- **Versión en Baseline**: `versionCode = 203`, `versionName = "1.1.3"`.
+- **Versión en Baseline**: `versionCode = 228`, `versionName = "1.2.17"` (compilada con `compileSdk 36`, `targetSdk 36` para Google Play Console).
 - **Canales de Distribución (Flavors)**:
   - `play`: Cumple 100% políticas de Google Play (`SELF_UPDATE_ENABLED = false`, sin permiso `REQUEST_INSTALL_PACKAGES`, sin receiver de instalación OTA).
   - `direct`: Canal sideload con pipeline de actualización OTA completo (`SELF_UPDATE_ENABLED = true`, `REQUEST_INSTALL_PACKAGES` activo, verificación SHA-256 de APK).
@@ -159,7 +159,7 @@ Checklist de publicación (ejecutado en las versiones 1.0.44/145/146):
 5. **Actualizar** `public/android/stable/latest.json`: `versionCode`,
    `versionName`, `publishedAt`, `apk.url`, `apk.sha256`, `apk.size`, y
    `releaseNotes` con los cambios en español.
-6. **Deploy**: `npm run deploy:oci` (despliegue a producci�n en OCI VPS).
+6. **Deploy**: `npm run deploy:oci` (despliegue a producci�n en OCI VPS).
 7. **Verificar**: `HEAD https://la20.com.mx/LaVeinteDigital.apk`
    → 200 y tamaño coincidente; GET `latest.json` → versionName/sha coincidentes.
 

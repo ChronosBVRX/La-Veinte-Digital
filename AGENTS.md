@@ -16,7 +16,7 @@
 > 
 > **OBJETIVO PERMANENTE: CERO REGRESIONES NO AUTORIZADAS.**
 >
-> **Snapshot verificado:** `docs/BASELINE_ESTABLE.md` (tag `v2026.09.27-stable`, 2026-09-27; normalización de categorías en padrón sindical y fix de expedientes, gates en verde, Android intacto). Este snapshot extiende los baselines previos sin sustituirlos.
+> **Snapshot verificado:** `docs/BASELINE_ESTABLE.md` (tag `v2026.11.24-stable`, 2026-11-24; Convenio Salarial 2026-2027, Escritos con IA y preview real, Podcast La 20 Radio, Asistente fraternal con tarjetón, Android v1.2.17 b228, gates en verde). Este snapshot extiende los baselines previos sin sustituirlos.
 
 ---
 

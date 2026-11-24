@@ -6,7 +6,32 @@
 
 ---
 
-## 1. Identificación de la versión
+## 1. Identificación de la versión activa
+
+| Campo | Valor |
+|---|---|
+| Fecha de la versión | 2026-11-24 (America/Mexico_City, UTC-6) |
+| Rama | `main` |
+| Tag / Snapshot | `v2026.11.24-stable` |
+| Deltas funcionales consolidados | 1) **Convenio Salarial 2026-2027**: +4% tabular base, 86.15% Concepto 11 renta, tabulador activo, simulador de aumentos con comparativa y búsqueda inteligente.<br>2) **Escritos Oficiales con IA**: vista previa de impresión real WYSIWYG tamaño carta, distribución inteligente de fotos/anexos, asunto contextual y estadísticas comunitarias en inicio.<br>3) **Podcast La 20 Radio (`/radio`)**: streaming proxy seguro, CDN directa, portadas oficiales y reproductor estilo Spotify.<br>4) **Asistente SNTSS Fraterno**: fast-path personalizado (nombre de pila, puesto, adscripción), contextualización profunda con tarjetón (concepto 08 proporcional, marcas), backdrop blur, rate-limiting anti-bot y cuotas protegidas.<br>5) **Android App v1.2.17 (versionCode 228)**: SDK 36, blindaje de fondo nativo en tarjetón digital y bloqueo exhaustivo de zoom accidental (pellizco/doble toque). |
+| Estado del árbol al verificar | Compuertas de calidad en verde |
+| Baselines previos | Snapshot `v2026.09.27-stable`, `v2026.09.06-stable` y commit inicial `d90ab2bbc2f4b648cb8ed0bed1801902cb9976da` (2026-09-05) — este snapshot los extiende sin sustituirlos |
+
+---
+
+## 2. Compuertas de calidad comprobadas (Salida real, 2026-11-24)
+
+| Compuerta | Comando | Resultado |
+|---|---|---|
+| Typecheck | `npm run typecheck` (`tsc --noEmit`) | **PASS** — 0 errores; exit 0 |
+| Lint | `npm run lint` (ESLint flat config) | **PASS** — **0 errores, 47 warnings** preexistentes (reducidos desde 108); exit 0 |
+| Build | `npm run build` (Next.js 16.2.12 Turbopack) | **PASS** — **93/93 páginas generadas** exitosamente; exit 0 |
+| Unit Tests (Asistente) | `npx vitest run src/features/asistente` | **PASS** — 13 suites pasadas; **138 tests pasados**; exit 0 |
+| Android Config | `android-app/app/build.gradle.kts` | **PASS** — `versionCode = 228`, `versionName = "1.2.17"`, targetSdk 36 |
+
+---
+
+## 3. Snapshot Histórico Previo (2026-09-27)
 
 | Campo | Valor |
 |---|---|
@@ -185,7 +210,7 @@ ejecutable — prohibido modificarlas para ocultar regresiones):
   `commitment_id × reminder_type`; trigger que limpia entregas al
   cancelar/completar/reprogramar); tipos `DAY_BEFORE`, `HOURS_BEFORE`,
   `AT_START`, `SCHEDULED_TIME`; cron `GET /api/cron/agenda-reminders`
-  (crontab nativo Linux VPS: `0 1 * * *` v�a `scripts/run-cron.sh`) + workflow
+  (crontab nativo Linux VPS: `0 1 * * *` v�a `scripts/run-cron.sh`) + workflow
   `.github/workflows/agenda-reminders-cron.yml`.
 - **Push / campañas:** `src/features/push/` (registro FCM,
   `push-admin.ts` con lotes ≤ 500 y deduplicación, `campaign-worker.ts`

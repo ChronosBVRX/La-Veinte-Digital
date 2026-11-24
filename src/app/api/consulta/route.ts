@@ -23,6 +23,7 @@ import {
 } from "@/features/asistente/lib/worker-context-adapter"
 import {
   isWorkerContextQuery,
+  isConversationalGreeting,
   buildTarjetonSource,
   findTarjetonGuideSource,
 } from "@/features/asistente/lib/tarjeton-knowledge"
@@ -147,6 +148,32 @@ async function respondDirect(
     const openai = getOpenAI()
     const refs = extractExactRefs(retrievalQuery)
 
+    // ── 0. FAST PATH: SALUDO CONVERSACIONAL FRATERNO ──
+    if (isConversationalGreeting(question)) {
+      obs.fastPath = true
+      obs.embeddingSkipped = true
+      obs.totalMs = performance.now() - t0
+      logObservability(requestId, userId, obs)
+
+      const nombrePila = workerProfile?.nombrePila ?? (workerProfile?.nombre ? workerProfile.nombre.trim().split(" ")[0] : null)
+      const saludoNombre = nombrePila ? `, ${nombrePila}` : ", compañero"
+      const puestoDesc = workerProfile?.categoria ? ` en tu puesto de **${workerProfile.categoria}**` : ""
+      const adscripcionDesc = workerProfile?.adscripcion ? ` (${workerProfile.adscripcion})` : ""
+
+      let respuesta: string
+      let chips: string[]
+
+      if (workerProfile?.hasProfile) {
+        respuesta = `¡Hola${saludoNombre}! 😊 ¡Qué gusto saludarte! Aquí estoy como tu asistente personal y compañero sindical para acompañarte y orientarte en lo que necesites hoy${puestoDesc}${adscripcionDesc}.\n\nPodemos revisar tu tarjetón de pago, tus días de vacaciones, cualquier duda de nuestro **Contrato Colectivo de Trabajo** o consultar y anotar tus pendientes en tu agenda y bitácora. ¿Cómo te va en tu turno y en qué te puedo apoyar?`
+        chips = ["📄 Mi Tarjetón", "🏖️ Mis Vacaciones", "📝 Mi Bitácora", "🧮 Calculadoras"]
+      } else {
+        respuesta = `¡Hola${saludoNombre}! 😊 ¡Bienvenido a tu asistente laboral y sindical de la Sección XX! Estoy aquí como tu amigo y apoyo para acompañarte y resolver cualquier duda sobre tus derechos en el **Contrato Colectivo de Trabajo**, prestaciones, vacaciones, aguinaldo o trámites.\n\nPara que pueda conocer tu puesto, horario y darte cálculos exactos al centavo de tu nómina, te invito a registrar tus datos laborales o subir tu tarjetón IMSS. ¿Qué tema te gustaría revisar hoy?`
+        chips = ["📄 Subir mi Tarjetón", "📚 Biblioteca Normativa", "🧮 Calculadoras", "ℹ️ Conceptos"]
+      }
+
+      return privateJson({ respuesta, fuentes: [], chips })
+    }
+
     // ── 1. FAST PATH: EXACT_LOOKUP → 0 embedding, 0 LLM ──
     if (intent === "EXACT_LOOKUP") {
       const { sources } = await retrieveHybrid(ftsQuery, null, intent, refs, 3, question)
@@ -181,7 +208,7 @@ async function respondDirect(
       /\b(tarjet[oó]n|recibo|n[oó]mina|cu[aá]nto\s+(?:me\s+)?(?:gano|cobro|cobr[eé]|lleg[oó]|pagan|pagaron|depositan|descontaron)|mis\s+(?:deducciones|percepciones|marcas))\b/i.test(question)
     ) {
       obs.totalMs = performance.now() - t0
-      const nombrePila = workerProfile?.nombre ? ` ${workerProfile.nombre.trim().split(" ")[0]}` : ""
+      const nombrePila = workerProfile?.nombrePila ? ` ${workerProfile.nombrePila}` : (workerProfile?.nombre ? ` ${workerProfile.nombre.trim().split(" ")[0]}` : "")
       const puestoDesc = workerProfile?.categoria ? ` como **${workerProfile.categoria}**` : ""
       const respuesta = `¡Hola, compañero${nombrePila}! 😊 Veo que estás registrado en la plataforma${puestoDesc}, pero aún no cuentas con un tarjetón IMSS digital subido a tu expediente.\n\nPara que pueda decirte con total certeza cuánto cobraste, cuáles fueron tus percepciones y deducciones exactas o qué significan tus marcas, sube tu recibo en PDF aquí:\n\n📄 **[Subir mi Tarjetón IMSS](/profile/mi-informacion-laboral)**\n\nEn cuanto lo subas, podré responderte cualquier duda de tu pago al centavo.`
       return privateJson({
@@ -192,7 +219,7 @@ async function respondDirect(
     }
 
     const contextualSources: RetrievedSource[] = []
-    if (workerProfile?.tarjeton && (isPersonalTarjetonQuery || Boolean(workerProfile.tarjeton.periodo))) {
+    if ((workerProfile?.hasProfile || workerProfile?.hasTarjeton) && (isPersonalTarjetonQuery || Boolean(workerProfile?.tarjeton?.periodo))) {
       const tarjetonSrc = buildTarjetonSource(workerProfile)
       if (tarjetonSrc) contextualSources.push(tarjetonSrc)
     }

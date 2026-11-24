@@ -10,7 +10,7 @@ Plataforma digital de la comunidad SNTSS (Sindicato Nacional de Trabajadores del
 |---|---|---|
 | **Web** | Next.js (App Router, Turbopack) + React | Next.js `16.2.12`, React `19.2.4` |
 | **Lenguaje** | TypeScript | `5.x` (modo estricto) |
-| **Android App** | Kotlin, Jetpack Compose, Room, DataStore, Keystore | `compileSdk 36`, `versionCode 203`, `v1.1.3` |
+| **Android App** | Kotlin, Jetpack Compose, Room, DataStore, Keystore | `compileSdk 36`, `versionCode 228`, `v1.2.17` |
 | **iOS App** | Swift, SwiftUI, WKWebView, LocalAuthentication | iOS `16.0+`, XcodeGen, `v1.0.0` |
 | **Desktop / Radio** | Tauri v2 + Vite + React | AI Radio Studio |
 | **Base de Datos & Auth**| Supabase SSR + Supabase JS (PostgreSQL 14.5) | `@supabase/ssr ^0.12.3`, `@supabase/supabase-js ^2.111.0` |
@@ -160,17 +160,18 @@ la-veinte-digital/
 
 ## Funcionalidades por Módulo
 
-### 1. Asistente SNTSS (`/asistente`)
-Chat bot con IA que responde preguntas sobre el Contrato Colectivo de Trabajo (CCT), Estatutos del SNTSS, y reglamentos del IMSS. Usa RAG (Retrieval-Augmented Generation) con OpenAI embeddings y cosine similarity. Tiene dos backends paralelos: Next.js API route y Python FastAPI.
+### 1. Asistente SNTSS con IA Fraterno (`/asistente`)
+Chat bot con IA que responde preguntas sobre el Contrato Colectivo de Trabajo (CCT), Estatutos del SNTSS, y reglamentos del IMSS. Usa RAG (Retrieval-Augmented Generation) con OpenAI embeddings y cosine similarity. Cuenta con fast-path de bienvenida fraterna y personalizada (reconociendo el nombre de pila, puesto/categoría y adscripción del trabajador), integración profunda del tarjetón digital (marcas, deducciones, percepciones y cálculo proporcional de conceptos como el 08), ventana flotante con backdrop de desenfoque suave (blur), rate-limiting anti-bot y cuotas de uso protegidas.
 
-### 2. Calculadoras (`/calculadoras`)
-6 calculadoras de prestaciones laborales:
-- **Aguinaldo** - Cálculo proporcional
-- **Cláusula 97** - Prima de antigüedad
-- **Préstamos por Categoría** - Montos según categoría
-- **Segunda de Julio** - Prima vacacional
+### 2. Calculadoras y Convenio Salarial 2026-2027 (`/calculadoras`)
+6 calculadoras de prestaciones laborales y simulador salarial:
+- **Convenio Salarial 2026-2027:** Aplicación del aumento salarial contractual (+4% directo a sueldo tabular base y 86.15% en Ayuda para Renta Concepto 11) como tabulador activo oficial. Incluye simulador de incremento por categoría con cálculo quincenal y mensual, comparativa entre propuesta previa y convenio final, y búsqueda predictiva con filtros rápidos.
+- **Aguinaldo** - Cálculo proporcional y ordinario
+- **Cláusula 97** - Prima vacacional contractual
+- **Préstamos por Categoría** - Montos según categoría y capacidad
+- **Segunda de Julio** - Bono y prima vacacional
 - **Segunda de Julio Proporcional** - Cálculo proporcional
-- **Tiempo Extra** - Horas extra
+- **Tiempo Extra** - Horas extras dobles y triples CCT
 
 Incluyen **prerrelleno normativo**: al abrir una calculadora se cargan los
 valores salariales del perfil y del tabulador vigente (con política cerrada
@@ -186,26 +187,33 @@ Calendario laboral 2026 con fechas de pago, periodos de interactivo y vacacional
 ### 5. Catálogo (`/catalogo`)
 Búsqueda en el catálogo de adscripciones del IMSS con función de búsqueda PostgreSQL (`search_catalogo`).
 
-### 6. Escritos (`/escritos`)
-Generador de escritos formales PSD (Prestaciones de Servicios Diversos) con datos precargados del perfil del usuario. Exporta a PDF.
+### 6. Escritos Oficiales con IA (`/escritos`)
+Generador de escritos formales PSD (Prestaciones de Servicios Diversos) y trámites sindicales fundamentados en el CCT. Incluye:
+- **Vista previa de impresión real (WYSIWYG):** Renderizado fiel a tamaño carta para revisión visual idéntica al documento impreso antes de descargar.
+- **Distribución inteligente de fotos y anexos:** Inserción y maquetación prolija de pruebas fotográficas y anexos documentales.
+- **Asunto contextualizado con IA:** Síntesis y redacción automática del asunto oficial del trámite a partir de la descripción proporcionada.
+- **Estadísticas comunitarias:** Contador de escritos generados en tiempo real desplegado en el carrusel de inicio.
 
-### 7. Facebook (`/facebook`)
+### 7. Podcast "La 20 Radio" (`/radio`)
+Reproductor de audio integrado responsivo estilo Spotify para escuchar episodios de divulgación sindical, análisis del CCT y noticias gremiales. Cuenta con streaming proxy seguro, integración CDN directa sin desvíos y sincronización multiplataforma (Web y Android).
+
+### 8. Facebook (`/facebook`)
 Feed integrado de la página de Facebook de la Sección XX del SNTSS. Usa scraping vía bot-api Python.
 
-### 8. Nómina (`/nomina`)
+### 9. Nómina (`/nomina`)
 Visualización de nómina con wizard de perfil salarial, proyecciones de ingresos futuros y opción de opt-in para precarga de datos. El wizard **precarga automáticamente** la categoría desde el perfil de Supabase y deriva las horas de jornada del sufijo numérico (80→8h, 65→6.5h, 60→6h).
 
-### 9. Perfil (`/profile`)
+### 10. Perfil (`/profile`)
 Gestión de perfil de usuario: nombre, matrícula, adscripción, categoría, antigüedad, teléfono, y **bitácora personal** de incidencias laborales. La antigüedad del perfil se usa también para calcular la evolución en la tarjeta del dashboard.
 
-### 10. Tarjetón IMSS (`/tarjeton`)
+### 11. Tarjetón IMSS (`/tarjeton`)
 Importa el PDF de tu recibo de pago del IMSS. La extracción corre **100% en tu navegador** (PDF.js + OCR Tesseract de respaldo para tarjetones escaneados); revisas cada campo y al confirmar se guarda solo el resultado estructurado — el PDF nunca se sube. RFC/CURP/NSS/cuenta se descartan o enmascaran; el folio fiscal se guarda como huella. La confirmación actualiza tu contexto de nómina (categoría, jornada, antigüedad, conceptos recurrentes) y el prerrelleno de las calculadoras. Detalle: `docs/TARJETON_IMPORT.md`.
 
-### 11. Panel de Administración (`/admin`)
+### 12. Panel de Administración (`/admin`)
 Hub operativo con métricas agregadas (sin fuga de PII), editor de avisos con revisión editorial (`/admin/avisos`, bandeja del trabajador en `/avisos`), barra informativa administrable (`/admin/barra` con fallback a catálogo local), campañas push con snapshot inmutable y worker transaccional (`/admin/campanas`), formulario push heredado (`/admin/push`) y consola de versiones Android (`/admin/android`). Acceso: rol `admin` en `profiles` (acceso completo) o email en `PUSH_ADMIN_ALLOWED_EMAILS` (solo `/admin/push`). Detalle operativo: `docs/admin/PROGRESS.md` y `docs/admin/ROLLOUT_ROLLBACK.md`.
 
-### 13. Notificaciones
-Recordatorios de agenda con entregas idempotentes (`commitment_reminder_deliveries`, cron `/api/cron/agenda-reminders` diario) y notificaciones push FCM con campañas programadas (cron `/api/cron/push-campaigns` cada 15 min vía GitHub Actions), preferencias por usuario (`/avisos/preferencias`) y lecturas idempotentes de comunicados.
+### 13. Notificaciones y Experiencia Nativa Móvil
+Recordatorios de agenda con entregas idempotentes (`commitment_reminder_deliveries`, cron `/api/cron/agenda-reminders` diario) y notificaciones push FCM con campañas programadas (cron `/api/cron/push-campaigns` cada 15 min vía GitHub Actions). Experiencia móvil optimizada con bloqueo exhaustivo de zoom accidental por pellizco y doble toque.
 
 ---
 

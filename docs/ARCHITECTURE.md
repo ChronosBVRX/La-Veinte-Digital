@@ -1,8 +1,8 @@
 # Arquitectura de La Veinte Digital
 
 > **Documento de Arquitectura Canónica**  
-> **Fecha de corte:** 2026-09-05 — Stable Baseline (`d90ab2bbc2f4b648cb8ed0bed1801902cb9976da`)  
-> **Plataformas:** Web (Next.js 16), Android (Kotlin / Compose), iOS (Swift / SwiftUI), Desktop (Tauri / Vite)
+> **Fecha de corte:** 2026-11-24 — Stable Baseline (`v2026.11.24-stable`)  
+> **Plataformas:** Web (Next.js 16), Android (Kotlin / Compose, v1.2.17 b228), iOS (Swift / SwiftUI), Desktop (Tauri / Vite)
 
 ---
 
@@ -77,25 +77,32 @@ src/
 │   │   ├── profile/           # Mi información laboral (subida canónica de tarjetones)
 │   │   ├── calculadoras/      # Calculadoras de prestaciones laborales
 │   │   ├── vacaciones/        # Asesor y planificador de vacaciones CCT
-│   │   ├── escritos/          # Generador de escritos fundamentados
+│   │   ├── escritos/          # Generador de escritos fundamentados con IA y vista previa
 │   │   ├── documentos-personales/ # Visor universal de documentos
 │   │   ├── simulador/         # Simulador interactivo de audiencias
 │   │   ├── biblioteca-normativa/ # Explorador de leyes y CCT
+│   │   ├── radio/             # Podcast La 20 Radio (reproductor integrado)
+│   │   ├── caja/              # Caja de Ahorro SNTSS
+│   │   ├── representacion/    # Padrón sindical, casilleros y trámites seccionales
 │   │   ├── tarjeton/          # REDIRECT PERMANENTE -> /profile/mi-informacion-laboral
 │   │   └── nomina/perfil/     # REDIRECT PERMANENTE -> /profile/mi-informacion-laboral
-│   └── api/                   # 20 endpoints REST registrados en route-policy.ts
+│   └── api/                   # Endpoints REST protegidos registrados en route-policy.ts
 │
 ├── features/                  # Módulos de dominio aislados (prohibido importar cruzado)
-│   ├── asistente/             # RAG de consultas normativas y acompañamiento
-│   ├── calculadoras/          # 6 calculadoras laborales con contrato de prefill
+│   ├── asistente/             # RAG de consultas normativas, contextualización de tarjetón
+│   ├── caja/                  # Gestión segura de credenciales de caja de ahorro
+│   ├── calculadoras/          # Calculadoras laborales CCT con contrato de prefill
 │   ├── calendario/            # Catálogo de descansos obligatorios 2024-2030
 │   ├── catalogo/              # Catálogo de adscripciones IMSS
 │   ├── documentos-personales/ # Adaptadores de documentos y DocumentViewerModal
-│   ├── escritos/              # Formularios, directorio oficial, generador PDF
-│   ├── nomina/                # Motor de nómina, proyecciones, tabulador
+│   ├── escritos/              # Formularios, directorio oficial, generador PDF con IA
+│   ├── nomina/                # Motor de nómina, proyecciones, tabulador activo 2026-2027
 │   ├── normativa/             # SQLite FTS5, búsqueda semántica y citas
 │   ├── profile/               # Gestión de información laboral y perfil
-│   ├── push/                  # Registro de tokens FCM y notificaciones
+│   ├── push/                  # Registro de tokens FCM y campañas push
+│   ├── radio/                 # Podcast integrado, streaming proxy y CDN
+│   ├── representacion/        # Padrón de trabajadores, lockers, licencias y pasajes
+│   ├── salary-estimate/       # Simulador salarial del Convenio 2026-2027
 │   ├── simulador/             # Máquina de estados de audiencia disciplinaria
 │   ├── tarjeton/              # Parsers puros, OCR vendor local, confirmación
 │   ├── tarjeton-guia/         # Pipeline canónico de análisis y visualización
