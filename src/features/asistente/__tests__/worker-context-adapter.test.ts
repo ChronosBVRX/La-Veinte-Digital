@@ -203,5 +203,11 @@ describe("worker-context-adapter", () => {
     expect(evidence).toContain("11806.87")
     expect(evidence).toContain("sin retardo")
     expect(evidence).toContain("Marca continuidad vacacional: 2")
+
+    // Optimización de tokens: si [S1] ya incluye el tarjetón, formatWorkerProfilePrompt evita duplicarlo
+    const compactPrompt = formatWorkerProfilePrompt(sanitized, { tarjetonAlreadyInContext: true })
+    expect(compactPrompt.length).toBeLessThan(prompt.length)
+    expect(compactPrompt).toContain("[S1]")
+    expect(compactPrompt).not.toContain("[022] Ayuda Renta Cl. 63 Bis Inc c")
   })
 })

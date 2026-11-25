@@ -479,21 +479,50 @@ export function evidenceLocation(s: RetrievedSource): string {
   return parts.join(" · ")
 }
 
+export function cleanFragmentForPrompt(text: string): string {
+  return text
+    .replace(/\r\n/g, "\n")
+    .replace(/^\s*(?:P[áa]gina|Hoja)\s+\d+\s*(?:de\s*\d+)?\s*$/gim, "")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim()
+}
+
 /**
  * Evidencia COMPACTA para el LLM (punto 9): solo lo esencial.
  * Sin UUID/SHA/scores/URLs largas/timestamps/JSON interno.
- * El modelo ya no ve cadenas de servicio; solo etiqueta + documento + cita + texto.
+ * Compacta ruido tipográfico de PDFs y respeta un presupuesto total de caracteres
+ * para optimizar tokens de entrada en DeepSeek sin recortar las fuentes principales.
  */
-export function buildCompactEvidence(sources: RetrievedSource[]): string {
-  return sources
-    .map((s) => {
-      const loc = evidenceLocation(s)
-      const head = `[${s.id}] ${s.documento}`
-      const ref = loc ? ` · ${loc}` : ""
-      const badge = s.pendingReview ? " · [VIGENCIA POR REVISAR]" : ""
-      return `${head}${ref}${badge}\n${s.fragmento}`
-    })
-    .join("\n\n---\n\n")
+export function buildCompactEvidence(sources: RetrievedSource[], maxTotalChars = 14_000): string {
+  if (sources.length === 0) return ""
+  const blocks: string[] = []
+  let used = 0
+
+  for (let i = 0; i < sources.length; i++) {
+    const s = sources[i]
+    const loc = evidenceLocation(s)
+    const head = `[${s.id}] ${s.documento}`
+    const ref = loc ? ` · ${loc}` : ""
+    const badge = s.pendingReview ? " · [VIGENCIA POR REVISAR]" : ""
+    const header = `${head}${ref}${badge}`
+    const body = cleanFragmentForPrompt(s.fragmento)
+
+    const remaining = maxTotalChars - used - header.length - 8
+    if (remaining < 180 && blocks.length > 0) break
+
+    const maxForThis = i < 3 ? Math.min(body.length, Math.max(remaining, 2400)) : Math.min(body.length, Math.max(remaining, 1400))
+    const trimmedBody =
+      body.length > maxForThis
+        ? `${body.slice(0, maxForThis).replace(/\s+\S*$/, "").trim()}…`
+        : body
+
+    const block = `${header}\n${trimmedBody}`
+    blocks.push(block)
+    used += block.length + 7
+  }
+
+  return blocks.join("\n\n---\n\n")
 }
 
 /**

@@ -256,9 +256,13 @@ async function respondDirect(
     }
 
     const contextualSources: RetrievedSource[] = []
+    let tarjetonInContext = false
     if (workerProfile?.tarjeton && (isPersonalTarjetonQuery || isBenefitPersonalizableQuery(question))) {
       const tarjetonSrc = buildTarjetonSource(workerProfile)
-      if (tarjetonSrc) contextualSources.push(tarjetonSrc)
+      if (tarjetonSrc) {
+        contextualSources.push(tarjetonSrc)
+        tarjetonInContext = true
+      }
     }
     if (guideSrc) contextualSources.push(guideSrc)
 
@@ -292,8 +296,11 @@ async function respondDirect(
     obs.evidenceChars = sources.reduce((a, s) => a + s.fragmento.length, 0)
 
     // ── 5. CONTEXTO COMPACTO + PROMPT DINÁMICO CON PERFIL DEL TRABAJADOR ──
-    const compactEvidence = buildCompactEvidence(sources)
-    const workerProfilePrompt = workerProfile ? formatWorkerProfilePrompt(workerProfile) : undefined
+    const maxEvidenceChars = intent === "BROAD_TOPIC" || intent === "LABOR_CASE" ? 15_000 : 12_000
+    const compactEvidence = buildCompactEvidence(sources, maxEvidenceChars)
+    const workerProfilePrompt = workerProfile
+      ? formatWorkerProfilePrompt(workerProfile, { tarjetonAlreadyInContext: tarjetonInContext })
+      : undefined
     const systemPrompt = buildPrompt(intent, compactEvidence, workerProfilePrompt)
     const trimmedHistory = history.slice(-6)
     obs.historyChars = trimmedHistory.reduce((a, m) => a + m.content.length, 0)
@@ -312,6 +319,10 @@ async function respondDirect(
     const comp = await runCompletion(llm, messages as OpenAI.Chat.Completions.ChatCompletionMessageParam[], maxTokens)
     obs.llmTtftMs = comp.ttft
     obs.llmTotalMs = comp.total
+    obs.inputTokens = comp.inputTokens
+    obs.cachedInputTokens = comp.cachedInputTokens
+    obs.outputTokens = comp.outputTokens
+    obs.reasoningTokens = comp.reasoningTokens
     if (comp.provider) obs.provider = comp.provider
     if (comp.model) obs.model = comp.model
     let respuesta = comp.text
@@ -328,12 +339,18 @@ async function respondDirect(
           role: "system",
           content:
             messages[0].content +
-            "\n\nIMPORTANTE: Responde SIEMPRE en tono positivo y palabras sencillas para el trabajador. Comparte lo útil que aparece en el CONTEXTO e incluye OBLIGATORIAMENTE al menos una etiqueta [S1] (o [S2], etc.) al final de los datos tomados del contexto.",
+            "\n\nOBLIGATORIO: incluye al menos una cita [S1] (o [S2]...) al final de los datos tomados del contexto.",
         },
         ...messages.slice(1),
       ] as OpenAI.Chat.Completions.ChatCompletionMessageParam[]
       const regen = await runCompletion(llm, regenMessages, maxTokens)
-      if (regen.text) obs.llmTotalMs += regen.total
+      if (regen.text) {
+        obs.llmTotalMs += regen.total
+        obs.inputTokens += regen.inputTokens
+        obs.cachedInputTokens += regen.cachedInputTokens
+        obs.outputTokens += regen.outputTokens
+        obs.reasoningTokens += regen.reasoningTokens
+      }
       regenText = regen.text ?? null
     }
 
@@ -404,27 +421,76 @@ function buildPositiveSourceFallback(sources: RetrievedSource[]): { respuesta: s
   }
 }
 
+interface CompletionUsageChunk {
+  prompt_tokens?: number
+  completion_tokens?: number
+  prompt_cache_hit_tokens?: number
+  prompt_tokens_details?: { cached_tokens?: number }
+  completion_tokens_details?: { reasoning_tokens?: number }
+}
+
 async function runCompletion(
   llm: ResolvedConsultaLLM,
   messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
   maxTokens: number,
-): Promise<{ text: string; ttft: number; total: number; provider?: string; model?: string }> {
+): Promise<{
+  text: string
+  ttft: number
+  total: number
+  provider?: string
+  model?: string
+  inputTokens: number
+  cachedInputTokens: number
+  outputTokens: number
+  reasoningTokens: number
+}> {
   const t = performance.now()
   try {
     const stream = await withAbortTimeout(ASSISTANT_POLICY.completionTimeoutMs, (signal) =>
       llm.client.chat.completions.create(
-        { model: llm.model, temperature: 0, messages, stream: true, max_tokens: maxTokens },
+        {
+          model: llm.model,
+          temperature: 0,
+          messages,
+          stream: true,
+          stream_options: { include_usage: true },
+          max_tokens: maxTokens,
+        },
         { signal },
       ),
     )
     let text = ""
     let ttft = 0
+    let inputTokens = 0
+    let cachedInputTokens = 0
+    let outputTokens = 0
+    let reasoningTokens = 0
     for await (const chunk of stream) {
-      const delta = chunk.choices[0]?.delta?.content
+      const delta = chunk.choices?.[0]?.delta?.content
       if (delta && ttft === 0) ttft = performance.now() - t
       if (delta) text += delta
+      const usage = (chunk as unknown as { usage?: CompletionUsageChunk }).usage
+      if (usage) {
+        inputTokens = usage.prompt_tokens ?? inputTokens
+        cachedInputTokens =
+          usage.prompt_cache_hit_tokens ??
+          usage.prompt_tokens_details?.cached_tokens ??
+          cachedInputTokens
+        outputTokens = usage.completion_tokens ?? outputTokens
+        reasoningTokens = usage.completion_tokens_details?.reasoning_tokens ?? reasoningTokens
+      }
     }
-    return { text, ttft, total: performance.now() - t, provider: llm.provider, model: llm.model }
+    return {
+      text,
+      ttft,
+      total: performance.now() - t,
+      provider: llm.provider,
+      model: llm.model,
+      inputTokens,
+      cachedInputTokens,
+      outputTokens,
+      reasoningTokens,
+    }
   } catch (err) {
     const localUrl = process.env.LOCAL_LLM_URL || (process.env.NODE_ENV === "production" ? "http://127.0.0.1:11434" : null)
     if (localUrl) {
@@ -443,7 +509,17 @@ async function runLocalOllamaCompletion(
   baseUrl: string,
   messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
   maxTokens: number,
-): Promise<{ text: string; ttft: number; total: number; provider: string; model: string }> {
+): Promise<{
+  text: string
+  ttft: number
+  total: number
+  provider: string
+  model: string
+  inputTokens: number
+  cachedInputTokens: number
+  outputTokens: number
+  reasoningTokens: number
+}> {
   const t = performance.now()
   const model = process.env.LOCAL_LLM_MODEL || "qwen2.5:7b"
   const formatted = messages.map((m) => ({
@@ -472,6 +548,10 @@ async function runLocalOllamaCompletion(
     total: performance.now() - t,
     provider: "ollama:local",
     model,
+    inputTokens: 0,
+    cachedInputTokens: 0,
+    outputTokens: 0,
+    reasoningTokens: 0,
   }
 }
 

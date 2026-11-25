@@ -549,6 +549,36 @@ export function buildLexicalQuery(
   return cleaned || question.trim()
 }
 
+const TYPO_REPLACEMENTS: Array<[RegExp, string]> = [
+  [/\bvacasiones\b/gi, "vacaciones"],
+  [/\baginaldo\b/gi, "aguinaldo"],
+  [/\bjubilasion\b/gi, "jubilación"],
+  [/\bpensionasion\b/gi, "pensión"],
+  [/\bincapasidad(?:es)?\b/gi, "incapacidad"],
+  [/\bindemnisacion\b/gi, "indemnización"],
+  [/\blicensia\b/gi, "licencia"],
+  [/\blactansia\b/gi, "lactancia"],
+  [/\bprestasion(?:es)?\b/gi, "prestaciones"],
+  [/\bprofesograma\b/gi, "profesiograma"],
+  [/\bradioloj[ií]a\b/gi, "radiología"],
+  [/\bclausua\b/gi, "cláusula"],
+  [/\bsuedo\b/gi, "sueldo"],
+  [/\bpermizo\b/gi, "permiso"],
+  [/\bresicion\b/gi, "rescisión"],
+]
+
+/**
+ * Normaliza errores ortográficos frecuentes en consultas conversacionales
+ * para maximizar el acierto de FTS y del diccionario canónico sin LLM.
+ */
+export function normalizeSpanishTypos(text: string): string {
+  let out = text
+  for (const [re, rep] of TYPO_REPLACEMENTS) {
+    out = out.replace(re, rep)
+  }
+  return out
+}
+
 /**
  * Normaliza y expande la consulta léxica con términos canónicos de la institución.
  */
@@ -556,6 +586,7 @@ export function normalizeForRetrieval(
   question: string,
   userProfile?: SanitizedWorkerProfile | null,
 ): { expandedQuery: string; lexicalQuery: string; subQueries: DecomposedQuery[] } {
+  const normalizedQuestion = normalizeSpanishTypos(question)
   const matchingExpansions: string[] = []
   const matchedCategories: string[] = []
   const matchedTopicOrTerms: string[] = []
@@ -565,10 +596,10 @@ export function normalizeForRetrieval(
   // y cuenta con perfil en la plataforma, inyectamos su contexto verificado para afinar retrieval.
   const isPersonalOrProfileSensitive =
     /\b(cu[aá]nto (gano|me toca|me corresponde|debo ganar|cobro|cobr[eé])|mi (sueldo|salario|puesto|categor[íi]a|aguinaldo|vacaci[oó]n|tarjet[oó]n|quincena|jornada|turno|antig[üu]edad)|mis (vacaciones|derechos|prestaciones|deducciones|percepciones|marcas))\b/i.test(
-      question,
+      normalizedQuestion,
     ) ||
     /\b(vacaciones|aguinaldo|fondo de ahorro|segunda de julio|jubilaci[oó]n|pensi[oó]n|prestaciones|derechos laborales|sobresueldo|radiaci[oó]n|riesgo)\b/i.test(
-      question,
+      normalizedQuestion,
     )
 
   if (isPersonalOrProfileSensitive && userProfile?.hasProfile) {
@@ -591,7 +622,7 @@ export function normalizeForRetrieval(
 
   // 2. Mapeos canónicos por palabras clave en la pregunta
   for (const m of CANONICAL_MAPPINGS) {
-    if (m.keywords.test(question)) {
+    if (m.keywords.test(normalizedQuestion)) {
       matchingExpansions.push(...m.searchExpansionTerms)
       if (!m.isTopicOnly) {
         matchedCategories.push(m.searchExpansionTerms[0])
@@ -603,26 +634,26 @@ export function normalizeForRetrieval(
   }
 
   // 3. Descomposición Multi-Query cuando se detecta más de un dominio (ej. sueldo + riesgo + profesiograma)
-  const hasSalary = /\b(sueldo|salario|gana|gano|ganan|percepciones|pag[ao]n?|tabulador)\b/i.test(question)
-  const hasHazard = /\b(radi[oó]log[oa]s?|rayos|riesgo|emanaci[oó]n|infecto|peligro)\b/i.test(question)
-  const hasJobDesc = /\b(profesiograma|funciones|requisitos|perfil|puesto|actividades)\b/i.test(question)
+  const hasSalary = /\b(sueldo|salario|gana|gano|ganan|percepciones|pag[ao]n?|tabulador)\b/i.test(normalizedQuestion)
+  const hasHazard = /\b(radi[oó]log[oa]s?|rayos|riesgo|emanaci[oó]n|infecto|peligro)\b/i.test(normalizedQuestion)
+  const hasJobDesc = /\b(profesiograma|funciones|requisitos|perfil|puesto|actividades)\b/i.test(normalizedQuestion)
 
   if (hasSalary) {
     subQueries.push({
       focus: "SALARY",
-      query: `${question} sueldo tabular diario tabulador de sueldos clausula 63`,
+      query: `${normalizedQuestion} sueldo tabular diario tabulador de sueldos clausula 63`,
     })
   }
   if (hasHazard) {
     subQueries.push({
       focus: "HAZARD_PAY",
-      query: `${question} emanaciones radiactivas clausula 86 bis concepto 063 reglamento infectocontagiosidad`,
+      query: `${normalizedQuestion} emanaciones radiactivas clausula 86 bis concepto 063 reglamento infectocontagiosidad`,
     })
   }
   if (hasJobDesc) {
     subQueries.push({
       focus: "JOB_DESCRIPTION",
-      query: `${question} profesiograma catalogo de perfiles de puesto requisitos funciones`,
+      query: `${normalizedQuestion} profesiograma catalogo de perfiles de puesto requisitos funciones`,
     })
   }
 
@@ -630,13 +661,13 @@ export function normalizeForRetrieval(
   if (subQueries.length === 0) {
     subQueries.push({
       focus: "GENERAL",
-      query: question,
+      query: normalizedQuestion,
     })
   }
 
   const dedupedTerms = [...new Set(matchingExpansions)].join(" ")
-  const expandedQuery = dedupedTerms ? `${question} ${dedupedTerms}` : question
-  const lexicalQuery = buildLexicalQuery(question, matchedCategories, hasSalary, matchedTopicOrTerms)
+  const expandedQuery = dedupedTerms ? `${normalizedQuestion} ${dedupedTerms}` : normalizedQuestion
+  const lexicalQuery = buildLexicalQuery(normalizedQuestion, matchedCategories, hasSalary, matchedTopicOrTerms)
 
   return { expandedQuery, lexicalQuery, subQueries }
 }

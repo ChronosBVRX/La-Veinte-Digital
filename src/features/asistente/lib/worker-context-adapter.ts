@@ -313,7 +313,10 @@ export function sanitizeWorkerContext(ctx: WorkerContext): SanitizedWorkerProfil
 /**
  * Formatea el perfil para el System Prompt del asistente con personalización profunda.
  */
-export function formatWorkerProfilePrompt(profile: SanitizedWorkerProfile): string {
+export function formatWorkerProfilePrompt(
+  profile: SanitizedWorkerProfile,
+  opts?: { tarjetonAlreadyInContext?: boolean },
+): string {
   if (!profile.hasProfile) return ""
 
   const lineas: string[] = [
@@ -331,6 +334,19 @@ export function formatWorkerProfilePrompt(profile: SanitizedWorkerProfile): stri
     lineas.push(`- Conceptos de nómina recurrentes registrados: ${profile.conceptosRecurrentes.join(", ")}`)
   }
   if (profile.vacacionesPorVencer) lineas.push(`- Periodo vacacional próximo / por vencer: ${profile.vacacionesPorVencer}`)
+
+  // Optimización de tokens: si el tarjetón completo ya va como [S1] en Contexto,
+  // evitar duplicar ~500 tokens y remitir directamente a [S1] para que el modelo lo cite a la primera.
+  if (opts?.tarjetonAlreadyInContext && profile.tarjeton) {
+    lineas.push(
+      "- El desglose de su tarjetón, percepciones, deducciones, marcas y cálculos proporcionales está en [S1]. Usa esas cifras exactas citando [S1].",
+    )
+    lineas.push(
+      "INSTRUCCIÓN DE PERSONALIZACIÓN: Salúdalo por su nombre de pila si aplica y responde directo con sus datos reales de [S1]; para 08 calcula proporción con 7.5 días/mes (aguinaldo Cl. 107) o 3.83 días/mes (fondo ahorro Cl. 144).",
+    )
+    lineas.push("-----------------------------------------------------------------------")
+    return lineas.join("\n")
+  }
 
   if (profile.tarjeton) {
     const t = profile.tarjeton
