@@ -224,6 +224,48 @@ export async function retrieveHybrid(
     }
   }
 
+  // Si FTS + OR-retry devolvieron 0 filas en modo sin embeddings, usar índice pg_trgm (ILIKE) como último recurso.
+  const maybeFrom = (supabase as unknown as {
+    from?: (table: string) => {
+      select: (cols: string) => {
+        neq: (col: string, val: string) => {
+          ilike: (col: string, pat: string) => {
+            limit: (n: number) => Promise<{ data: unknown[] | null; error: { message: string } | null }>
+          }
+        }
+      }
+    }
+  }).from
+  if ((!embedding || embedding.length !== 1536) && rows.length === 0 && typeof maybeFrom === "function") {
+    const rawKeywords = (rawQuestion ?? question)
+      .replace(/[¿?¡!.,;:()"'\n]/g, " ")
+      .split(/\s+/)
+      .filter((t) => t.length >= 5)
+      .sort((a, b) => b.length - a.length)
+    const anchor = rawKeywords[0]
+    if (anchor) {
+      try {
+        const trgmRes = await maybeFrom
+          .call(supabase, "normativa_chunks")
+          .select(
+            "chunk_id, document_id, document_title, version_id, validity, section_type, section_title, article, clause, numeral, page_start, page_end, text, source_url",
+          )
+          .neq("validity", "HISTORICAL")
+          .ilike("text", `%${anchor}%`)
+          .limit(6)
+        if (!trgmRes.error && Array.isArray(trgmRes.data) && trgmRes.data.length > 0) {
+          rows = trgmRes.data.map((r) => ({
+            ...(r as unknown as RpcChunkRow),
+            score: usedRrf ? 14 : 150,
+            origin: usedRrf ? "rrf:trgm" : "trgm",
+          }))
+        }
+      } catch {
+        // Silencioso: fallback opcional si la tabla está disponible
+      }
+    }
+  }
+
   const rpcMs = performance.now() - t0
 
   const byChunk = new Map<string, RetrievedSource>()
@@ -272,19 +314,45 @@ export async function retrieveHybrid(
     intent === "LABOR_CASE" ||
     (intent === "SPECIFIC_TOPIC" && distinctDocs >= 2 && target >= 4)
 
-  const ranked = shouldDiversify
+  let ranked = shouldDiversify
     ? diversifyByDocument(fused, target)
     : fused.slice(0, target)
+
+  // En consultas EXACT_LOOKUP / EXACT_EXPLAIN, ordenar por página ascendente los fragmentos hermanos
+  // de la misma cláusula/artículo para que el modelo lea de principio a fin sin saltos.
+  if ((intent === "EXACT_LOOKUP" || intent === "EXACT_EXPLAIN") && ranked.length > 1) {
+    const head = ranked[0]
+    const siblings = ranked.filter(
+      (s) => s.documentId === head.documentId && s.numero && s.numero === head.numero,
+    )
+    if (siblings.length > 1) {
+      const others = ranked.filter(
+        (s) => !(s.documentId === head.documentId && s.numero && s.numero === head.numero),
+      )
+      siblings.sort((a, b) => (a.paginaInicio ?? 99999) - (b.paginaInicio ?? 99999))
+      ranked = [...siblings, ...others]
+    }
+  }
+
   ranked.forEach((s, i) => (s.id = `S${i + 1}`))
   return { sources: ranked, rpcMs, rpcCalls }
 }
 
-/** Recorta historial (punto 11): últimos relevantes con presupuesto duro. */
+/**
+ * Recorta y compacta historial (punto 11) optimizando tokens de entrada en DeepSeek:
+ * conserva los 2 turnos más recientes completos y resume respuestas previas del asistente.
+ */
 export function buildMessages(systemPrompt: string, history: { role: string; content: string }[]): Array<{ role: "system" | "user" | "assistant"; content: string }> {
-  const trimmed = trimHistory(history, 6, 6000)
+  const trimmed = trimHistory(history, 6, 4800)
   return [
     { role: "system", content: systemPrompt },
-    ...trimmed.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
+    ...trimmed.map((m, idx) => {
+      const isOlderAssistant = m.role === "assistant" && idx < trimmed.length - 2 && m.content.length > 360
+      return {
+        role: m.role as "user" | "assistant",
+        content: isOlderAssistant ? `${m.content.slice(0, 360).replace(/\s+\S*$/, "").trim()}…` : m.content,
+      }
+    }),
   ]
 }
 

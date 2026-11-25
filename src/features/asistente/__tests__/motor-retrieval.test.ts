@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
-import { embedQueryLru, retrieveHybrid } from "../lib/motor"
+import { embedQueryLru, retrieveHybrid, buildMessages } from "../lib/motor"
 import { createClient } from "@/lib/supabase/server"
 
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }))
@@ -143,5 +143,32 @@ describe("motor: embedQueryLru y retrieveHybrid", () => {
     const { sources } = await retrieveHybrid("sueldo radiologo riesgo profesiograma", null, "SPECIFIC_TOPIC", {}, 4, "¿Cuánto gana un radiólogo, qué riesgo tiene y qué hace?")
     const docIds = new Set(sources.map((s) => s.documentId))
     expect(docIds.size).toBe(3)
+  })
+
+  it("ordena fragmentos hermanos de una misma cláusula por página ascendente en EXACT_EXPLAIN", async () => {
+    const rows = [
+      makeRow({ chunk_id: "CCT@47b", clause: "47", page_start: 68, score: 42, text: "Segunda parte de la cláusula 47." }),
+      makeRow({ chunk_id: "CCT@47a", clause: "47", page_start: 66, score: 35, text: "Primera parte de la cláusula 47." }),
+    ]
+    vi.mocked(createClient).mockResolvedValue({
+      rpc: vi.fn().mockResolvedValue({ data: rows, error: null }),
+    } as never)
+
+    const { sources } = await retrieveHybrid("clausula 47", null, "EXACT_EXPLAIN", { clause: "47" }, 5, "Explícame la cláusula 47")
+    expect(sources[0].paginaInicio).toBe(66)
+    expect(sources[1].paginaInicio).toBe(68)
+  })
+
+  it("buildMessages compacta respuestas antiguas del asistente para ahorrar tokens sin tocar el turno más reciente", () => {
+    const longOld = "Respuesta extensa anterior. ".repeat(30)
+    const msgs = buildMessages("SYSTEM", [
+      { role: "user", content: "pregunta 1" },
+      { role: "assistant", content: longOld },
+      { role: "user", content: "pregunta 2" },
+      { role: "assistant", content: longOld },
+      { role: "user", content: "pregunta 3" },
+    ])
+    expect(msgs[2].content.length).toBeLessThanOrEqual(365)
+    expect(msgs[4].content).toBe(longOld)
   })
 })

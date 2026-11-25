@@ -78,6 +78,13 @@ describe("canonical-dictionary", () => {
     expect(res.expandedQuery).toContain("jornada 6.5")
     expect(res.expandedQuery).toContain("sustituto 08 proporcional")
   })
+
+  it("corrige errores ortográficos comunes antes de buscar en FTS", () => {
+    const res = normalizeForRetrieval("¿Cuántas vacasiones y aginaldo tocan antes de mi jubilasion?")
+    expect(res.expandedQuery).toContain("vacaciones")
+    expect(res.expandedQuery).toContain("aguinaldo")
+    expect(res.lexicalQuery).toContain("clausula 47")
+  })
 })
 
 
