@@ -5,4 +5,4 @@
  */
 export const APP_COMMIT_SHA = process.env.APP_COMMIT_SHA ?? "91f06cc"
 export const RAG_BACKEND = "pgvector" as const
-export const LLM_PROVIDER = "openai" as const
+export const LLM_PROVIDER = "deepseek" as const

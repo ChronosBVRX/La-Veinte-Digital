@@ -48,6 +48,36 @@ describe("canonical-dictionary", () => {
     expect(lexicalQuery).not.toMatch(/\bcual\b/i)
     expect(subQueries.map((s) => s.focus)).toContain("SALARY")
   })
+
+  it("expande consultas generales y coloquiales de derechos, actas, RJP y accidentes con términos FTS en OR", () => {
+    const general = normalizeForRetrieval("Oye soy nuevo y quiero saber qué prestaciones tengo en el IMSS")
+    expect(general.expandedQuery).toContain("vacaciones")
+    expect(general.expandedQuery).toContain("aguinaldo")
+    expect(general.lexicalQuery).toContain(" OR ")
+
+    const acta = normalizeForRetrieval("Mi jefe me quiere levantar un acta administrativa y me amenazó")
+    expect(acta.expandedQuery).toContain("clausula 22")
+    expect(acta.lexicalQuery).toContain("clausula 22")
+
+    const rjp = normalizeForRetrieval("¿Cuándo me puedo jubilar con el RJP?")
+    expect(rjp.expandedQuery).toContain("regimen de jubilaciones y pensiones")
+
+    const trayecto = normalizeForRetrieval("Tuve un accidente camino al trabajo")
+    expect(trayecto.expandedQuery).toContain("3A21-003-010")
+  })
+
+  it("inyecta contexto de plaza 08 y categoría en preguntas generales sensibles al perfil", () => {
+    const profile08 = {
+      hasProfile: true,
+      categoria: "ENFERMERA GENERAL",
+      jornadaHoras: 6.5,
+      tipoPlaza: "08 Sustituto",
+    }
+    const res = normalizeForRetrieval("¿Cuántos días de vacaciones tocan?", profile08)
+    expect(res.expandedQuery).toContain("ENFERMERA GENERAL")
+    expect(res.expandedQuery).toContain("jornada 6.5")
+    expect(res.expandedQuery).toContain("sustituto 08 proporcional")
+  })
 })
 
 

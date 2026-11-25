@@ -378,6 +378,10 @@ export function formatWorkerProfilePrompt(profile: SanitizedWorkerProfile): stri
     if (a.asiduidad != null) lineas.push(`- Puntos de asiduidad: ${a.asiduidad}`)
     if (a.incapacidadGeneralDias != null && a.incapacidadGeneralDias > 0) lineas.push(`- Incapacidad enfermedad general: ${a.incapacidadGeneralDias} días`)
     if (a.riesgoTrabajoDias != null && a.riesgoTrabajoDias > 0) lineas.push(`- Incapacidad por riesgo de trabajo: ${a.riesgoTrabajoDias} días`)
+    if (a.maternidadDias != null && a.maternidadDias > 0) lineas.push(`- Licencia/incapacidad por maternidad: ${a.maternidadDias} días`)
+    if (a.licenciasConSueldo != null && a.licenciasConSueldo > 0) lineas.push(`- Licencias con goce de sueldo: ${a.licenciasConSueldo}`)
+    if (a.licenciasSinSueldo != null && a.licenciasSinSueldo > 0) lineas.push(`- Licencias sin goce de sueldo: ${a.licenciasSinSueldo}`)
+    if (a.comisiones != null && a.comisiones > 0) lineas.push(`- Comisiones registradas: ${a.comisiones}`)
   }
 
   if (profile.vacacionesDetalle) {
@@ -452,16 +456,24 @@ export function formatWorkerTarjetonEvidence(profile: SanitizedWorkerProfile): s
     if (a.faltas != null) asis.push(`Faltas: ${a.faltas}`)
     if (a.pasesSalida != null) asis.push(`Pases de salida: ${a.pasesSalida}`)
     if (a.asiduidad != null) asis.push(`Asiduidad: ${a.asiduidad}`)
+    if (a.incapacidadGeneralDias != null && a.incapacidadGeneralDias > 0) asis.push(`Incapacidad enf. general: ${a.incapacidadGeneralDias}d`)
+    if (a.riesgoTrabajoDias != null && a.riesgoTrabajoDias > 0) asis.push(`Riesgo de trabajo: ${a.riesgoTrabajoDias}d`)
+    if (a.maternidadDias != null && a.maternidadDias > 0) asis.push(`Maternidad: ${a.maternidadDias}d`)
+    if (a.licenciasConSueldo != null && a.licenciasConSueldo > 0) asis.push(`Licencias con sueldo: ${a.licenciasConSueldo}`)
+    if (a.licenciasSinSueldo != null && a.licenciasSinSueldo > 0) asis.push(`Licencias sin sueldo: ${a.licenciasSinSueldo}`)
     if (asis.length > 0) parts.push(`Asistencia y marcas: ${asis.join(" | ")}`)
   }
 
   if (profile.vacacionesDetalle) {
     const v = profile.vacacionesDetalle
     const vac: string[] = []
+    if (v.regimenVacacional) vac.push(`Régimen: ${v.regimenVacacional}`)
     if (v.marcaContinuidad != null) vac.push(`Marca continuidad vacacional: ${v.marcaContinuidad}`)
     if (v.periodoPorDisfrutar != null) vac.push(`Periodo por disfrutar: ${v.periodoPorDisfrutar}`)
     if (v.diasEnElAno != null) vac.push(`Días en el año: ${v.diasEnElAno}`)
     if (v.diasDisfrutados != null) vac.push(`Días disfrutados: ${v.diasDisfrutados}`)
+    if (v.diasV20 != null && v.diasV20 > 0) vac.push(`Días V20: ${v.diasV20}`)
+    if (v.periodosVencidos != null && v.periodosVencidos > 0) vac.push(`Periodos vencidos: ${v.periodosVencidos}`)
     if (v.porVencerFecha) vac.push(`Fecha por vencer: ${v.porVencerFecha}`)
     if (vac.length > 0) parts.push(`Vacaciones y marcas: ${vac.join(" | ")}`)
   }

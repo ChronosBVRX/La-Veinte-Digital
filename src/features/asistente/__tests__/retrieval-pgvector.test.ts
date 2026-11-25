@@ -58,6 +58,11 @@ describe("extractExactRefs", () => {
   it("no inventa referencias cuando no hay", () => {
     expect(extractExactRefs("¿cuántos días de vacaciones tengo?")).toEqual({})
   })
+
+  it("detecta abreviaturas como cl. 63-bis y art. 123", () => {
+    expect(extractExactRefs("Explícame la cl. 63-bis")).toEqual({ clause: "63 bis" })
+    expect(extractExactRefs("¿Qué dice el art. 123?")).toEqual({ article: "123" })
+  })
 })
 
 describe("validateCitations — el LLM no puede inventar fuentes", () => {
@@ -81,6 +86,13 @@ describe("validateCitations — el LLM no puede inventar fuentes", () => {
     const r = validateCitations("todo [S1] es invención", [])
     expect(r.respuesta).not.toContain("[S")
     expect(r.citedIds).toEqual([])
+  })
+
+  it("normaliza rangos [S1-S2] y prefijos [Fuente S1] eliminando inválidos", () => {
+    const r = validateCitations("Ver [Fuente S1] y [S1-S2] además de [S9].", sources)
+    expect(r.citedIds).toEqual(["S1", "S2"])
+    expect(r.invalidIdsRemoved).toEqual(["S9"])
+    expect(r.respuesta).not.toContain("[S9]")
   })
 })
 

@@ -14,8 +14,29 @@ import { vacationContinuityMarks, occupationMarks } from "@/data/guia-tarjeton/t
 const WORKER_CONTEXT_QUERY_PATTERN =
   /\b(tarjet[oó]n|08|sustitut[oa]s?|eventual(?:es)?|segunda\s+de\s+julio|fondo\s+de\s+ahorro|aguinaldo|mi\s+(?:[a-záéíóúñ]+\s+)?(?:tarjet[oó]n|recibo|n[oó]mina|quincena|sueldo|salario|pago|puesto|categor[íi]a|jornada|turno|adscripci[oó]n|antig[üu]edad|aguinaldo|fondo|prima|marca)|mis\s+(?:deducciones|percepciones|conceptos|marcas|faltas|retardos|vacaciones|incidencias)|cu[aá]nto\s+(?:me\s+)?(?:[a-záéíóúñ]+\s+)*(?:gano|cobro|cobr[eé]|lleg[oó]|pagan|pagar[aá]n|pagaron|depositan|depositar[aá]n|descontaron|descuentan|tengo|recib[ií]|recibir[eé]|toca|tocar[íi]a|corresponde|alcanza|es)|cu[aá]nt[ao]s?\s+(?:[a-záéíóúñ]+\s+)*(?:faltas?|retardos?|d[íi]as|marcas?|conceptos?|percepciones|deducciones)|por\s*qu[eé]\s+(?:me\s+)?descontaron|descuento\s+(?:de|en)|concepto\s+\d+|cpto\s+\d+|sin\s+retardo|pases?\s+de\s+salida|asiduidad|marca\s+de\s+continuidad)\b/i
 
+const PERSONAL_PAYSLIP_READ_PATTERN =
+  /\b(mi\s+(?:[a-záéíóúñ]+\s+)?(?:tarjet[oó]n|recibo|n[oó]mina|quincena|neto|sueldo\s+neto|pago)|mis\s+(?:deducciones|percepciones|conceptos|marcas|faltas|retardos|incidencias)|cu[aá]nto\s+(?:me\s+)?(?:gano|cobro|cobr[eé]|lleg[oó]|pagaron|depositan|depositaron|descontaron|descuentan)|por\s*qu[eé]\s+(?:me\s+)?descontaron)\b/i
+
+const BENEFIT_PERSONALIZABLE_PATTERN =
+  /\b(vacaciones|aguinaldo|segunda\s+de\s+julio|fondo\s+de\s+ahorro|prima\s+vacacional|sueldo|salario|quincena|tarjet[oó]n|recibo|n[oó]mina|deducci[oó]n|percepci[oó]n|descuento|marca|retardo|falta|sin\s+retardo|est[ií]mulo|asiduidad|033|034|058|063|radiaci[oó]n|infectocontagiosidad|jornada|categor[ií]a|puesto|antig[üu]edad|08|sustitut[oa]|jubilaci[oó]n|pensi[oó]n)\b/i
+
 export function isWorkerContextQuery(question: string): boolean {
   return WORKER_CONTEXT_QUERY_PATTERN.test(question)
+}
+
+export function isPersonalPayslipReadQuery(question: string): boolean {
+  const isConceptOrMarkDefinition =
+    /\b(qu[eé]\s+(?:es|son|significa|significan)|expl[ií]came\s+el)\s+(?:el\s+|la\s+|los\s+|las\s+)?(?:concepto|cpto|clave|marca|0[0-9]{2}|1[0-9]{2})\b/i.test(
+      question,
+    )
+  if (isConceptOrMarkDefinition && !/\b(cu[aá]nto|descontaron|cobr[eé]|pagaron|lleg[oó])\b/i.test(question)) {
+    return false
+  }
+  return PERSONAL_PAYSLIP_READ_PATTERN.test(question)
+}
+
+export function isBenefitPersonalizableQuery(question: string): boolean {
+  return WORKER_CONTEXT_QUERY_PATTERN.test(question) || BENEFIT_PERSONALIZABLE_PATTERN.test(question)
 }
 
 /**
@@ -50,7 +71,10 @@ export function buildTarjetonSource(profile: SanitizedWorkerProfile): RetrievedS
  * Extrae y construye una fuente de evidencia curada desde la Guía del Tarjetón
  * si la pregunta alude a un concepto, marca de asistencia o marca de vacaciones.
  */
-export function findTarjetonGuideSource(question: string): RetrievedSource | null {
+export function findTarjetonGuideSource(
+  question: string,
+  profile?: SanitizedWorkerProfile | null,
+): RetrievedSource | null {
   const q = question.toLowerCase()
 
   // 1. Detección de Aguinaldo (Cláusula 107 CCT y Concepto 049 en Tarjetón)
@@ -116,42 +140,106 @@ export function findTarjetonGuideSource(question: string): RetrievedSource | nul
     }
   }
 
-  // 3. Detección de conceptos por código numérico (ej. "concepto 022", "cpto 52", "033", etc.)
-  const conceptMatch = question.match(/\b(?:concepto|cpto|clave)\s*([0-9]{1,3})\b|\b(0[0-9]{2}|1[0-9]{2})\b/i)
-  if (conceptMatch) {
-    const rawCode = conceptMatch[1] || conceptMatch[2]
-    const code = rawCode.padStart(3, "0")
-    const guideContent = GUIDE_CONCEPT_CONTENT_BY_CODE.get(code)
-    const meta = guideConcepts.find((c) => c.code === code)
+  // 3. Detección de conceptos por código numérico (ej. "concepto 022", "cpto 52", "107, 108 y 152")
+  // Excluir primero claves de NOM-xxx y homoclaves (1A74-003-025) para evitar falsos positivos (NOM-035 != cpto 035).
+  const sanitizedForConcepts = question
+    .replace(/\bNOM[-\s]?\d{3}(?:[-\s]?[A-Z0-9]+)*\b/gi, " ")
+    .replace(/\b\d[AB]\d{2}-\d{3}-\d{3}\b/gi, " ")
+  const conceptMatches = [...sanitizedForConcepts.matchAll(/\b(?:concepto|cpto|clave)\s*([0-9]{1,3})\b|\b(0[0-9]{2}|1[0-9]{2})\b/gi)]
+  const requestedCodes: string[] = []
+  for (const m of conceptMatches) {
+    const raw = m[1] || m[2]
+    if (!raw) continue
+    const code = raw.padStart(3, "0")
+    if (!requestedCodes.includes(code)) requestedCodes.push(code)
+    if (requestedCodes.length >= 4) break
+  }
 
-    if (guideContent || meta) {
+  if (requestedCodes.length > 0) {
+    const entries: string[] = []
+    let firstCode = requestedCodes[0]
+    let firstTitle = `Concepto ${firstCode}`
+    for (const code of requestedCodes) {
+      const guideContent = GUIDE_CONCEPT_CONTENT_BY_CODE.get(code)
+      const meta = guideConcepts.find((c) => c.code === code)
+      if (!guideContent && !meta) continue
       const nombre = meta?.name || guideContent?.easy?.short || `Concepto ${code}`
       const tipo = meta?.kind === "deduction" ? "Deducción" : "Percepción"
-      const lineas: string[] = [
-        `Concepto [${code}]: ${nombre} (${tipo})`,
-      ]
+      if (entries.length === 0) {
+        firstCode = code
+        firstTitle = `Concepto ${code} (${nombre})`
+      }
+      const lineas: string[] = [`Concepto [${code}]: ${nombre} (${tipo})`]
       if (guideContent?.easy?.short) lineas.push(`Definición: ${guideContent.easy.short}`)
       if (guideContent?.easy?.whyMatters) lineas.push(`Importancia: ${guideContent.easy.whyMatters}`)
       if (guideContent?.easy?.whenAppears) lineas.push(`¿Cuándo aparece?: ${guideContent.easy.whenAppears}`)
       if (guideContent?.detailed?.howItWorks) lineas.push(`Operación: ${guideContent.detailed.howItWorks}`)
       if (guideContent?.detailed?.calculation?.formula) lineas.push(`Cálculo/Fórmula: ${guideContent.detailed.calculation.formula}`)
+      entries.push(lineas.join("\n"))
+    }
 
+    if (entries.length > 0) {
       return {
         id: "S_GUIDE",
-        chunkId: `guia:concepto:${code}`,
+        chunkId: `guia:concepto:${requestedCodes.join(",")}`,
         documentId: "GUIA-TARJETON-CONCEPTOS",
-        documento: `Guía Oficial del Tarjetón IMSS — Concepto ${code} (${nombre})`,
+        documento:
+          entries.length === 1
+            ? `Guía Oficial del Tarjetón IMSS — ${firstTitle}`
+            : `Guía Oficial del Tarjetón IMSS — Conceptos ${requestedCodes.join(", ")}`,
         version: "Edición Vigente",
         tipo: "concepto",
-        numero: code,
+        numero: firstCode,
         paginaInicio: null,
         paginaFin: null,
-        fragmento: lineas.join("\n"),
-        sourceUrl: `/guia/conceptos?codigo=${code}`,
+        fragmento: entries.join("\n\n"),
+        sourceUrl: `/guia/conceptos?codigo=${firstCode}`,
         validity: "VIGENTE",
         pendingReview: false,
         score: 850,
         origin: "tarjeton_guide_concept",
+      }
+    }
+  }
+
+  // 3b. Si pregunta en general por los conceptos/deducciones/percepciones de SU tarjetón cargado
+  if (
+    profile?.tarjeton &&
+    /(?:qu[eé]\s+(?:son|significan)|expl[ií]came|desgl[oó]sa(?:me)?|por\s*qu[eé]\s+(?:me\s+)?descuentan)\s+(?:los\s+|mis\s+|cada\s+)?(?:conceptos|percepciones|deducciones|descuentos|recibo|tarjet[oó]n)/i.test(
+      question,
+    )
+  ) {
+    const profileCodes = [
+      ...profile.tarjeton.percepciones.map((p) => p.codigo),
+      ...profile.tarjeton.deducciones.map((d) => d.codigo),
+    ].slice(0, 10)
+    const lines: string[] = []
+    for (const code of [...new Set(profileCodes)]) {
+      const guideContent = GUIDE_CONCEPT_CONTENT_BY_CODE.get(code)
+      const meta = guideConcepts.find((c) => c.code === code)
+      if (!guideContent && !meta) continue
+      const nombre = meta?.name || `Concepto ${code}`
+      const tipo = meta?.kind === "deduction" ? "Deducción" : "Percepción"
+      const desc = guideContent?.easy?.short || meta?.catalog?.detail?.[0]?.text?.slice(0, 180) || ""
+      lines.push(`- [${code}] ${nombre} (${tipo})${desc ? `: ${desc}` : ""}`)
+    }
+    if (lines.length > 0) {
+      return {
+        id: "S_GUIDE",
+        chunkId: `guia:tarjeton_conceptos:${profile.tarjeton.periodo ?? "activo"}`,
+        documentId: "GUIA-TARJETON-CONCEPTOS",
+        documento: "Guía Oficial del Tarjetón IMSS — Conceptos de tu recibo",
+        version: "Edición Vigente",
+        tipo: "concepto",
+        numero: null,
+        paginaInicio: null,
+        paginaFin: null,
+        fragmento: `Significado oficial de los conceptos que aparecen en tu tarjetón:\n${lines.join("\n")}`,
+        sourceUrl: "/guia/mi-quincena",
+        validity: "VIGENTE",
+        pendingReview: false,
+        score: 845,
+        origin: "tarjeton_guide_concept_summary",
       }
     }
   }

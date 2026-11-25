@@ -9,8 +9,17 @@ export const ASSISTANT_POLICY = {
   /** Modelo de embeddings. Seleccionable vía env; default moderno. */
   embeddingModel: process.env.OPENAI_EMBEDDING_MODEL ?? "text-embedding-3-small",
 
-  /** Modelo de chat. Seleccionable vía env. */
-  chatModel: process.env.OPENAI_CHAT_MODEL ?? "gpt-4o-mini",
+  /** Modelo de chat por defecto (OpenAI). Seleccionable vía env. */
+  chatModel: process.env.OPENAI_CHAT_MODEL ?? process.env.OPENAI_MODEL ?? "gpt-4o-mini",
+
+  /** Proveedor explícito opcional ("deepseek" | "openai"). */
+  llmProvider: (process.env.LLM_PROVIDER ?? "").toLowerCase().trim(),
+
+  /** Modelo de chat DeepSeek. */
+  deepseekModel: process.env.DEEPSEEK_MODEL ?? "deepseek-chat",
+
+  /** Base URL de DeepSeek. */
+  deepseekBaseUrl: process.env.DEEPSEEK_BASE_URL ?? "https://api.deepseek.com",
 
   /** Dimensiones esperadas del vectorstore. Debe coincidir con el modelo. */
   embeddingDimensions: 1536,

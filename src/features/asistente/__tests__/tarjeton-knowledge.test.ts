@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest"
 import {
   isWorkerContextQuery,
+  isPersonalPayslipReadQuery,
+  isBenefitPersonalizableQuery,
   buildTarjetonSource,
   findTarjetonGuideSource,
 } from "../lib/tarjeton-knowledge"
@@ -162,6 +164,45 @@ describe("tarjeton-knowledge", () => {
     it("devuelve null para preguntas no relacionadas con conceptos o marcas del tarjetón", () => {
       expect(findTarjetonGuideSource("¿Cuáles son los requisitos para un cambio de adscripción?")).toBeNull()
       expect(findTarjetonGuideSource("¿Qué dice la LFT sobre el despido injustificado?")).toBeNull()
+      expect(findTarjetonGuideSource("¿Qué dice la NOM-035 sobre riesgo psicosocial?")).toBeNull()
+      expect(findTarjetonGuideSource("¿Qué dice el procedimiento 1A74-003-025?")).toBeNull()
+    })
+
+    it("extrae múltiples conceptos cuando la consulta compara varios códigos", () => {
+      const src = findTarjetonGuideSource("¿Cuál es la diferencia entre el concepto 107, 108 y 152?")
+      expect(src).not.toBeNull()
+      expect(src?.fragmento).toContain("Concepto [107]")
+      expect(src?.fragmento).toContain("Concepto [108]")
+      expect(src?.fragmento).toContain("Concepto [152]")
+    })
+
+    it("resume los conceptos del tarjetón cargado cuando el trabajador pregunta en general por sus deducciones/conceptos", () => {
+      const profile: SanitizedWorkerProfile = {
+        hasProfile: true,
+        hasTarjeton: true,
+        tarjeton: {
+          periodo: "2A-OCT-2026",
+          percepciones: [{ codigo: "002", nombre: "Sueldo Base", importe: 4200, tipo: "percepcion" }],
+          deducciones: [
+            { codigo: "052", nombre: "Cuota Sindical", importe: 190, tipo: "deduccion" },
+            { codigo: "152", nombre: "Fondo de Jubilación", importe: 320, tipo: "deduccion" },
+          ],
+        },
+      }
+      const src = findTarjetonGuideSource("Explícame qué significan los conceptos de mi recibo", profile)
+      expect(src).not.toBeNull()
+      expect(src?.origin).toBe("tarjeton_guide_concept_summary")
+      expect(src?.fragmento).toContain("[052]")
+      expect(src?.fragmento).toContain("[152]")
+    })
+  })
+
+  describe("isPersonalPayslipReadQuery e isBenefitPersonalizableQuery", () => {
+    it("distingue lectura de cifras personales vs definición general de un concepto", () => {
+      expect(isPersonalPayslipReadQuery("¿Cuánto cobré en mi tarjetón?")).toBe(true)
+      expect(isPersonalPayslipReadQuery("¿Qué es el concepto 022 en mi tarjetón?")).toBe(false)
+      expect(isBenefitPersonalizableQuery("¿Cuántos días de vacaciones tengo?")).toBe(true)
+      expect(isBenefitPersonalizableQuery("¿Qué dice la NOM-035?")).toBe(false)
     })
   })
 })
