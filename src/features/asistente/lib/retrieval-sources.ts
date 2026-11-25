@@ -47,10 +47,10 @@ export interface ExactRefs {
 
 export function extractExactRefs(question: string): ExactRefs {
   const refs: ExactRefs = {}
-  const clause = question.match(/cl[áa]usula\s+(\d+\s*(?:bis|ter|quater)?)/i)
-  if (clause) refs.clause = clause[1].replace(/\s+/g, " ").trim()
-  const article = question.match(/art[íi]culo\s+("?\d+(?:\s*(?:bis|ter))?"?)/i)
-  if (article) refs.article = article[1].replace(/"/g, "").trim()
+  const clause = question.match(/\b(?:cl[áa]usula|cl\.?)\s+(\d+(?:[-\s]*(?:bis|ter|quater))?)/i)
+  if (clause) refs.clause = clause[1].replace(/[-\s]+/g, " ").trim()
+  const article = question.match(/\b(?:art[íi]culo|art\.?)\s+("?\d+(?:[-\s]*(?:bis|ter))?"?)/i)
+  if (article) refs.article = article[1].replace(/"/g, "").replace(/[-\s]+/g, " ").trim()
   const homoclave = question.match(/\b\d[AB]\d{2}-\d{3}-\d{3}\b/i)
   if (homoclave) refs.key = homoclave[0]
   // Claves de NOM (NOM-035, NOM-229-SSA1-2002…): el FTS las tokeniza mal,
@@ -504,9 +504,21 @@ export function validateCitations(
   respuesta: string,
   sources: RetrievedSource[],
 ): { respuesta: string; citedIds: string[]; invalidIdsRemoved: string[] } {
-  // Normalizar citas como (S1) o agrupadas como [S1, S2] / [S1 y S2] a [S1] [S2]
+  // Normalizar citas como (S1), [Fuente S1], rangos [S1-S3] o agrupadas [S1, S2] / [S1 y S2] a [S1] [S2]
   const normalized = respuesta
+    .replace(/\[(?:fuentes?|ref(?:erencias?)?)[:\s]+((?:S?\d+(?:\s*[,y\-–]\s*)?)+)\]/gi, (_m, inner: string) => {
+      const ids = [...inner.matchAll(/S?(\d+)/gi)].map((m) => `[S${m[1]}]`)
+      return ids.length > 0 ? ids.join(" ") : _m
+    })
     .replace(/\(S(\d+)\)/g, "[S$1]")
+    .replace(/\[S(\d+)\s*[-–]\s*S?(\d+)\]/gi, (_m, aStr: string, bStr: string) => {
+      const a = Number(aStr)
+      const b = Number(bStr)
+      if (!Number.isFinite(a) || !Number.isFinite(b) || b <= a || b - a > 6) return `[S${aStr}]`
+      const out: string[] = []
+      for (let i = a; i <= b; i++) out.push(`[S${i}]`)
+      return out.join(" ")
+    })
     .replace(/\[S(\d+)(?:(?:\s*,\s*|\s+y\s+)S?(\d+))+\]/gi, (match) => {
       const ids = [...match.matchAll(/S?(\d+)/gi)].map((m) => `[S${m[1]}]`)
       return ids.join(" ")

@@ -202,9 +202,10 @@ export function scoreTopicHeuristic(title: string, snippet: string): ScoringResu
  */
 export async function scoreTopicWithAI(title: string, snippet: string): Promise<ScoringResult> {
   const groqKey = process.env.GROQ_API_KEY
+  const deepseekKey = process.env.DEEPSEEK_API_KEY
   const openAiKey = process.env.OPENAI_API_KEY
 
-  if (!groqKey && !openAiKey) {
+  if (!groqKey && !deepseekKey && !openAiKey) {
     return scoreTopicHeuristic(title, snippet)
   }
 
@@ -237,6 +238,40 @@ Responde ÚNICAMENTE en formato JSON con la siguiente estructura exacta:
         },
         body: JSON.stringify({
           model: "llama-3.3-70b-versatile",
+          messages: [{ role: "user", content: prompt }],
+          temperature: 0.1,
+          response_format: { type: "json_object" },
+        }),
+        signal: AbortSignal.timeout(6000),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        const content = data.choices?.[0]?.message?.content
+        if (content) {
+          const parsed = JSON.parse(content)
+          return {
+            relevanceScore: Math.min(100, Math.max(0, Number(parsed.relevanceScore) || 50)),
+            category: parsed.category || "OTRO",
+            isRealInterest: Boolean(parsed.isRealInterest),
+            keyTopic: parsed.keyTopic || title,
+            justification: parsed.justification || "",
+            relatedClause: parsed.relatedClause || undefined,
+          }
+        }
+      }
+    }
+
+    if (deepseekKey) {
+      const baseUrl = (process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com").replace(/\/$/, "")
+      const response = await fetch(`${baseUrl}/chat/completions`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${deepseekKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: process.env.DEEPSEEK_MODEL || "deepseek-chat",
           messages: [{ role: "user", content: prompt }],
           temperature: 0.1,
           response_format: { type: "json_object" },

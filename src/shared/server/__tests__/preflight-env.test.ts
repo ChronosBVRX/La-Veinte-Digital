@@ -93,6 +93,17 @@ describe("Production Environment Preflight Validator", () => {
       expect(result.errors.some((e) => e.includes("idéntica"))).toBe(true)
     })
 
+    it("passes with DEEPSEEK_API_KEY even without OPENAI_API_KEY", () => {
+      const env = {
+        ...validProductionEnv,
+        OPENAI_API_KEY: undefined,
+        DEEPSEEK_API_KEY: "ds-live-mock-key-1234567890abcdef",
+      }
+      const result = validateProductionEnv(env)
+      expect(result.valid).toBe(true)
+      expect(result.errors).toHaveLength(0)
+    })
+
     it("rejects placeholder OPENAI_API_KEY", () => {
       const env = { ...validProductionEnv, OPENAI_API_KEY: "placeholder" }
       const result = validateProductionEnv(env)

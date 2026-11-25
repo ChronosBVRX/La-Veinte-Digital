@@ -87,14 +87,22 @@ export function validateProductionEnv(env: Record<string, string | undefined>): 
     errors.push("SUPABASE_SERVICE_ROLE_KEY no puede ser idéntica a NEXT_PUBLIC_SUPABASE_ANON_KEY.")
   }
 
-  // 4. OPENAI_API_KEY
+  // 4. Proveedor LLM principal (DEEPSEEK_API_KEY o OPENAI_API_KEY)
+  const deepseekKey = env.DEEPSEEK_API_KEY?.trim()
   const openaiKey = env.OPENAI_API_KEY?.trim()
-  if (!openaiKey) {
-    errors.push("OPENAI_API_KEY es obligatoria y está ausente o vacía.")
-  } else if (isPlaceholder(openaiKey) || openaiKey.length < 20) {
-    errors.push("OPENAI_API_KEY contiene un valor placeholder o longitud insuficiente.")
-  } else if (!openaiKey.startsWith("sk-")) {
-    warnings.push("OPENAI_API_KEY no comienza con el prefijo estándar 'sk-'.")
+  if (!deepseekKey && !openaiKey) {
+    errors.push("Se requiere DEEPSEEK_API_KEY (o OPENAI_API_KEY) y está ausente o vacía.")
+  } else {
+    if (deepseekKey && (isPlaceholder(deepseekKey) || deepseekKey.length < 20)) {
+      errors.push("DEEPSEEK_API_KEY contiene un valor placeholder o longitud insuficiente.")
+    }
+    if (openaiKey) {
+      if (isPlaceholder(openaiKey) || openaiKey.length < 20) {
+        errors.push("OPENAI_API_KEY contiene un valor placeholder o longitud insuficiente.")
+      } else if (!openaiKey.startsWith("sk-")) {
+        warnings.push("OPENAI_API_KEY no comienza con el prefijo estándar 'sk-'.")
+      }
+    }
   }
 
   // 5. CRON_SECRET (Recomendado en producción para rutas /api/cron/*)

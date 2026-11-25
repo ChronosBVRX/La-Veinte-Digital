@@ -83,6 +83,9 @@ describe("POST /api/consulta", () => {
     vi.stubGlobal("crypto", { randomUUID: () => "test-uuid" })
     process.env.OPENAI_API_KEY = "sk-test"
     process.env.OPENAI_EMBEDDING_MODEL = "text-embedding-3-small"
+    delete process.env.LLM_PROVIDER
+    delete process.env.DEEPSEEK_API_KEY
+    delete process.env.DEEPSEEK_MODEL
     delete process.env.BOT_API_URL
     delete process.env.BOT_API_SHARED_SECRET
 
@@ -259,6 +262,100 @@ describe("POST /api/consulta", () => {
     const data = await res.json()
     expect(Array.isArray(data.chips)).toBe(true)
     expect(data.chips.some((c: string) => c.includes("Horas Extra"))).toBe(true)
+  })
+
+  it("soporta LLM_PROVIDER=deepseek con DEEPSEEK_API_KEY aunque no exista OPENAI_API_KEY", async () => {
+    standardSetup()
+    delete process.env.OPENAI_API_KEY
+    process.env.LLM_PROVIDER = "deepseek"
+    process.env.DEEPSEEK_API_KEY = "ds-test-key"
+    process.env.DEEPSEEK_MODEL = "deepseek-chat"
+
+    const res = await POST(jsonRequest({ history: [{ role: "user", content: "¿Cuántos días de vacaciones tengo?" }] }))
+    expect(res.status).toBe(200)
+    const data = await res.json()
+    expect(data.respuesta).toContain("[S1]")
+    expect(mockChatCompletionsCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ model: "deepseek-chat" }),
+      expect.anything(),
+    )
+  })
+
+  it("prioriza DeepSeek como fuente de verdad aunque exista una OPENAI_API_KEY residual en el entorno", async () => {
+    standardSetup()
+    process.env.OPENAI_API_KEY = "sk-old-empty-credits"
+    process.env.DEEPSEEK_API_KEY = "ds-test-key"
+    process.env.DEEPSEEK_MODEL = "deepseek-chat"
+
+    const res = await POST(jsonRequest({ history: [{ role: "user", content: "¿Cuántos días de vacaciones tengo?" }] }))
+    expect(res.status).toBe(200)
+    expect(mockChatCompletionsCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ model: "deepseek-chat" }),
+      expect.anything(),
+    )
+  })
+
+  it("responde definición de concepto (ej. concepto 022) aunque el trabajador aún no tenga tarjetón subido", async () => {
+    standardSetup()
+    const res = await POST(jsonRequest({ history: [{ role: "user", content: "¿Qué es el concepto 022 en mi tarjetón?" }] }))
+    expect(res.status).toBe(200)
+    const data = await res.json()
+    expect(data.fuentes.some((f: { documento: string }) => f.documento.includes("Concepto 022"))).toBe(true)
+    expect(mockChatCompletionsCreate).toHaveBeenCalledTimes(1)
+  })
+
+  it("conserva el contexto del turno previo en seguimientos anafóricos aunque sean SPECIFIC_TOPIC", async () => {
+    standardSetup()
+    await POST(
+      jsonRequest({
+        history: [
+          { role: "user", content: "Soy técnico radiólogo 08 y llevo 6 meses" },
+          { role: "assistant", content: "Con gusto te oriento [S1]." },
+          { role: "user", content: "¿Y cuántos días de vacaciones me corresponden?" },
+        ],
+      }),
+    )
+    expect(retrieveHybrid).toHaveBeenCalledWith(
+      expect.stringContaining("Soy técnico radiólogo 08"),
+      expect.anything(),
+      "SPECIFIC_TOPIC",
+      expect.anything(),
+      8,
+      "¿Y cuántos días de vacaciones me corresponden?",
+    )
+  })
+
+  it("NO permite que worker_tarjeton burle el fail-closed en preguntas fuera de tema", async () => {
+    vi.mocked(requireUser).mockResolvedValue({ user: MOCK_USER, response: null } as never)
+    const fakeSupabase = {
+      rpc: vi.fn().mockResolvedValue({ data: true, error: null }),
+      from: vi.fn((table: string) => {
+        const chain: Record<string, unknown> = {
+          select: () => chain,
+          eq: () => chain,
+          order: () => chain,
+          limit: () => chain,
+          maybeSingle: async () =>
+            table === "profiles"
+              ? { data: { full_name: "Ana Pérez", matricula: "123", categoria: "ENFERMERA", antiguedad: "5", adscripcion: "HGR" }, error: null }
+              : table === "imported_payslips"
+                ? { data: { id: "ps-1", period_raw: "1A-OCT-2026", employee_number: "123", total_earnings: 12000, total_deductions: 2000, net_pay: 10000 }, error: null }
+                : { data: null, error: null },
+          then: (resolve: (val: unknown) => void) => resolve({ data: [], error: null }),
+        }
+        return chain
+      }),
+    }
+    vi.mocked(createClient).mockResolvedValue(fakeSupabase as never)
+    vi.mocked(embedQueryLru).mockResolvedValue({ embedding: new Array(1536).fill(0.01), skipped: false, cacheHit: false, ms: 10 })
+    vi.mocked(retrieveHybrid).mockResolvedValue({ sources: [], rpcMs: 15, rpcCalls: 1 })
+
+    const res = await POST(jsonRequest({ history: [{ role: "user", content: "¿Cuál es la capital de Francia?" }] }))
+    expect(res.status).toBe(200)
+    const data = await res.json()
+    expect(data.respuesta).toBe(NO_EVIDENCE_RESPONSE)
+    expect(data.fuentes).toEqual([])
+    expect(mockChatCompletionsCreate).not.toHaveBeenCalled()
   })
 })
 

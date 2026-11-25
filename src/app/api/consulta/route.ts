@@ -23,6 +23,8 @@ import {
 } from "@/features/asistente/lib/worker-context-adapter"
 import {
   isWorkerContextQuery,
+  isPersonalPayslipReadQuery,
+  isBenefitPersonalizableQuery,
   buildTarjetonSource,
   findTarjetonGuideSource,
 } from "@/features/asistente/lib/tarjeton-knowledge"
@@ -49,10 +51,53 @@ type QuotaResult = "allowed" | "exceeded" | "error"
 const CITATION_FAILED_RESPONSE =
   "¡Con mucho gusto te apoyo, compañero! 😊 Para darte el dato exacto y seguro de nuestro Contrato Colectivo, cuéntame un poquito más de detalle (por ejemplo: el nombre de tu puesto o categoría, tu jornada de 6.5 u 8 horas, o qué trámite quieres revisar). ¡Aquí estoy para orientarte paso a paso!"
 
-function getOpenAI() {
-  const apiKey = process.env.OPENAI_API_KEY
-  if (!apiKey) throw new Error("OPENAI_API_KEY no está configurada")
-  return new OpenAI({ apiKey })
+interface ResolvedConsultaLLM {
+  client: OpenAI
+  model: string
+  provider: string
+}
+
+function resolveConsultaLLM(): ResolvedConsultaLLM {
+  const deepseekKey = process.env.DEEPSEEK_API_KEY?.trim()
+  const openaiKey = process.env.OPENAI_API_KEY?.trim()
+  const customBaseUrl = process.env.OPENAI_BASE_URL?.trim()
+  const explicitProvider = (process.env.LLM_PROVIDER ?? ASSISTANT_POLICY.llmProvider ?? "").toLowerCase().trim()
+
+  // DeepSeek es la fuente de verdad principal salvo que se fuerce explícitamente openai sin deepseek o en pruebas aisladas.
+  if (explicitProvider === "openai" && openaiKey) {
+    return {
+      client: new OpenAI({
+        apiKey: openaiKey,
+        ...(customBaseUrl ? { baseURL: customBaseUrl } : {}),
+      }),
+      model: process.env.OPENAI_CHAT_MODEL?.trim() || process.env.OPENAI_MODEL?.trim() || ASSISTANT_POLICY.chatModel,
+      provider: customBaseUrl ? "custom" : "openai",
+    }
+  }
+
+  if (deepseekKey) {
+    return {
+      client: new OpenAI({
+        apiKey: deepseekKey,
+        baseURL: process.env.DEEPSEEK_BASE_URL?.trim() || ASSISTANT_POLICY.deepseekBaseUrl,
+      }),
+      model: process.env.DEEPSEEK_MODEL?.trim() || ASSISTANT_POLICY.deepseekModel,
+      provider: "deepseek",
+    }
+  }
+
+  if (openaiKey) {
+    return {
+      client: new OpenAI({
+        apiKey: openaiKey,
+        ...(customBaseUrl ? { baseURL: customBaseUrl } : {}),
+      }),
+      model: process.env.OPENAI_CHAT_MODEL?.trim() || process.env.OPENAI_MODEL?.trim() || ASSISTANT_POLICY.chatModel,
+      provider: customBaseUrl ? "custom" : "openai",
+    }
+  }
+
+  throw new Error("DEEPSEEK_API_KEY (o OPENAI_API_KEY de respaldo) no están configuradas")
 }
 
 function newRequestId(): string {
@@ -114,20 +159,34 @@ function baseObservability(intent: MotorObservability["intent"]): MotorObservabi
   }
 }
 
-function getQueryForRetrieval(history: ConsultaMessage[], question: string, intent: ReturnType<typeof classifyRetrievalIntent>): string {
-  if (intent !== "FOLLOW_UP") return question
-  // FOLLOW_UP muy corto ("y si?", "ya tengo mensajes") pierde contexto para FTS/vector.
-  // Hereda la última pregunta sustantiva del historial para que el retrieval siga en el mismo caso.
+function getQueryForRetrieval(
+  history: ConsultaMessage[],
+  rawQuestion: string,
+  expandedOrLexical: string,
+  intent: ReturnType<typeof classifyRetrievalIntent>,
+): string {
+  const words = rawQuestion.trim().split(/\s+/).length
+  const startsConnective = history.length >= 3 && /^¿?\s*(y|pero|entonces|ahora\s+bien)\b/i.test(rawQuestion.trim())
+  const hasAnaphora =
+    startsConnective ||
+    /\b(eso|es[ae]|mismo|tambi[eé]n|en ese caso|y para|y en|y de|me aplica|cu[aá]nto ser[ií]a|y si|y eso)\b/i.test(
+      rawQuestion,
+    ) ||
+    (history.length >= 3 && words <= 6)
+
+  if (intent !== "FOLLOW_UP" && !hasAnaphora) return expandedOrLexical
+  // FOLLOW_UP o seguimiento anafórico hereda la última pregunta sustantiva del historial
+  // para mantener el tema del caso en FTS y búsqueda vectorial.
   for (let i = history.length - 2; i >= 0; i--) {
     const m = history[i]
     if (m.role !== "user") continue
     const c = m.content.trim()
     if (c.length < 10) continue
     const prevIntent = classifyRetrievalIntent(c)
-    if (prevIntent !== "FOLLOW_UP") return `${c}\n${question}`
+    if (prevIntent !== "FOLLOW_UP") return `${c}\n${expandedOrLexical}`
   }
-  const prev = [...history].reverse().find((m) => m.role === "user" && m.content.trim() !== question.trim())
-  return prev ? `${prev.content.trim()}\n${question}` : question
+  const prev = [...history].reverse().find((m) => m.role === "user" && m.content.trim() !== rawQuestion.trim())
+  return prev ? `${prev.content.trim()}\n${expandedOrLexical}` : expandedOrLexical
 }
 
 async function respondDirect(
@@ -140,25 +199,29 @@ async function respondDirect(
   const t0 = performance.now()
   const intent = classifyRetrievalIntent(question)
   const { expandedQuery, lexicalQuery } = normalizeForRetrieval(question, workerProfile)
-  const retrievalQuery = getQueryForRetrieval(history, expandedQuery, intent)
-  const ftsQuery = getQueryForRetrieval(history, lexicalQuery, intent)
+  const retrievalQuery = getQueryForRetrieval(history, question, expandedQuery, intent)
+  const ftsQuery = getQueryForRetrieval(history, question, lexicalQuery, intent)
   const obs = baseObservability(intent)
   try {
-    const openai = getOpenAI()
+    const llm = resolveConsultaLLM()
+    obs.provider = llm.provider
+    obs.model = llm.model
     const refs = extractExactRefs(retrievalQuery)
 
     // ── 1. FAST PATH: EXACT_LOOKUP → 0 embedding, 0 LLM ──
     if (intent === "EXACT_LOOKUP") {
-      const { sources } = await retrieveHybrid(ftsQuery, null, intent, refs, 3, question)
+      const { sources, rpcMs } = await retrieveHybrid(ftsQuery, null, intent, refs, 3, question)
       obs.fastPath = true
       obs.embeddingSkipped = true
       obs.evidenceCount = sources.length
       obs.evidenceChars = sources.reduce((a, s) => a + s.fragmento.length, 0)
-      obs.retrievalMs = 0 // no medido en fastpath sin embedding
+      obs.retrievalMs = rpcMs
       obs.totalMs = performance.now() - t0
-      // respuesta determinista server-side (sin LLM)
-      const respuesta = fastLookupAnswer(sources)
-      return privateJson({ respuesta, fuentes: fuentesPayload(sources, sources[0] ? [sources[0].id] : []), chips: [] })
+      const toolChips = recommendPlatformTools(question).map((t) => t.chipLabel).slice(0, 3)
+      const { respuesta, citedIds } = fastLookupAnswer(sources)
+      obs.citationValidationPassed = citedIds.length > 0
+      logObservability(requestId, userId, obs)
+      return privateJson({ respuesta, fuentes: fuentesPayload(sources, citedIds), chips: toolChips })
     }
 
     // ── 2. EMBEDDING (LRU) ──
@@ -173,12 +236,13 @@ async function respondDirect(
 
     // ── 3.1 ENRIQUECIMIENTO CON EXPEDIENTE/TARJETÓN Y GUÍA DE CONCEPTOS ──
     const isPersonalTarjetonQuery = isWorkerContextQuery(question)
+    const guideSrc = findTarjetonGuideSource(question, workerProfile)
 
-    // Si el usuario pregunta expresamente por su tarjetón o cobro pero aún no ha subido tarjetón
+    // Si el usuario pide leer cifras personales de SU tarjetón/cobro pero aún no ha subido uno
     if (
-      isPersonalTarjetonQuery &&
+      isPersonalPayslipReadQuery(question) &&
       !workerProfile?.hasTarjeton &&
-      /\b(tarjet[oó]n|recibo|n[oó]mina|cu[aá]nto\s+(?:me\s+)?(?:gano|cobro|cobr[eé]|lleg[oó]|pagan|pagaron|depositan|descontaron)|mis\s+(?:deducciones|percepciones|marcas))\b/i.test(question)
+      !guideSrc
     ) {
       obs.totalMs = performance.now() - t0
       const nombrePila = workerProfile?.nombre ? ` ${workerProfile.nombre.trim().split(" ")[0]}` : ""
@@ -192,35 +256,40 @@ async function respondDirect(
     }
 
     const contextualSources: RetrievedSource[] = []
-    if (workerProfile?.tarjeton && (isPersonalTarjetonQuery || Boolean(workerProfile.tarjeton.periodo))) {
+    if (workerProfile?.tarjeton && (isPersonalTarjetonQuery || isBenefitPersonalizableQuery(question))) {
       const tarjetonSrc = buildTarjetonSource(workerProfile)
       if (tarjetonSrc) contextualSources.push(tarjetonSrc)
     }
-
-    const guideSrc = findTarjetonGuideSource(question)
     if (guideSrc) contextualSources.push(guideSrc)
 
-    const sources = [...contextualSources, ...rawSources]
-    sources.forEach((s, i) => (s.id = `S${i + 1}`))
-
-    obs.evidenceCount = sources.length
-    obs.evidenceChars = sources.reduce((a, s) => a + s.fragmento.length, 0)
-
     // ── 4. FAIL CLOSED: 0 evidence o evidencia irrelevante → 0 LLM ──
-    // Umbral de relevancia calibrado según backend (RRF ~10..60 vs suma legacy ~140..1000)
-    const isRrf =
-      sources.length > 0 &&
-      Boolean(sources[0].origin && (sources[0].origin.includes("rrf") || sources[0].origin.includes("+")))
-    const minScore = isRrf ? 10 : 140
+    // Evaluar relevancia real sobre rawSources (sin dejar que worker_tarjeton tape preguntas fuera de tema).
+    const rawIsRrf =
+      rawSources.length > 0 &&
+      Boolean(rawSources[0].origin && (rawSources[0].origin.includes("rrf") || rawSources[0].origin.includes("+")))
+    const rawMinScore = rawIsRrf ? 10 : 140
+    const rawScoreOk = rawSources.length > 0 && rawSources[0].score >= rawMinScore
+    const curatedOk = Boolean(guideSrc) || (isPersonalTarjetonQuery && Boolean(workerProfile?.tarjeton))
+
     const ac = classifyAcompañamiento(question, intent)
     const toolRecs = recommendPlatformTools(question)
     const toolChips = toolRecs.map((t) => t.chipLabel)
     const chips = [...new Set([...toolChips, ...ac.chips])].slice(0, 4)
 
-    if (sources.length === 0 || sources[0].score < minScore) {
+    if (!rawScoreOk && !curatedOk) {
       obs.totalMs = performance.now() - t0
       return privateJson({ respuesta: NO_EVIDENCE_RESPONSE, fuentes: [], chips })
     }
+
+    // Si la respuesta se apoya en evidencia curada, evitar mezclar chunks normativos débiles por debajo del umbral
+    const filteredRaw = rawScoreOk
+      ? rawSources
+      : rawSources.filter((s) => s.score >= (rawIsRrf ? 8 : 90))
+    const sources = [...contextualSources, ...filteredRaw].slice(0, 8)
+    sources.forEach((s, i) => (s.id = `S${i + 1}`))
+
+    obs.evidenceCount = sources.length
+    obs.evidenceChars = sources.reduce((a, s) => a + s.fragmento.length, 0)
 
     // ── 5. CONTEXTO COMPACTO + PROMPT DINÁMICO CON PERFIL DEL TRABAJADOR ──
     const compactEvidence = buildCompactEvidence(sources)
@@ -240,7 +309,7 @@ async function respondDirect(
 
     // ── 6. LLM (1 llamada) con presupuesto de salida ──
     const maxTokens = outputTokensForIntent(intent)
-    const comp = await runCompletion(openai, messages as OpenAI.Chat.Completions.ChatCompletionMessageParam[], maxTokens)
+    const comp = await runCompletion(llm, messages as OpenAI.Chat.Completions.ChatCompletionMessageParam[], maxTokens)
     obs.llmTtftMs = comp.ttft
     obs.llmTotalMs = comp.total
     if (comp.provider) obs.provider = comp.provider
@@ -263,7 +332,7 @@ async function respondDirect(
         },
         ...messages.slice(1),
       ] as OpenAI.Chat.Completions.ChatCompletionMessageParam[]
-      const regen = await runCompletion(openai, regenMessages, maxTokens)
+      const regen = await runCompletion(llm, regenMessages, maxTokens)
       if (regen.text) obs.llmTotalMs += regen.total
       regenText = regen.text ?? null
     }
@@ -301,11 +370,20 @@ async function respondDirect(
   }
 }
 
-function fastLookupAnswer(sources: RetrievedSource[]): string {
-  if (sources.length === 0) return NO_EVIDENCE_RESPONSE
-  const s = sources[0]
-  const loc = [s.numero, s.paginaInicio != null ? `pág. ${s.paginaInicio}` : null].filter(Boolean).join(" · ")
-  return `¡Con gusto, compañero! 😊 Esto es lo que establece nuestro documento oficial:\n\n**[S1] ${s.documento}${loc ? ` · ${loc}` : ""}**\n${s.fragmento}`
+function fastLookupAnswer(sources: RetrievedSource[]): { respuesta: string; citedIds: string[] } {
+  if (sources.length === 0) return { respuesta: NO_EVIDENCE_RESPONSE, citedIds: [] }
+  const first = sources[0]
+  const sameSection = sources
+    .slice(0, 2)
+    .filter((s) => s.documentId === first.documentId && s.numero === first.numero)
+  const citedIds = sameSection.map((s) => s.id)
+  const loc = [first.numero, first.paginaInicio != null ? `pág. ${first.paginaInicio}` : null].filter(Boolean).join(" · ")
+  const combinedText = sameSection.map((s) => s.fragmento.trim()).join("\n\n")
+  const vigenciaNote = first.pendingReview ? " · [VIGENCIA POR REVISAR]" : ""
+  return {
+    respuesta: `¡Con gusto, compañero! 😊 Esto es lo que establece nuestro documento oficial:\n\n**[S1] ${first.documento}${loc ? ` · ${loc}` : ""}${vigenciaNote}**\n${combinedText}`,
+    citedIds,
+  }
 }
 
 /**
@@ -327,15 +405,15 @@ function buildPositiveSourceFallback(sources: RetrievedSource[]): { respuesta: s
 }
 
 async function runCompletion(
-  openai: OpenAI,
+  llm: ResolvedConsultaLLM,
   messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
   maxTokens: number,
 ): Promise<{ text: string; ttft: number; total: number; provider?: string; model?: string }> {
   const t = performance.now()
   try {
     const stream = await withAbortTimeout(ASSISTANT_POLICY.completionTimeoutMs, (signal) =>
-      openai.chat.completions.create(
-        { model: ASSISTANT_POLICY.chatModel, temperature: 0, messages, stream: true, max_tokens: maxTokens },
+      llm.client.chat.completions.create(
+        { model: llm.model, temperature: 0, messages, stream: true, max_tokens: maxTokens },
         { signal },
       ),
     )
@@ -346,7 +424,7 @@ async function runCompletion(
       if (delta && ttft === 0) ttft = performance.now() - t
       if (delta) text += delta
     }
-    return { text, ttft, total: performance.now() - t, provider: "openai", model: ASSISTANT_POLICY.chatModel }
+    return { text, ttft, total: performance.now() - t, provider: llm.provider, model: llm.model }
   } catch (err) {
     const localUrl = process.env.LOCAL_LLM_URL || (process.env.NODE_ENV === "production" ? "http://127.0.0.1:11434" : null)
     if (localUrl) {
